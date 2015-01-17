@@ -152,6 +152,14 @@ public class OpenTsdb {
 	}
 	
 	/**
+	 * Returns an id string displaying the host and app name
+	 * @return the id string
+	 */
+	public String getId() {
+		return getAppName() + "@" + getHostName();
+	}
+	
+	/**
 	 * Resets the cached app and host names
 	 */
 	void resetNames() {

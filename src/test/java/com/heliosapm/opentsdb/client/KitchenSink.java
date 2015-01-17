@@ -35,6 +35,7 @@ import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
 //import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 //import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 //import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
@@ -74,7 +75,7 @@ public class KitchenSink {
 	final Timer timer = registry.timer(name(getClass().getSimpleName(), "cmtype=Timer", "op=cache-evictions", "service=cacheservice"));
 	
 	final OpenTsdbReporter reporter;
-	final JmxReporter jmxReporter;
+	JmxReporter jmxReporter;
 	// =============================================================
 	//  JVM Monitors
 	// =============================================================
@@ -90,7 +91,7 @@ public class KitchenSink {
 	 * Creates a new KitchenSink
 	 */
 	public KitchenSink() {
-		registry.register(name(getClass().getSimpleName(), "cmtype=Gauge", "attr=cache-size", "service=cacheservice"), cacheSizeGauge);
+		registry.register(name(getClass().getSimpleName(), "cmtype=Gauge", ",attr=cache-size", "service=cacheservice"), cacheSizeGauge);
 		final Map<String, String> rootTags = new HashMap<String, String>();
 		rootTags.put("host", "PP-WK-NWHI-01.cpex.com".toLowerCase());
 		rootTags.put("app", "ptms");		
@@ -105,9 +106,9 @@ public class KitchenSink {
 			bufferPoolMonitor = null;
 		}
 		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());		
-		jmxReporter = JmxReporter.forRegistry(registry).createsObjectNamesWith(new OpenTsdbObjectNameFactory()).build();
+//		jmxReporter = JmxReporter.forRegistry(registry).createsObjectNamesWith(new OpenTsdbObjectNameFactory()).build();
 		reporter.start(5, TimeUnit.SECONDS);		
-		jmxReporter.start();
+//		jmxReporter.start();
 		Threading.getInstance().schedule(new Runnable(){
 			final Random random = new Random(System.currentTimeMillis());
 			public void run() {
@@ -131,6 +132,10 @@ public class KitchenSink {
 		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
 		System.setProperty("tsdb.threadpool.size", "60");
 		System.setProperty("tsdb.http.compression.enabled", "true");
+		System.setProperty(Constants.PROP_SUPPRESS_BAD_METRICS, "true");
+		System.setProperty(Constants.PROP_TRACK_COUNTS_ONLY, "false");
+		
+		
 		System.out.println("Host:" + OpenTsdb.getInstance().getHostName());
 		System.out.println("App:" + OpenTsdb.getInstance().getAppName());
 		

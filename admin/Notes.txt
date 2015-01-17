@@ -1,7 +1,6 @@
 Custom Max Persist File Size (defaults to Integer.MAX_VALUE), plus total storage Max
 OpenTSDBMetricRegistry  (NonBlocking or GuavaCache ?)
 OpenTSDBMetricRegistry static tagging methods
-
  - Allow multiple TSDB endpoints, comma separated: Failover [or round-robin ?, load-balance ?]	
  - Periodically send updates of metric metas to server
 	
@@ -23,5 +22,4 @@ Rate Meters
 Timers	 
 
 
-Need to control max # of requests when flushing to server.
-Example error:  WARNING: Failed to send tmp file [/home/nwhitehead/.tsdb-metrics/KitchenSink/inprocess-offlinemetrics11191736918564783100.tmp]:java.io.IOException: Too many connections 15
+

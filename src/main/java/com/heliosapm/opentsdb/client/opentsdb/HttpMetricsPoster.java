@@ -60,7 +60,9 @@ import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.buffer.DirectChannelBufferFactory;
 import org.jboss.netty.buffer.DynamicChannelBuffer;
 import org.jboss.netty.handler.codec.http.HttpHeaders.Names;
+import org.json.JSONObject;
 
+import com.heliosapm.opentsdb.client.opentsdb.AnnotationBuilder.TSDBAnnotation;
 import com.heliosapm.opentsdb.client.opentsdb.EmptyAsyncHandler.FinalHookAsyncHandler;
 import com.heliosapm.opentsdb.client.util.Util;
 import com.ning.http.client.AsyncHandler;
@@ -297,6 +299,57 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	}
 	
 	/**
+	 * Posts a built OpenTSDB annotation 
+	 * @param annotation The annotation to send
+	 * TODO:  need annotation post stats and need to implement support for them in the MetricStore
+	 */
+	public void sendAnnotation(final TSDBAnnotation annotation) {
+		if(annotation==null) throw new IllegalArgumentException("The passed annotation was null");
+		if(hardDown.get()) {
+			log.warning("OpenTSDB Annotation post dropped since endpoint was hard down. Store&Forward for Annotations coming soon");
+		}
+		try {			
+			httpClient.preparePost(tsdbUrl + "/api/annotation")
+				.setHeader(Names.CONTENT_TYPE, "application/json")							
+				.setBody(annotation.toJSON())
+				.execute(new AsyncHandler<String>(){
+					int completionCode = -1;
+					@Override
+					public void onThrowable(final Throwable t) {
+						log.log(Level.WARNING, "Failed to post Annotation", t);
+					}
+
+					@Override
+					public STATE onBodyPartReceived(final HttpResponseBodyPart bodyPart) throws Exception {
+						return null;
+					}
+
+					@Override
+					public STATE onStatusReceived(final HttpResponseStatus responseStatus) throws Exception {
+						completionCode = responseStatus.getStatusCode();
+						return null;
+					}
+
+					@Override
+					public STATE onHeadersReceived(final HttpResponseHeaders headers) throws Exception {
+						return null;
+					}
+
+					@Override
+					public String onCompleted() throws Exception {
+						log.info("Annotation Post Complete: code:" + completionCode);
+						return null;
+					}
+					
+				});
+		} catch (Exception ex) {
+			log.log(Level.WARNING, "Failed to post Annotation", ex);
+			// TODO: handle annotation post fail
+		}
+	}
+
+	
+	/**
 	 * Submits a retry
 	 * @param body Thge body to send
 	 * @param metricCount The number of metrics in the body
@@ -435,7 +488,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		}
 	}
 	
-	private void throwAsyncHandlers(final Throwable t, final AsyncHandler<Object>...handlers) {
+	private static void throwAsyncHandlers(final Throwable t, final AsyncHandler<Object>...handlers) {
 		if(handlers==null || handlers.length==0) return;
 		for(AsyncHandler<Object> handler: handlers) {
 			if(handler==null) continue;
@@ -579,12 +632,32 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 								doDetailStats(resp);
 								if(resp.length()>0) {
 									// log errors
+									log.warning("Metrics Rejected by OpenTSDB:" + resp);
 									if(badMetricsLogger.isLoggable(badLevel)) {
 										log.log(badLevel, "Metrics Rejected by OpenTSDB:{0}", resp);
+																				
 									}
 									if(suppressBadMetrics) {
 										// index the bad metric names and filter them
 										// TODO:
+										/*
+										 * Bad metric responses look like this:
+												{
+												  "datapoint": {
+												    "tags": {
+												      "service": "cacheservice",
+												      ",attr": "cache-size"
+												    },
+												    "timestamp": 1421536767,
+												    "metric": "KitchenSink.value",
+												    "value": "572"
+												  },
+												  "error": "Invalid tag name (\",attr\"): illegal character: ,"
+												}
+										 */
+										// build the original [bad] metric name
+										// figure out which registry it's in amd yank it
+										// send jmx notification with simplified message:  BAD METRIC: XXX, ERROR: YYY
 									}
 								}
 							}
@@ -633,8 +706,13 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 			m = DETAILS_WITH_ERRORS_PATTERN.matcher(sb);
 			if(m.matches()) {
 				// we got fails, yo
+				
 				counts = getCountsFromMatcher(m);
-				String s = m.group(3).trim();
+				String s = m.group(1).trim();
+				System.out.println("==============\n" + s + "\n==============");
+				try {
+					System.out.println(new JSONObject(s).toString(2));
+				} catch (Exception ex) {}
 				sb.delete(0, sb.length()-1).append(s);
 			}
 		}
@@ -703,13 +781,19 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	 * @see com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.ConnectivityListener#onConnected()
 	 */
 	@Override
-	public void onConnected() {
+	public void onConnected() {		
 		if(hardDown.compareAndSet(true, false)) {
 			log.info("\n\t=================\n\tTSDB Connected\n\t[" + tsdbUrl + "]\n\t=================\n");			
 			if(objectName!=null) {
 				final Notification notif = new Notification(NOTIF_CONNECTED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Connected to OpenTSDB@[" + tsdbUrl + "]");
 				sendNotification(notif);
 			}
+			sendAnnotation(new AnnotationBuilder((int)(System.currentTimeMillis()/1000))
+				.setDescription("Java Client [" + OpenTsdb.getInstance().getId() + "] Connected")
+				.setCustom(Constants.APP_TAG, OpenTsdb.getInstance().getAppName())
+				.setCustom(Constants.HOST_TAG, OpenTsdb.getInstance().getHostName())
+				.build()
+			);
 			mpersistor.flushToServer(this);
 		}
 	}

@@ -29,13 +29,6 @@ import java.util.regex.Pattern;
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.Constants</code></p>
  */
 
-/**
- * <p>Title: Constants</p>
- * <p>Description: </p> 
- * <p>Company: Helios Development Group LLC</p>
- * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.opentsdb.Constants</code></p>
- */
 public interface Constants {
 	/** The JVM's PID */
 	public static final String SPID = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
