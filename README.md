@@ -13,7 +13,7 @@ CSF is a java library to provide an agent that combines implementations of the f
 TBD
 
 ### Getting Started
-- Clone the project (on most planets, this means ```git clone https://github.com/nickman/tsdb-csf```)
+- Clone the project (on most planets, this means ```git clone https://github.com/nickman/tsdb-csf.git```)
 - Navigate to the clone's directory
 - Build with *maven3*: ```mvn clean install```
  
