@@ -36,10 +36,11 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBufferInputStream;
 import org.jboss.netty.buffer.ChannelBufferOutputStream;
@@ -69,7 +70,8 @@ public class OffHeapFIFOFile {
 	/** The buffer factory for allocating composite buffers to stream reads and writes through offheap space */
 	private static final DirectChannelBufferFactory bufferFactory = new DirectChannelBufferFactory(4096);
 	
-	
+	/** Static class logger */
+	private static final Logger log = LogManager.getLogger(OffHeapFIFOFile.class);
 
 	/** An empty InputStream array const */
 	private static final InputStream[] EMPTY_IS_ARR = {};
@@ -172,7 +174,7 @@ public class OffHeapFIFOFile {
 			raf.seek(0);
 			return raf.readInt();
 		} catch (Exception ex) {
-			System.err.println("Failed to read entry size in FIFO file [" + this + "]:" + ex);
+			log.error("Failed to read entry size in FIFO file [" + this + "]:" + ex);
 			return -1;
 		} finally {
 			if(raf!=null) try { raf.close(); } catch (Exception x) {/* No Op */}
@@ -199,7 +201,7 @@ public class OffHeapFIFOFile {
 			buff = fc.map(MapMode.READ_ONLY, 0, 4);
 			return buff.getInt(0);			
 		} catch (Exception ex) {
-			System.err.println("Failed to read entry size from [" + file + "]:" + ex);
+			log.error("Failed to read entry size from [" + file + "]:" + ex);
 			return -1;
 		} finally {
 			clean(buff);
@@ -218,7 +220,7 @@ public class OffHeapFIFOFile {
 			buff = fc.map(MapMode.READ_WRITE, 0, 4);
 			buff.putInt(0, newSize);				
 		} catch (Exception ex) {
-			System.err.println("Failed to set entry size from [" + file + "]:" + ex);
+			log.error("Failed to set entry size from [" + file + "]:" + ex);
 			return;
 		} finally {
 			clean(buff);
@@ -236,7 +238,7 @@ public class OffHeapFIFOFile {
 			raf.seek(0);
 			raf.writeInt(newSize);
 		} catch (Exception ex) {
-			System.err.println("Failed to set entry size from [" + file + "]:" + ex);
+			log.error("Failed to set entry size from [" + file + "]:" + ex);
 			return;
 		}		
 	}
@@ -257,7 +259,7 @@ public class OffHeapFIFOFile {
 			buff.putInt(0, newSize);
 			return newSize;
 		} catch (Exception ex) {
-			System.err.println("Failed to increment entry size from [" + file + "]:" + ex);
+			log.error("Failed to increment entry size from [" + file + "]:" + ex);
 			return -1;
 		} finally {
 			clean(buff);
@@ -581,7 +583,7 @@ public class OffHeapFIFOFile {
 			outFc.truncate(bytesToRead);
 			long bytesWritten = fc.transferTo(fc.position(), bytesToRead, outFc);
 			if(bytesWritten != bytesToRead) {
-				System.err.println("Warning. Tmp File. Expected:" + bytesToRead + ", Actual:" + bytesWritten);
+				log.error("Warning. Tmp File. Expected:" + bytesToRead + ", Actual:" + bytesWritten);
 			} else {
 				fc.position(fc.position() + bytesToRead);
 			}
@@ -843,7 +845,7 @@ public class OffHeapFIFOFile {
 				/* No Op */
 			}
 		}
-		if(Constants.IS_WIN) System.err.println("Uncleaned MappedByteBuffer on Windows !!!!");
+		if(Constants.IS_WIN) log.error("Uncleaned MappedByteBuffer on Windows !!!!");
 	}
 	
 	/** The direct byte buff class */
@@ -869,7 +871,7 @@ public class OffHeapFIFOFile {
 			clazz = null;
 			m = null;
 			cm = null;
-			System.err.println("Failed to initialize DirectByteBuffer Cleaner:" + x + "\n\tNon-Fatal, will continue");
+			log.error("Failed to initialize DirectByteBuffer Cleaner:" + x + "\n\tNon-Fatal, will continue");
 		}
 		directByteBuffClass = clazz;
 		getCleanerMethod = m;
@@ -879,14 +881,14 @@ public class OffHeapFIFOFile {
 	
 	
 	public static void main(String[] args) {
-		Logger log = Logger.getLogger("FIFOFileTest");
+		Logger log = LogManager.getLogger("FIFOFileTest");
 		log.info("Fifo File Test");
 		final Random random = new Random(System.currentTimeMillis());
 		
 		File dir = new File(System.getProperty("user.home") + File.separator + ".tsdb-metrics");
 		if(!dir.exists()) {
 			if(!dir.mkdirs()) {
-				log.severe("Failed to create test dir");
+				log.error("Failed to create test dir");
 				return;
 			}
 		}

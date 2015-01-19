@@ -25,8 +25,8 @@ import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -58,7 +58,7 @@ import com.heliosapm.opentsdb.client.util.Util;
  */
 
 public class KitchenSink {
-	private final Logger log = LoggerFactory.getLogger(getClass());
+	private final Logger log = LogManager.getLogger(getClass());
 	// Gauge, Counter, Histogram, Meter, Timer
 	static final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
 	final MetricRegistry registry = new MetricRegistry();
@@ -91,7 +91,7 @@ public class KitchenSink {
 	 * Creates a new KitchenSink
 	 */
 	public KitchenSink() {
-		registry.register(name(getClass().getSimpleName(), "cmtype=Gauge", ",attr=cache-size", "service=cacheservice"), cacheSizeGauge);
+		registry.register(name(getClass().getSimpleName(), "cmtype=Gauge", "attr=cache-size", "service=cacheservice"), cacheSizeGauge);
 		final Map<String, String> rootTags = new HashMap<String, String>();
 		rootTags.put("host", "PP-WK-NWHI-01.cpex.com".toLowerCase());
 		rootTags.put("app", "ptms");		
@@ -106,9 +106,9 @@ public class KitchenSink {
 			bufferPoolMonitor = null;
 		}
 		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());		
-//		jmxReporter = JmxReporter.forRegistry(registry).createsObjectNamesWith(new OpenTsdbObjectNameFactory()).build();
+		jmxReporter = JmxReporter.forRegistry(registry).createsObjectNamesWith(new OpenTsdbObjectNameFactory()).build();
 		reporter.start(5, TimeUnit.SECONDS);		
-//		jmxReporter.start();
+		jmxReporter.start();
 		Threading.getInstance().schedule(new Runnable(){
 			final Random random = new Random(System.currentTimeMillis());
 			public void run() {
@@ -128,6 +128,7 @@ public class KitchenSink {
 	 * @param args
 	 */
 	public static void main(String[] args) {
+//		ConsoleOutHandler.init();
 //		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4242");
 		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
 		System.setProperty("tsdb.threadpool.size", "60");

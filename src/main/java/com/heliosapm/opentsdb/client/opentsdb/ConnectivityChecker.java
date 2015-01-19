@@ -21,8 +21,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.ning.http.client.AsyncCompletionHandler;
 import com.ning.http.client.AsyncHttpClient;
@@ -44,7 +46,7 @@ public class ConnectivityChecker implements Runnable {
 	/** The registered listeners */
 	protected final Set<ConnectivityListener> listeners = new CopyOnWriteArraySet<ConnectivityListener>();
 	/** The URL to check */
-	protected final String urlToCheck;
+	protected String urlToCheck;
 	/** The period, in seconds, to check the connection */
 	protected final int checkPeriod;
 	/** The connection timeout in ms. */
@@ -61,7 +63,7 @@ public class ConnectivityChecker implements Runnable {
 	/** The async http client to issue connectivity checks with */
 	protected final AsyncHttpClient httpClient;
 	/** Instance logger */
-	private final Logger log = Logger.getLogger(ConnectivityChecker.class.getName());
+	private final Logger log = LogManager.getLogger(ConnectivityChecker.class);
 
 	/**
 	 * Creates a new ConnectivityChecker with a new http client
@@ -130,7 +132,7 @@ public class ConnectivityChecker implements Runnable {
 	 */
 	public boolean syncCheck(final boolean processResult) {
 		try {
-			log.fine("Executing Connectivity Check [" + urlToCheck + "]");
+			log.debug("Executing Connectivity Check [{}]", urlToCheck);
 			final CountDownLatch latch = new CountDownLatch(1);
 			final Throwable[] throwable = new Throwable[1];
 			final HttpResponseStatus[] _response = new HttpResponseStatus[1];
@@ -147,7 +149,7 @@ public class ConnectivityChecker implements Runnable {
 						if(code < 200 && code >= 300) {
 							throwable[0] = new Exception("Connectivity Check to [" + urlToCheck + "] failed with [" + status.getStatusCode() + "/" + status.getStatusText() + "]");
 						} else {
-							if(log.isLoggable(Level.FINE))  log.fine("Connectivity Check OK:[" + urlToCheck + "]: Code: [" + code + "]");
+							log.debug("Connectivity Check OK:[{}]: Code: [{}]", urlToCheck, code);
 						}
 						latch.countDown();						
 						return STATE.CONTINUE;
@@ -176,7 +178,7 @@ public class ConnectivityChecker implements Runnable {
 				}
 				return false;
 			} catch (InterruptedException iex) {
-				log.warning("Connection Check Was Interrupted. No action taken");
+				log.warn("Connection Check Was Interrupted. No action taken");
 				return true;
 			}		
 			
@@ -275,13 +277,13 @@ public class ConnectivityChecker implements Runnable {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		final Logger LOG = Logger.getLogger("ConnectivityCheckerTest");
+		final Logger LOG = LogManager.getLogger("ConnectivityCheckerTest");
 //		ConnectivityChecker cc = new ConnectivityChecker("http://www.google.com", 3000, 500, 500, null, new ConnectivityListener(){
 		ConnectivityChecker cc = new ConnectivityChecker("http://localhost:8070", 3000, 500, 500, null, new ConnectivityListener(){
 
 			@Override
 			public void onDisconnected(Throwable t) {
-				LOG.log(Level.SEVERE, "ConnectionChecker Failed", t);				
+				LOG.log(Level.ERROR, "ConnectionChecker Failed", t);				
 			}
 
 			@Override
@@ -362,6 +364,24 @@ public class ConnectivityChecker implements Runnable {
 			/* Override Me */			
 		}
 		
+	}
+
+	/**
+	 * Returns the URL being checked
+	 * @return the URL
+	 */
+	public String getUrlToCheck() {
+		return urlToCheck;
+	}
+
+	/**
+	 * Sets the URL to check
+	 * @param urlToCheck the URL to check
+	 */
+	public void setUrlToCheck(final String urlToCheck) {
+		if(urlToCheck!=null && !urlToCheck.trim().isEmpty()) {
+			this.urlToCheck = urlToCheck;
+		}
 	}
 
 }

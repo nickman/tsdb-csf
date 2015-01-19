@@ -18,8 +18,9 @@ package com.heliosapm.opentsdb.client.opentsdb;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.Charset;
-import java.util.logging.Level;
 import java.util.regex.Pattern;
+
+import org.apache.logging.log4j.Level;
 
 /**
  * <p>Title: Constants</p>

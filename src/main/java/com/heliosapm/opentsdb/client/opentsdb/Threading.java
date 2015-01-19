@@ -24,9 +24,9 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jboss.netty.util.HashedWheelTimer;
 import org.jboss.netty.util.ThreadNameDeterminer;
 import org.jboss.netty.util.Timeout;
@@ -58,7 +58,7 @@ public class Threading {
 	/** The shared scheduler */
 	private final HashedWheelTimer scheduler;
 	/** Instance logger */
-	private final Logger log = Logger.getLogger(Threading.class.getName());
+	private final Logger log = LogManager.getLogger(getClass());
 	
 	
 
@@ -114,6 +114,7 @@ public class Threading {
 		scheduler = new HashedWheelTimer(schedulerThreadFactory, threadNameDeterminer, tickSize, TimeUnit.MILLISECONDS, wheelSize);
 		scheduler.start();
 		final Thread sdh = new Thread(getClass().getSimpleName() + "ShutDownHook") {
+			@Override
 			public void run() {
 				scheduler.stop();
 				threadPool.shutdown();
@@ -121,7 +122,7 @@ public class Threading {
 		};
 		sdh.setDaemon(true);
 		Runtime.getRuntime().addShutdownHook(sdh);
-		log.log(Level.INFO, "ThreadPoolAndScheduling Service Initialized\n\tThreadPool Size:{0}\n\tThreadPool QueueSize:{1}\n\tTick Size: {2}\n\tWheel Size: {3}", new Object[]{poolSize, qSize, tickSize, wheelSize});
+		log.info("ThreadPoolAndScheduling Service Initialized\n\tThreadPool Size:{}\n\tThreadPool QueueSize:{}\n\tTick Size: {}\n\tWheel Size: {}", poolSize, qSize, tickSize, wheelSize);
 	}
 	
 	/**
@@ -196,6 +197,7 @@ public class Threading {
 			@Override
 			public void run(final Timeout timeout) throws Exception {
 				threadPool.execute(new Runnable(){
+					@Override
 					public void run() {
 						try {
 							task.run();
@@ -238,22 +240,27 @@ public class Threading {
 		};
 		
 		
+		@Override
 		public Timer getTimer() {
 			return timeout.getTimer();
 		}
 
+		@Override
 		public TimerTask getTask() {
 			return timeout.getTask();
 		}
 
+		@Override
 		public boolean isExpired() {
 			return timeout.isExpired();
 		}
 
+		@Override
 		public boolean isCancelled() {
 			return timeout.isCancelled();
 		}
 
+		@Override
 		public void cancel() {
 			timeout.cancel();
 		}

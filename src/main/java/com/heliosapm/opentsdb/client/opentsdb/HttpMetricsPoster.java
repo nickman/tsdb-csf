@@ -45,8 +45,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -55,6 +53,9 @@ import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.buffer.DirectChannelBufferFactory;
@@ -94,9 +95,9 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	private static final Object lock = new Object();
 	
 	/** Instance logger */
-	private final Logger log = Logger.getLogger(HttpMetricsPoster.class.getName());
+	private final Logger log = LogManager.getLogger(getClass());
 	/** Bad metrics logger */
-	private final Logger badMetricsLogger = Logger.getLogger("tsdb-bad-metrics");
+	private final Logger badMetricsLogger = LogManager.getLogger("tsdb-bad-metrics");
 	
 	/** Indicates if connections are pooled (i.e. if KeepAlive is enabled) */
 	protected boolean poolConnections = confBool(PROP_POOL_CONNS, DEFAULT_POOL_CONNS);
@@ -266,7 +267,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 			log.info("Registered management MBean for HttpMetricsPoster: [" + on + "]");
 			return on;
 		} catch (Exception ex) {
-			log.log(Level.WARNING, "Failed to register management MBean for HttpMetricsPoster. Will Continue without:" + ex);
+			log.warn("Failed to register management MBean for HttpMetricsPoster. Will Continue without:" + ex);
 			return null;
 		}
 	}
@@ -306,7 +307,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	public void sendAnnotation(final TSDBAnnotation annotation) {
 		if(annotation==null) throw new IllegalArgumentException("The passed annotation was null");
 		if(hardDown.get()) {
-			log.warning("OpenTSDB Annotation post dropped since endpoint was hard down. Store&Forward for Annotations coming soon");
+			log.warn("OpenTSDB Annotation post dropped since endpoint was hard down. Store&Forward for Annotations coming soon");
 		}
 		try {			
 			httpClient.preparePost(tsdbUrl + "/api/annotation")
@@ -316,7 +317,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 					int completionCode = -1;
 					@Override
 					public void onThrowable(final Throwable t) {
-						log.log(Level.WARNING, "Failed to post Annotation", t);
+						log.warn("Failed to post Annotation:{}", annotation.toJSON(), t);
 					}
 
 					@Override
@@ -343,7 +344,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 					
 				});
 		} catch (Exception ex) {
-			log.log(Level.WARNING, "Failed to post Annotation", ex);
+			log.warn("Failed to post Annotation:{}", annotation.toJSON(), ex);
 			// TODO: handle annotation post fail
 		}
 	}
@@ -458,7 +459,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 			});
 		} catch (Exception ex) {
 			if(onComplete!=null) onComplete.onComplete(0);
-			log.warning("Failed to send tmp file [" + file + "]:" + ex);
+			log.warn("Failed to send tmp file [{}]:" + ex, file);
 			if(mbb[0]!=null) { OffHeapFIFOFile.clean(mbb[0]); mbb[0] = null; }				
 			if(!file.delete()) {
 				Util.sdhook(file);
@@ -486,6 +487,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 			successfulMetrics.compareAndSet(-1L, 0);
 			failedMetrics.compareAndSet(-1L, 0);			
 		}
+		if(checker!=null) checker.setUrlToCheck(tsdbUrl);
 	}
 	
 	private static void throwAsyncHandlers(final Throwable t, final AsyncHandler<Object>...handlers) {
@@ -629,11 +631,12 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 							if(trackCountsOnly) {
 								doSummaryStats(resp);
 							} else {
-								doDetailStats(resp);
+								int[] counts = doDetailStats(resp);
 								if(resp.length()>0) {
 									// log errors
-									log.warning("Metrics Rejected by OpenTSDB:" + resp);
-									if(badMetricsLogger.isLoggable(badLevel)) {
+									log.warn("Metrics Rejected by OpenTSDB:{}", resp);
+									
+									if(badMetricsLogger.isEnabled(badLevel)) {
 										log.log(badLevel, "Metrics Rejected by OpenTSDB:{0}", resp);
 																				
 									}
@@ -694,33 +697,39 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	/**
 	 * Extracts the failiure and success counts and the error json from the passed details response and increments the counters
 	 * @param sb The response stringy which the errs are put into if there are any. Otherwise it is truncated to zero length
+	 * @return the counts of failed submissions ([0]) and successful submissions ([1]).
 	 */
-	protected void doDetailStats(final StringBuilder sb) {
+	protected int[] doDetailStats(final StringBuilder sb) {
 		int[] counts = null;
 		Matcher m = DETAILS_PATTERN.matcher(sb);
 		if(m.matches()) {
 			// means no failures
 			counts = getCountsFromMatcher(m);
-			sb.delete(0, sb.length()-1);
+			sb.setLength(0);			
 		} else {
 			m = DETAILS_WITH_ERRORS_PATTERN.matcher(sb);
 			if(m.matches()) {
-				// we got fails, yo
-				
+				// we got fails, yo				
 				counts = getCountsFromMatcher(m);
 				String s = m.group(1).trim();
 				System.out.println("==============\n" + s + "\n==============");
 				try {
 					System.out.println(new JSONObject(s).toString(2));
 				} catch (Exception ex) {}
+				sb.setLength(0);
 				sb.delete(0, sb.length()-1).append(s);
 			}
 		}
 		if(counts!=null) {
 			failedMetrics.addAndGet(counts[0]);
 			successfulMetrics.addAndGet(counts[1]);
+			return counts;
 		}
+		return EMPTY_COUNTS;
 	}
+	
+	/** Empty counts const */
+	private static final int[] EMPTY_COUNTS = {0,0};
 	
 	/**
 	 * Extracts the failure and success counts from the passed matcher
@@ -766,7 +775,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	 */
 	@Override
 	public void onDisconnected(final Throwable t) {
-		log.warning("\n\t=================\n\tTSDB Disconnected\n\t[" + tsdbUrl + "]\n\t=================\n");
+		log.warn("\n\t=================\n\tTSDB Disconnected\n\t[{}]\n\t=================\n", tsdbUrl);
 		if(hardDown.compareAndSet(false, true)) {
 			if(objectName!=null) {
 				final Notification notif = new Notification(NOTIF_DISCONNECTED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Disconnected from OpenTSDB@[" + tsdbUrl + "]");
@@ -783,7 +792,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	@Override
 	public void onConnected() {		
 		if(hardDown.compareAndSet(true, false)) {
-			log.info("\n\t=================\n\tTSDB Connected\n\t[" + tsdbUrl + "]\n\t=================\n");			
+			log.info("\n\t=================\n\tTSDB Connected\n\t[{}]\n\t=================\n", tsdbUrl);			
 			if(objectName!=null) {
 				final Notification notif = new Notification(NOTIF_CONNECTED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Connected to OpenTSDB@[" + tsdbUrl + "]");
 				sendNotification(notif);
@@ -806,7 +815,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	@Override
 	public void onReconnected() {			
 		if(hardDown.compareAndSet(true, false)) {
-			log.info("\n\t=================\n\tTSDB Reconnected\n\t[" + tsdbUrl + "]\n\t=================\n");			
+			log.info("\n\t=================\n\tTSDB Reconnected\n\t[{}]\n\t=================\n", tsdbUrl);			
 			if(objectName!=null) {
 				final Notification notif = new Notification(NOTIF_RECONNECTED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Reconnected to OpenTSDB@[" + tsdbUrl + "]");
 				sendNotification(notif);

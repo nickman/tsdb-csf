@@ -16,7 +16,9 @@
 package com.heliosapm.opentsdb.client.opentsdb;
 
 import java.net.URI;
-import java.util.logging.Level;
+
+import org.apache.logging.log4j.Level;
+
 
 /**
  * <p>Title: ConfigurationReader</p>
@@ -107,9 +109,9 @@ public class ConfigurationReader {
 	 * @return the configuration value
 	 */
 	public static Level confLevel(final String propName, final Level defaultValue) {
-		String value = conf(propName, defaultValue.getName());
+		String value = conf(propName, defaultValue.name());
 		try {
-			Level lev = Level.parse(value);
+			Level lev = Level.getLevel(value.trim().toUpperCase());
 			return lev;
 		} catch (Exception x) {/* No Op */}
 		return defaultValue;

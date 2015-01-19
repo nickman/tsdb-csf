@@ -20,6 +20,7 @@
         <ning.version>1.8.14</ning.version>
         <junit.version>4.12</junit.version>
         <json.version>20131018</json.version>
+        <log4j.version>2.1</log4j.version>
         <!-- Plugin Versions -->
         <compiler-plugin.version>3.2</compiler-plugin.version>
         <source-plugin.version>2.4</source-plugin.version>
@@ -78,6 +79,25 @@
             <version>${metrics.version}</version>
             <scope>provided</scope>
         </dependency>
+		<dependency>
+		  <groupId>org.apache.logging.log4j</groupId>
+		  <artifactId>log4j-api</artifactId>
+		  <version>${log4j.version}</version>
+		</dependency>		
+		<dependency>
+		  <groupId>org.apache.logging.log4j</groupId>
+		  <artifactId>log4j-core</artifactId>
+		  <version>${log4j.version}</version>
+		</dependency>
+		<dependency>
+		  <groupId>org.apache.logging.log4j</groupId>
+		  <artifactId>log4j-slf4j-impl</artifactId>
+		  <version>${log4j.version}</version>
+		</dependency>
+		
+		
+		
+        
         
 
 		<dependency>

@@ -36,12 +36,13 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.jboss.netty.buffer.ChannelBuffer;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -59,7 +60,7 @@ public class MetricPersistence implements FilenameFilter  {
 	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
 	/** Instance logger */
-	private final Logger log = Logger.getLogger(MetricPersistence.class.getName());
+	private final Logger log = LogManager.getLogger(getClass());
 	/** The directory where persistence files are cached */
 	private final File persistDir;
 	/** The relative file name pattern */
@@ -261,6 +262,7 @@ public class MetricPersistence implements FilenameFilter  {
 		
 		if(lockFileLock!=null) {
 			Util.sdhook(new Runnable(){
+				@Override
 				public void run() {
 					purgeTmpFiles();
 					if(lockFileLock!=null) try { lockFileLock.release(); } catch (Exception x) {/* No Op */}
@@ -308,7 +310,7 @@ public class MetricPersistence implements FilenameFilter  {
 		}
 		ffsize = offlineFile.write(buff);
 		if(ffsize==-1L) {
-			log.severe("Unexpected overflow writing to offline [" + offlineFile + "]");
+			log.error("Unexpected overflow writing to offline [{}]", offlineFile);
 		}
 	}
 	
@@ -334,18 +336,19 @@ public class MetricPersistence implements FilenameFilter  {
 					if(tmpFile.length==1) {
 						try {
 							if(!limit.tryAcquire(limitTimeoutMs, TimeUnit.MILLISECONDS)) {
-								log.warning("Timed out waiting to acquire flush semaphore in [" + limitTimeoutMs + "]. Cancelling flush.");
+								log.warn("Timed out waiting to acquire flush semaphore in [{}]. Cancelling flush.", limitTimeoutMs);
 								break outerloop;								
 							}
 						} catch (InterruptedException iex) {
-							log.warning("Thread interrupted while waiting on flush semaphore. Cancelling flush.");
+							log.warn("Thread interrupted while waiting on flush semaphore. Cancelling flush.");
 							break outerloop;
 						}
-						log.log(Level.INFO, "Sending {0}, gzip:{1}", new Object[]{tmpFile[0].getName(), OffHeapFIFOFile.isGzipped(tmpFile[0]) });
+						log.debug("Sending {}, gzip:{}", tmpFile[0].getName(), OffHeapFIFOFile.isGzipped(tmpFile[0]));
 						poster.send(tmpFile[0], new  CompletionCallback<Integer>(){
+							@Override
 							public void onComplete(final Integer completionValue) {
 								limit.release();
-								log.info("Completed send on tmp file [" + tmpFile[0].getName() + "]");
+								log.info("Completed send on tmp file [{}]", tmpFile[0].getName());
 								if(completionValue!=null) {
 									if(completionValue==1) flushFailedCounter.incrementAndGet();
 									else if(completionValue==2) flushBadContentCounter.incrementAndGet();
@@ -395,6 +398,7 @@ public class MetricPersistence implements FilenameFilter  {
 	 * {@inheritDoc}
 	 * @see java.io.FilenameFilter#accept(java.io.File, java.lang.String)
 	 */
+	@Override
 	public boolean accept(File dir, String name) {
 		return FILE_NAME_PATTERN.matcher(name).matches();
 	}
@@ -425,9 +429,9 @@ public class MetricPersistence implements FilenameFilter  {
 				try {
 					long idx = Long.parseLong(m.group(1));
 					fileNameIndex.set(idx);
-					log.log(Level.INFO, "Found {0} Persisted Metric Files. Last Index was {1}. Next file will be {2}", new Object[]{pFiles.size(), idx, String.format(FILE_NAME_TEMPLATE, idx+1)});
+					log.info("Found {} Persisted Metric Files. Last Index was {}. Next file will be {}", pFiles.size(), idx, String.format(FILE_NAME_TEMPLATE, idx+1));
 				} catch (Exception x) {
-					log.warning("Failed to get last index of persisted files. Starting from 0:" + x);
+					log.warn("Failed to get last index of persisted files. Starting from 0:{}", x);
 				}
 			}			
 		}		
@@ -447,7 +451,7 @@ public class MetricPersistence implements FilenameFilter  {
 		if(f!=null) return f;
 		f = doOffline(new File(System.getProperty("java.io.tmpdir") + File.separator + ".tsdb-metrics"  + File.separator + appName).getAbsolutePath());
 		if(f==null) {
-			log.severe("\n\n\t!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\tFailed to create any of the offline metric stores. Offline storage disabled\n\t!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n");
+			log.error("\n\n\t!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\tFailed to create any of the offline metric stores. Offline storage disabled\n\t!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n");
 		}
 		return f;
 	}
@@ -483,10 +487,11 @@ public class MetricPersistence implements FilenameFilter  {
 				}
 			}
 			final byte[] PIDBYTES = Constants.SPID.getBytes(Charset.defaultCharset());
+			FileLock tmpLock = null;
 			try {
 				lockFileRaf = new RandomAccessFile(lockFile, "rw");
 				lockFileFc = lockFileRaf.getChannel();
-				FileLock tmpLock = lockFileFc.tryLock(0, 0, false);
+				tmpLock = lockFileFc.tryLock(0, 0, false);
 				if(tmpLock==null) {
 					System.err.println("Failed to lock directory [" + dir + "]. Could not lock file [" + lockFile + "]");
 					return false;					
@@ -494,13 +499,14 @@ public class MetricPersistence implements FilenameFilter  {
 				lockFileFc.truncate(PIDBYTES.length);
 				lockFileFc.write(ByteBuffer.wrap(PIDBYTES), 0);
 				lockFileLock = lockFileFc.tryLock(0, PIDBYTES.length, true);
-				tmpLock.release();
+				tmpLock.close();
 				return true;
 			} catch (Exception ex) {
 				if(lockFileRaf!=null) try { lockFileRaf.close(); } catch (Exception x) {/* No Op */}
 				if(lockFileFc!=null) try { lockFileFc.close(); } catch (Exception x) {/* No Op */}
+				if(tmpLock!=null) try { tmpLock.close();} catch (Exception x) {/* No Op */}
 				throw ex;
-			}
+			} 
 		} catch (Exception x) {
 			System.err.println("Failed to lock directory [" + dir + "]. Lock failed:" + x);
 			return false;
@@ -608,7 +614,8 @@ public class MetricPersistence implements FilenameFilter  {
 	        }
 	    }
 
-	    public int compare(Object o1, Object o2)
+	    @Override
+		public int compare(Object o1, Object o2)
 	    {
 	        String a = o1.toString();
 	        String b = o2.toString();

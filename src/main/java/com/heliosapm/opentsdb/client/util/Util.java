@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Pattern;
 
+import javax.management.ObjectName;
 import javax.script.Bindings;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
@@ -55,6 +56,7 @@ public class Util {
 	
 	static {
 		final Thread shutdownHook = new Thread("PendingShutdownHook") {
+			@Override
 			public void run() {
 				Thread.currentThread().setName("RunningShutdownHook");
 				for(Iterator<Runnable> riter = shutdownHookRunnables.iterator(); riter.hasNext();) {
@@ -81,6 +83,7 @@ public class Util {
 	 */
 	public static void sdhook(final File...files) {
 		shutdownHookRunnables.add(new Runnable() {
+			@Override
 			public void run() {
 				if(files!=null) {
 					for(File f: files) {
@@ -93,7 +96,55 @@ public class Util {
 	}
 	
 	
+	/**
+	 * Creates a JMX ObjectName from the passed stringy
+	 * @param cs The stringy to create an ObjectName from
+	 * @return the built ObjectName
+	 */
+	public static ObjectName objectName(final CharSequence cs) {
+		if(cs==null || cs.toString().trim().isEmpty()) throw new IllegalArgumentException("The passed name was null or empty");
+		try {
+			return new ObjectName(cs.toString().trim());
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to create ObjectName from [" + cs + "]", ex);
+		}
+	}
 	
+	/**
+	 * Creates a JMX ObjectName from the passed metric name and tags
+	 * @param metric The ObjectName's domain
+	 * @param tags The ObjectName's properties in the form of <b>=</b> separated key value pairs
+	 * @return the built ObjectName
+	 */
+	public static ObjectName objectName(final String metric, final String...tags) {
+		if(metric==null || metric.trim().isEmpty()) throw new IllegalArgumentException("The passed metric name was null or empty");
+		if(tags.length==0) throw new IllegalArgumentException("The passed tags array was zero length");
+		StringBuilder b = new StringBuilder(clean(metric)).append(":");
+		int tcount = 0;
+		for(String tag: tags) {
+			String s = clean(tag);
+			if(s==null || s.trim().isEmpty() || s.indexOf('=')==0) continue;
+			b.append(s).append(",");
+			tcount++;
+		}
+		if(tcount==0) if(tags.length==0) throw new IllegalArgumentException("The passed tags array contained no legal tags");
+		b.deleteCharAt(b.length()-1);
+		return objectName(b);
+	}
+	
+	/**
+	 * @param bean
+	 * @param objectName
+	 */
+	public static void registerMBean(final Object bean, final ObjectName objectName) {
+		if(bean==null) throw new IllegalArgumentException("The passed bean was null");
+		if(objectName==null) throw new IllegalArgumentException("The passed ObjectName was null");
+		try {
+			ManagementFactory.getPlatformMBeanServer().registerMBean(bean, objectName);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to register the bean under [" + objectName + "]", ex);
+		}		
+	}
 	
 	/**
 	 * Attempts a series of methods of divining the host name

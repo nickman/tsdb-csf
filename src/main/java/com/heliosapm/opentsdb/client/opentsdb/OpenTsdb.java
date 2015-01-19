@@ -21,14 +21,25 @@ import static com.heliosapm.opentsdb.client.opentsdb.Constants.HOST_TAG;
 import static com.heliosapm.opentsdb.client.util.Util.appName;
 import static com.heliosapm.opentsdb.client.util.Util.hostName;
 
+import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.JmxReporter;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
+import com.heliosapm.opentsdb.client.opentsdb.jmx.OpenTsdbObjectNameFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 
 
@@ -55,15 +66,23 @@ public class OpenTsdb {
 	private volatile String appName = null;
 	/** The cached host name */
 	private volatile String hostName = null;
-	
+	/** The OpenTSDB agent metric registry */
+	private final MetricRegistry registry = new MetricRegistry();
+	/** JMX reporter to expose OpenTSDB agent metrics */
+	private final JmxReporter jmxReporter = JmxReporter
+			.forRegistry(registry)
+			.createsObjectNamesWith(new OpenTsdbObjectNameFactory())
+			.registerWith(ManagementFactory.getPlatformMBeanServer())
+			.build();
+			
 	
     /** Static class logger */
-    protected static final Logger logger = Logger.getLogger(OpenTsdb.class.getName());
+    protected static final Logger logger = LogManager.getLogger(OpenTsdb.class);
     
     /** The global tags */
     final Map<String, String> GLOBAL_TAGS = new ConcurrentHashMap<String, String>(6);
     
-    
+    static final String METRIC_NAME_PREFIX = "tsdbclient.";
     
     
 	/**
@@ -89,6 +108,7 @@ public class OpenTsdb {
 		appName = getAppName();		
 		batchSize = ConfigurationReader.confInt(Constants.PROP_BATCH_SIZE,  Constants.DEFAULT_BATCH_SIZE);
 		loadExtraTags();
+		jmxReporter.start();
 	}
 	
 	/**
@@ -160,6 +180,23 @@ public class OpenTsdb {
 	}
 	
 	/**
+	 * Returns the tsdb client registry
+	 * @return the tsdb client registry
+	 */
+	public MetricRegistry getMetricRegistry() {
+		return registry;
+	}
+	
+	/**
+	 * Returns the tsdb client jmxReporter
+	 * @return the tsdb client jmxReporter
+	 */
+	public JmxReporter getJmxReporter() {
+		return jmxReporter;
+	}
+	
+	
+	/**
 	 * Resets the cached app and host names
 	 */
 	void resetNames() {
@@ -191,18 +228,18 @@ public class OpenTsdb {
     /**
      * Send a metric to opentsdb
      *
-     * @param metric
+     * @param metric the metric to send
      */
-    public void send(OpenTsdbMetric metric) {
+    public void send(final OpenTsdbMetric metric) {
         send(Collections.singleton(metric));
     }
 
     /**
      * send a set of metrics to opentsdb
      *
-     * @param metrics
+     * @param metrics the metric set to send
      */
-    public void send(Set<OpenTsdbMetric> metrics) {
+    public void send(final Set<OpenTsdbMetric> metrics) {
         // we set the patch size because of existing issue in opentsdb where large batch of metrics failed
         // see at https://groups.google.com/forum/#!topic/opentsdb/U-0ak_v8qu0
         // we recommend batch size of 5 - 10 will be safer
@@ -243,5 +280,65 @@ public class OpenTsdb {
 //        	System.out.println(b.toString());
         }
     }
+    
+    public static final Pattern CM_TYPE_PATTERN = Pattern.compile("\\.?cmtype=.*");
+
+    public static String attachCMType(final String name, final String type) {
+    	if(name==null || name.trim().isEmpty()) return name;
+    	if(!CM_TYPE_PATTERN.matcher(name.trim()).matches()) {
+    		return name + ".cmtype=" + type;
+    	}
+    	return name.trim();
+    }
+
+	/**
+	 * Creates a new local client metric counter
+	 * @param clazz the class the metric is being recorded for
+	 * @param names the metric name tags
+	 * @return the counter
+	 * @see com.codahale.metrics.MetricRegistry#counter(java.lang.String)
+	 */
+	public Counter counter(final Class<?> clazz, final String...names) {
+		return registry.counter(attachCMType(MetricRegistry.name(METRIC_NAME_PREFIX + clazz.getSimpleName(), names), "Counter"));
+	}
+
+
+
+	/**
+	 * Creates a new local client metric timer
+	 * @param clazz the class the metric is being recorded for
+	 * @param names the metric name tags
+	 * @return the timer
+	 * @see com.codahale.metrics.MetricRegistry#histogram(java.lang.String)
+	 */
+	public Histogram histogram(final Class<?> clazz, final String...names) {
+		return registry.histogram(attachCMType(MetricRegistry.name(METRIC_NAME_PREFIX + clazz.getSimpleName(), names), "Histogram"));
+	}
+
+
+
+	/**
+	 * Creates a new local client metric meter
+	 * @param clazz the class the metric is being recorded for
+	 * @param names the metric name tags
+	 * @return the meter
+	 * @see com.codahale.metrics.MetricRegistry#meter(java.lang.String)
+	 */
+	public Meter meter(final Class<?> clazz, final String...names) {
+		return registry.meter(attachCMType(MetricRegistry.name(METRIC_NAME_PREFIX + clazz.getSimpleName(), names), "Counter"));
+	}
+
+
+
+	/**
+	 * Creates a new local client metric timer
+	 * @param clazz the class the metric is being recorded for
+	 * @param names the metric name tags
+	 * @return the timer
+	 * @see com.codahale.metrics.MetricRegistry#timer(java.lang.String)
+	 */
+	public Timer timer(final Class<?> clazz, final String...names) {
+		return registry.timer(attachCMType(MetricRegistry.name(METRIC_NAME_PREFIX + clazz.getSimpleName(), names), "Timer"));
+	}
 
 }
