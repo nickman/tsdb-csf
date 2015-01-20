@@ -77,7 +77,7 @@ public class KitchenSink {
 	final Meter lookupRequests = registry.meter(name(getClass().getSimpleName(), "cmtype=Meter", "op=cache-lookup", "service=cacheservice"));
 	final Timer timer = registry.timer(name(getClass().getSimpleName(), "cmtype=Timer", "op=cache-evictions", "service=cacheservice"));
 	
-	final OpenTsdbReporter reporter;
+	OpenTsdbReporter reporter;
 	JmxReporter jmxReporter;
 	// =============================================================
 	//  JVM Monitors
@@ -109,6 +109,7 @@ public class KitchenSink {
 			bufferPoolMonitor = null;
 		}
 		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());		
+		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());
 		jmxReporter = JmxReporter.forRegistry(registry).createsObjectNamesWith(new OpenTsdbObjectNameFactory()).build();
 		reporter.start(5, TimeUnit.SECONDS);		
 		jmxReporter.start();
@@ -158,8 +159,6 @@ public class KitchenSink {
 		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
 		System.setProperty("tsdb.threadpool.size", "60");
 		System.setProperty("tsdb.http.compression.enabled", "true");
-		System.setProperty(Constants.PROP_SUPPRESS_BAD_METRICS, "true");
-		System.setProperty(Constants.PROP_TRACK_COUNTS_ONLY, "false");
 		
 		
 		System.out.println("Host:" + OpenTsdb.getInstance().getHostName());

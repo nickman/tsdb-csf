@@ -15,12 +15,14 @@
  */
 package com.heliosapm.opentsdb.client.opentsdb;
 
+import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -55,6 +57,8 @@ public class OpenTsdbReporter extends ScheduledReporter {
     private final MetricRegistry registry;
     private final Map<String, String> tags;
     private static final Logger LOG = LoggerFactory.getLogger(OpenTsdbReporter.class);
+    
+    private static final Set<MRWR> registries = new CopyOnWriteArraySet<MRWR>();
 
     /**
      * Returns a new {@link Builder} for {@link OpenTsdbReporter}.
@@ -62,8 +66,61 @@ public class OpenTsdbReporter extends ScheduledReporter {
      * @param registry the registry to report
      * @return a {@link Builder} instance for a {@link OpenTsdbReporter}
      */
-    public static Builder forRegistry(MetricRegistry registry) {
+    public static Builder forRegistry(final MetricRegistry registry) {
+    	if(registry==null) throw new IllegalArgumentException("The passed registry was null");
+    	registries.add(new MRWR(registry));
         return new Builder(registry);
+    }
+    
+    /**
+     * Returns all the metric registries that have had OpenTsdbReporters created with them
+     * @return a set of metric registries containing OpenTsdbMetrics
+     */
+    public static Set<MetricRegistry> getRegistries() {
+    	Set<MetricRegistry> set = new HashSet<MetricRegistry>(registries.size());
+    	Set<MRWR> remove = new HashSet<MRWR>();
+    	for(MRWR registryRef: registries) {
+    		MetricRegistry mr = registryRef.get(); 
+    		if(mr==null) {
+    			remove.add(registryRef);
+    		} else {
+    			set.add(mr);
+    		}
+    	}
+    	if(!remove.isEmpty()) {
+    		registries.removeAll(remove);
+    	}
+    	return set;
+    }
+    
+    private static class MRWR extends WeakReference<MetricRegistry> {
+    	final private int hash;
+    	
+		public MRWR(final MetricRegistry referent) {
+			super(referent);
+			hash = referent.hashCode();
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#hashCode()
+		 */
+		@Override
+		public int hashCode() {
+			return hash;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#equals(java.lang.Object)
+		 */
+		@Override
+		public boolean equals(Object obj) {
+			if (obj == null) return false;
+			if (MRWR.class != obj.getClass() && MetricRegistry.class != obj.getClass()) return false;
+			return obj.hashCode()==hash;			
+		}
+    	
     }
     
 

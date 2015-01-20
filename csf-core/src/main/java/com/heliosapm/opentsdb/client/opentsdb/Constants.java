@@ -132,24 +132,13 @@ public interface Constants {
 	//======================================================================================================================
 	//     Response Tracking
 	//======================================================================================================================
-	/** The system property config name for tracking OpenTSDB responses for successful and failed metric submissions  */
-	public static final String PROP_TRACK_RESPONSES = "tsdb.responses.track";
-	/** The default OpenTSDB response tracking (true to track, false otherwise) */
-	public static final boolean DEFAULT_TRACK_RESPONSES = true;
-	/** The system property config name for tracking OpenTSDB response counts only */
-	public static final String PROP_TRACK_COUNTS_ONLY = "tsdb.responses.track.countsonly";
-	/** The default counts only OpenTSDB response tracking (true to track counts only, false to get invalid metrics) */
-	public static final boolean DEFAULT_TRACK_COUNTS_ONLY = true;
-	/** The system property config name for supressing metrics reported as invalid in OpenTSDB responses */
-	public static final String PROP_SUPPRESS_BAD_METRICS = "tsdb.responses.suppress";
-	/** The default bad metrics suppression based on OpenTSDB failure responses tracking (true to supress, false otherwise). 
-	 * Requires {@link #DEFAULT_TRACK_RESPONSES} to be <b>true</b> and {@link #DEFAULT_TRACK_COUNTS_ONLY} to be <b>false</b>.
-	 * Has some overhead if enabled.
-	 */
-	public static final boolean DEFAULT_SUPPRESS_BAD_METRICS = false;
+	/** The system property config name for the OpenTSDB response handler for successful and failed metric submissions  */
+	public static final String PROP_PUT_RESPONSE_HANDLER = "tsdb.response.handler";
+	/** The default OpenTSDB response tracking handler */
+	public static final OpenTsdbPutResponseHandler DEFAULT_PUT_RESPONSE_HANDLER = OpenTsdbPutResponseHandler.ERRORS;
 	
 	/** The system property config name for the logging level to log bad metrics at */
-	public static final String PROP_BAD_METRICS_LEVEL = "tsdb.responses.track.badlevel";
+	public static final String PROP_BAD_METRICS_LEVEL = "tsdb.response.handler.badlevel";
 	/** The default level to log bad metrics at */
 	public static final Level DEFAULT_BAD_METRICS_LEVEL = Level.INFO;
 	

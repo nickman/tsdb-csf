@@ -64,6 +64,34 @@ public class ConfigurationReader {
 	}
 	
 	/**
+	 * Returns the enum configuration value for the passed config key and enum type
+	 * See {@link #conf(String, Object)} for the processing rules.
+	 * @param enumType The enum type expected
+	 * @param propName The system property configuration key
+	 * @param defaultValue The default value
+	 * @return the configuration value
+	 */
+	public static <T extends Enum<T>> T confEnum(final Class<T> enumType,  final String propName, final T defaultValue) {
+		String value = conf(propName, null);
+		if(value==null) return defaultValue;
+		return decodeEnum(enumType, value.trim(), defaultValue);
+	}
+	
+	/**
+	 * Decodes the passed value into an enum member from the passed enum type
+	 * @param enumType The enum type to decode with
+	 * @param propValue The value to decode
+	 * @param defaultValue The default enum member returned if the value cannot be decoded
+	 * @return the decoded enum member of the default value if the value cannot be decoded
+	 */
+	public static <T extends Enum<T>> T decodeEnum(final Class<T> enumType,  final String propValue, final T defaultValue) {
+		for(T en: enumType.getEnumConstants()) {
+			if(en.name().equalsIgnoreCase(propValue)) return en;
+		}
+		return defaultValue;
+	}
+	
+	/**
 	 * Returns the int configuration value for the passed config key.
 	 * See {@link #conf(String, Object)} for the processing rules.
 	 * @param propName The system property configuration key

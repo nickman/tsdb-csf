@@ -223,29 +223,7 @@ public interface HttpMetricsPosterMXBean {
 	 */
 	public long getFlushBadContentCount();
 	
-	/**
-	 * Indicates if failed metrics reported in OpenTSDB responses should be suppressed in future posts.
-	 * <b>Ignored if {@link HttpMetricsPoster#trackResponses} is false or {@link HttpMetricsPoster#trackCountsOnly} is true</b>.
-	 * Note that if bad metrics are not suppressed, they will be logged on each response they are seen in.
-	 * <b>There is some overhead associated with enabling this</b>
-	 * @return true if bad metrics should suppressed, false otherwise
-	 */
-	public boolean isSuppressBadMetrics();
 
-
-	/**
-	 * Sets the suppress bad metrics option.
-	 * @param supressBadMetrics true to suppress bad metrics, false for bad metrics logging only
-	 */
-	public void setSuppressBadMetrics(boolean supressBadMetrics);
-	
-
-	/**
-	 * Indicates if OpenTSDB responses to metric HTTP posts should be tracked for success and failure counts.
-	 * <b>Ignored if {@link HttpMetricsPoster#trackResponses} is false.</b>
-	 * @return false if counts only are being tracked, true if details of failed metrics are processed
-	 */
-	public boolean isTrackCountsOnly();
 	
 	/**
 	 * Returns the count of successfully submitted metrics based on OpenTSDB responses.
@@ -262,25 +240,6 @@ public interface HttpMetricsPosterMXBean {
 	
 
 
-	/**
-	 * Sets the track counts option.
-	 * @param trackCountsOnly true to track counts only, false to process details of failed metrics
-	 */
-	public void setTrackCountsOnly(boolean trackCountsOnly);
-
-	
-	/**
-	 * Indicates if OpenTSDB responses to metric HTTP posts should be tracked (or just fire-`n-forget)
-	 * @return true if tracking, false if fire-`n-forget-ing
-	 */
-	public boolean isTrackResponses();
-
-
-	/**
-	 * Sets the track responses
-	 * @param trackResponses true to track, false to fire-`n-forget
-	 */
-	public void setTrackResponses(boolean trackResponses);
 	
 	/**
 	 * Returns the currently configured submitter host name
@@ -325,6 +284,17 @@ public interface HttpMetricsPosterMXBean {
 	 */
 	public void setMaxConcurrentFlushes(final int maxConcurrentFlushes);
 	
+	/**
+	 * Returns the currently installed put response handler
+	 * @return the currently installed put response handler
+	 */
+	public String getPutResponseHandlerName();
+	
+	/**
+	 * Sets the current put response handler
+	 * @param handler the name of the response handler to use
+	 */
+	public void setPutResponseHandlerName(final String handler);
 	
 	
 }

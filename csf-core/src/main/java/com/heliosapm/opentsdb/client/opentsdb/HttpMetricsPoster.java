@@ -20,6 +20,7 @@ import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confBoo
 import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confInt;
 import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confLevel;
 import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confURI;
+import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confEnum;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -127,11 +128,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	protected final ObjectName objectName;
 	
 	/** Indicates if OpenTSDB responses to metric HTTP posts should be tracked (or just fire-`n-forget) */
-	protected boolean trackResponses = confBool(PROP_TRACK_RESPONSES, DEFAULT_TRACK_RESPONSES);
-	/** Indicates if OpenTSDB responses to metric HTTP posts should be tracked for success and failure counts only (true) or if the details of failures should be retrieved (false) */
-	protected boolean trackCountsOnly = confBool(PROP_TRACK_COUNTS_ONLY, DEFAULT_TRACK_COUNTS_ONLY);
-	/** Indicates if OpenTSDB responses to failed metrics in HTTP posts should be used to suppress those metrics from being posted again (true) or just logged (false) */
-	protected boolean suppressBadMetrics = confBool(PROP_SUPPRESS_BAD_METRICS, DEFAULT_SUPPRESS_BAD_METRICS);
+	protected OpenTsdbPutResponseHandler putResponseHandler = confEnum(OpenTsdbPutResponseHandler.class, PROP_PUT_RESPONSE_HANDLER, DEFAULT_PUT_RESPONSE_HANDLER);
 	
 	/** the post url according to {@link #tsdbUrl}, {@link #trackResponses} and {@link #trackCountsOnly} */
 	protected String postUrl = "";
@@ -180,12 +177,6 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		new MBeanNotificationInfo(new String[]{NOTIF_DISCONNECTED}, Notification.class.getName(), "OpenTSDB endpoint disconnection")
 	};
 
-	/** Regex matching a summary response from OpenTSDB after posting a put */
-	public static final Pattern SUMMARY_PATTERN = Pattern.compile("\\{\"failed\":(\\d+),\"success\":(\\d+)\\}");
-	/** Regex matching a details response from OpenTSDB after posting a put with no errors */
-	public static final Pattern DETAILS_PATTERN = Pattern.compile("\\{\"errors\":\\[\\],\"failed\":(\\d+),\"success\":(\\d+)\\}");
-	/** Regex matching a details response from OpenTSDB after posting a put with no errors */
-	public static final Pattern DETAILS_WITH_ERRORS_PATTERN = Pattern.compile("\\{\"errors\":\\[(.+?)\\],\"failed\":(\\d+),\"success\":(\\d+)\\}");
 	
 	
 	
@@ -475,13 +466,11 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	
 	/**
-	 * Sets the post url according to {@link #tsdbUrl}, {@link #trackResponses} and {@link #trackCountsOnly}  
+	 * Sets the post url according to {@link #putResponseHandler}  
 	 */
 	protected void setPostUrl() {
-		postUrl = tsdbUrl + "/api/put" + 
-				(!trackResponses ? "" :
-					trackCountsOnly ? "?summary" : "?details");
-		if(!trackResponses) {
+		postUrl = tsdbUrl + "/api/put" + putResponseHandler.putSignature; 
+		if(putResponseHandler==OpenTsdbPutResponseHandler.NOTHING) {
 			successfulMetrics.set(-1L);
 			failedMetrics.set(-1L);
 		} else {
@@ -568,6 +557,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 			})
 			.execute(new AsyncHandler<String>(){
 				final StringBuilder resp = new StringBuilder();
+				int responseCode = -1;
 				@Override
 				public void onThrowable(final Throwable t) {
 					processResponse(null, t, body, metricsToWrite, retries, start);
@@ -597,6 +587,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 				@Override
 				public STATE onStatusReceived(final HttpResponseStatus responseStatus) throws Exception {
+					responseCode = responseStatus.getStatusCode();
 					processResponse(responseStatus, null, body, metricsToWrite, retries, start);
 					if(hasHandlers) {
 						for(AsyncHandler<Object> h: handlers) {
@@ -604,11 +595,12 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 							h.onStatusReceived(responseStatus);
 						}
 					}				
-					return trackResponses ? STATE.CONTINUE : STATE.ABORT;
+					return putResponseHandler==OpenTsdbPutResponseHandler.NOTHING ? STATE.ABORT : STATE.CONTINUE;
 				}
 	
 				@Override
 				public STATE onHeadersReceived(final HttpResponseHeaders headers) throws Exception {
+					headers.getHeaders().getFirstValue(Names.CONTENT_LENGTH);
 					if(hasHandlers) {
 						for(AsyncHandler<Object> h: handlers) {
 							if(h==null) continue;
@@ -625,47 +617,11 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 							if(h==null) continue;
 							h.onCompleted();
 						}
-					}	
-					if(trackResponses) {
-						if(resp.length()>0) {
-							// track counts
-							if(trackCountsOnly) {
-								doSummaryStats(resp);
-							} else {
-								int[] counts = doDetailStats(resp);
-								if(resp.length()>0) {
-									// log errors
-									log.warn("Metrics Rejected by OpenTSDB:{}", resp);
-									
-									if(badMetricsLogger.isEnabled(badLevel)) {
-										log.log(badLevel, "Metrics Rejected by OpenTSDB:{0}", resp);
-																				
-									}
-									if(suppressBadMetrics) {
-										// index the bad metric names and filter them
-										// TODO:
-										/*
-										 * Bad metric responses look like this:
-												{
-												  "datapoint": {
-												    "tags": {
-												      "service": "cacheservice",
-												      ",attr": "cache-size"
-												    },
-												    "timestamp": 1421536767,
-												    "metric": "KitchenSink.value",
-												    "value": "572"
-												  },
-												  "error": "Invalid tag name (\",attr\"): illegal character: ,"
-												}
-										 */
-										// build the original [bad] metric name
-										// figure out which registry it's in amd yank it
-										// send jmx notification with simplified message:  BAD METRIC: XXX, ERROR: YYY
-									}
-								}
-							}
-						}					
+					}
+					int[] counts = putResponseHandler.process(responseCode, resp);
+					if(counts!=null && counts[0] + counts[1] != 0) {
+						failedMetrics.addAndGet(counts[0]);
+						successfulMetrics.addAndGet(counts[1]);						
 					}
 					return null;				
 				}				
@@ -678,76 +634,8 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		}
 	}
 	
-	/**
-	 * Extracts the failiure and success counts from the passed summary response and increments the counters
-	 * @param sb The response stringy
-
-	 */
-	protected void doSummaryStats(final StringBuilder sb) {
-		int[] counts = null;
-		Matcher m = SUMMARY_PATTERN.matcher(sb);
-		if(m.matches()) {
-			counts = getCountsFromMatcher(m);
-		}
-		if(counts!=null) {
-			failedMetrics.addAndGet(counts[0]);
-			successfulMetrics.addAndGet(counts[1]);
-		}		
-	}
 	
-	/**
-	 * Extracts the failiure and success counts and the error json from the passed details response and increments the counters
-	 * @param sb The response stringy which the errs are put into if there are any. Otherwise it is truncated to zero length
-	 * @return the counts of failed submissions ([0]) and successful submissions ([1]).
-	 */
-	protected int[] doDetailStats(final StringBuilder sb) {
-		int[] counts = null;
-		Matcher m = DETAILS_PATTERN.matcher(sb);
-		if(m.matches()) {
-			// means no failures
-			counts = getCountsFromMatcher(m);
-			sb.setLength(0);			
-		} else {
-			m = DETAILS_WITH_ERRORS_PATTERN.matcher(sb);
-			if(m.matches()) {
-				// we got fails, yo				
-				counts = getCountsFromMatcher(m);
-				String s = m.group(1).trim();
-				System.out.println("==============\n" + s + "\n==============");
-				try {
-					System.out.println(new JSONObject(s).toString(2));
-				} catch (Exception ex) {}
-				sb.setLength(0);
-				sb.delete(0, sb.length()-1).append(s);
-			}
-		}
-		if(counts!=null) {
-			failedMetrics.addAndGet(counts[0]);
-			successfulMetrics.addAndGet(counts[1]);
-			return counts;
-		}
-		return EMPTY_COUNTS;
-	}
 	
-	/** Empty counts const */
-	private static final int[] EMPTY_COUNTS = {0,0};
-	
-	/**
-	 * Extracts the failure and success counts from the passed matcher
-	 * @param m The matcher containing the counts
-	 * @return the counts
-	 */
-	protected int[] getCountsFromMatcher(final Matcher m) {
-		final int grpCount = m.groupCount();
-		final int[] counts = new int[2];
-		try {
-			counts[0] = Integer.parseInt(m.group(grpCount==3 ? 2 : 1));
-			counts[1] = Integer.parseInt(m.group(grpCount==3 ? 3 : 2));			
-		} catch (Exception x) {
-			return null;
-		}					
-		return counts;		
-	}
 	
 	
 	/**
@@ -1101,63 +989,54 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		return mpersistor.getFlushBadContentCounter();		
 	}
 	
+	
+	// putResponseHandler==OpenTsdbPutResponseHandler
+	
 	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#isSuppressBadMetrics()
+	 * Returns the currently installed put response handler
+	 * @return the currently installed put response handler
 	 */
-	@Override
-	public boolean isSuppressBadMetrics() {
-		return suppressBadMetrics;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#setSuppressBadMetrics(boolean)
-	 */
-	@Override
-	public void setSuppressBadMetrics(final boolean supressBadMetrics) {
-		this.suppressBadMetrics = supressBadMetrics;
-		setPostUrl();
+	public OpenTsdbPutResponseHandler getPutResponseHandler() {
+		return putResponseHandler;
 	}
 	
-
 	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#isTrackCountsOnly()
+	 * Sets the current put response handler
+	 * @param handler the response handler to use
 	 */
-	@Override
-	public boolean isTrackCountsOnly() {
-		return trackCountsOnly;
+	public void setPutResponseHandler(final OpenTsdbPutResponseHandler handler) {
+		if(handler==null) throw new IllegalArgumentException("The passed handler was null");
+		this.putResponseHandler = handler;
+		log.info("Changed OpenTsdbPutResponseHandler to [{}]", handler.name());
 	}
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#setTrackCountsOnly(boolean)
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getPutResponseHandlerName()
 	 */
 	@Override
-	public void setTrackCountsOnly(final boolean trackCountsOnly) {
-		this.trackCountsOnly = trackCountsOnly;
-		setPostUrl();
+	public String getPutResponseHandlerName() {
+		return putResponseHandler.name();
 	}
-
+	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#isTrackResponses()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#setPutResponseHandlerName(java.lang.String)
 	 */
 	@Override
-	public boolean isTrackResponses() {
-		return trackResponses;
+	public void setPutResponseHandlerName(final String handlerName) {
+		if(handlerName==null || handlerName.trim().isEmpty()) throw new IllegalArgumentException("The passed handler name was null");
+		OpenTsdbPutResponseHandler handler = null;
+		try {
+			handler = OpenTsdbPutResponseHandler.valueOf(handlerName.trim().toUpperCase());
+			putResponseHandler = handler;
+			log.info("Changed OpenTsdbPutResponseHandler to [{}]", handler.name());
+		} catch (Exception ex) {
+			throw new RuntimeException("Invalid response handler name [" + handlerName + "]. Valid values are:" + OpenTsdbPutResponseHandler.VALID_NAMES);
+		}
 	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#setTrackResponses(boolean)
-	 */
-	@Override
-	public void setTrackResponses(final boolean trackResponses) {
-		this.trackResponses = trackResponses;
-		setPostUrl();
-	}
+	
+	
 	
 	/**
 	 * {@inheritDoc}
