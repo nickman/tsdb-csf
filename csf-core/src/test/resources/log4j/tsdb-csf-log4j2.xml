@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="info" name="TSDB-CSF-BOOT" packages="org.apache.logging.log4j.test">
+  <Properties>
+    <Property name="filename">${sys:tsdb.logging.dir}/${sys:tsdb.id.app}/tsdb-csf-${sys:tsdb.id.app}-${sys:tsdb.id.host}.log</Property>
+  </Properties>
+  
+  <Appenders>
+    <Console name="STDOUT">
+      <PatternLayout pattern="%m%n"/>
+    </Console>
+    <File name="AppFile" fileName="${filename}">
+      <PatternLayout>
+        <pattern>%d %p %C{1.} [%t] %m%n</pattern>
+      </PatternLayout>
+    </File>    
+  </Appenders>
+  <Loggers>
+   <Root level="info">
+     <AppenderRef ref="STDOUT" level="info"/>
+     <AppenderRef ref="AppFile" level="debug"/>
+   </Root>
+ </Loggers>
+</Configuration>

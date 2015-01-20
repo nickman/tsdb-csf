@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="info" name="TSDB-CSF-BOOT" packages="org.apache.logging.log4j.test">
+  <Properties>
+    <Property name="filename">${sys:tsdb.logging.dir}/tsdb-csf-${sys:tsdb.logging.pid}-${sys:tsdb.logging.host}-boot-${sys:tsdb.logging.systime}.log</Property>
+  </Properties>
+  <ThresholdFilter level="info"/>
+  <Appenders>
+    <Console name="STDOUT">
+      <PatternLayout pattern="%m%n"/>
+    </Console>
+    <File name="BootFile" fileName="${filename}">
+      <PatternLayout>
+        <pattern>%d %p %C{1.} [%t] %m%n</pattern>
+      </PatternLayout>
+    </File>    
+  </Appenders>
+  <Loggers>
+   <Root level="info">
+     <AppenderRef ref="STDOUT" level="error"/>
+     <AppenderRef ref="BootFile" level="trace"/>
+   </Root>
+ </Loggers>
+</Configuration>

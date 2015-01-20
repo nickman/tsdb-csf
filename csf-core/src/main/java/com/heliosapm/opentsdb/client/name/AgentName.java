@@ -1,0 +1,450 @@
+/**
+ * Helios, OpenSource Monitoring
+ * Brought to you by the Helios Development Group
+ *
+ * Copyright 2007, Helios Development Group and individual contributors
+ * as indicated by the @author tags. See the copyright.txt file in the
+ * distribution for a full listing of individual contributors.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
+ *
+ */
+package com.heliosapm.opentsdb.client.name;
+
+import static com.heliosapm.opentsdb.client.opentsdb.Constants.APP_TAG;
+import static com.heliosapm.opentsdb.client.opentsdb.Constants.HOST_TAG;
+
+import java.lang.management.ManagementFactory;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+
+import javax.management.Notification;
+import javax.management.NotificationBroadcasterSupport;
+import javax.management.ObjectName;
+import javax.script.Bindings;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.SimpleBindings;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
+import com.heliosapm.opentsdb.client.opentsdb.Threading;
+import com.heliosapm.opentsdb.client.util.Util;
+
+/**
+ * <p>Title: AgentName</p>
+ * <p>Description: The tsdb-csf agent host and name controller.</p> 
+ * <p>Company: Helios Development Group LLC</p>
+ * @author Whitehead (nwhitehead AT heliosdev DOT org)
+ * <p><code>com.heliosapm.opentsdb.client.name.AgentName</code></p>
+ */
+
+public class AgentName extends NotificationBroadcasterSupport  implements AgentNameMXBean {
+	/** The singleton instance */
+	private static volatile AgentName instance = null;
+	/** The singleton instance ctor lock */
+	private static final Object lock = new Object();
+	
+	
+	
+	/** A set of agent name change listeners */
+	private final Set<AgentNameChangeListener> listeners = new CopyOnWriteArraySet<AgentNameChangeListener>();
+	
+    /** The global tags */
+    final Map<String, String> GLOBAL_TAGS = new ConcurrentHashMap<String, String>(6);
+	
+	/** The cached app name */
+	private volatile String appName = null;
+	/** The cached host name */
+	private volatile String hostName = null;
+	
+	/** Instance logger */
+	private final Logger log;
+	
+	/** Notification serial number source */
+	final AtomicLong notifSerial = new AtomicLong(0L);
+	/** The JMX ObjectName */
+	final ObjectName objectName = Util.objectName("com.heliosapm.opentsdb.client:service=AgentName");
+	
+	/**
+	 * Acquires the AgentName singleton instancecs
+	 * @return the AgentName singleton instance
+	 */
+	public static AgentName getInstance() {
+		if(instance==null) {
+			synchronized(lock) {
+				if(instance==null) {
+					instance = new AgentName();
+				}
+			}
+		}
+		return instance;
+	}
+	
+	private AgentName() {
+		super(Threading.getInstance().getThreadPool(), NOTIF_INFOS);
+		loadExtraTags();
+		getAppName();
+		getHostName();
+		Util.registerMBean(this, objectName);
+		sendInitialNotif();
+		LoggingConfiguration.getInstance().initAppLogging(this);
+		log = LogManager.getLogger(getClass());
+	}
+	
+	private void sendInitialNotif() {
+		final Notification n = new Notification(NOTIF_ASSIGNED, objectName, notifSerial.incrementAndGet(), System.currentTimeMillis(), "AgentName assigned [" + appName + "@" + hostName + "]");
+		Map<String, String> userData = new HashMap<String, String>(2);
+		userData.put(Constants.APP_TAG, appName);
+		userData.put(Constants.HOST_TAG, hostName);
+		n.setUserData(userData);
+		sendNotification(n);
+	}
+	
+	/**
+	 * Loads sysprop defined extra tags 
+	 */
+	private void loadExtraTags() {
+		String v = System.getProperty(Constants.PROP_EXTRA_TAGS, "").replace(" ", "");
+		if(!v.isEmpty()) {
+			Matcher m = Constants.KVP_PATTERN.matcher(v);
+			while(m.find()) {
+				String key = Util.clean(m.group(1));
+				if(HOST_TAG.equalsIgnoreCase(key) || APP_TAG.equalsIgnoreCase(key)) continue;
+				String value = Util.clean(m.group(1));
+				GLOBAL_TAGS.put(key, value);
+			}
+			log.info("Initial Global Tags:{}", GLOBAL_TAGS);
+		}
+	}
+	
+	/**
+	 * Returns the agent's global tags
+	 * @return the agent's global tags
+	 */
+	public Map<String, String> getGlobalTags() {
+		return Collections.unmodifiableMap(GLOBAL_TAGS);
+	}
+
+	/**
+	 * Attempts a series of methods of divining the host name
+	 * @return the determined host name
+	 */
+	public String getHostName() {
+		if(hostName!=null) {
+			return hostName;
+		}		
+		hostName = hostName();		
+		System.setProperty(Constants.PROP_HOST_NAME, hostName);
+		GLOBAL_TAGS.put(HOST_TAG, hostName);
+		return hostName;
+	}
+	
+	/**
+	 * Returns an id string displaying the host and app name
+	 * @return the id string
+	 */
+	public String getId() {
+		return getAppName() + "@" + getHostName();
+	}
+	
+	
+	/**
+	 * Attempts to find a reliable app name
+	 * @return the app name
+	 */
+	public String getAppName() {
+		if(appName!=null) {
+			return appName;
+		}
+		appName = appName();
+		System.setProperty(Constants.PROP_APP_NAME, appName);
+		GLOBAL_TAGS.put(APP_TAG, appName);
+		return appName;
+	}
+	
+	/**
+	 * Adds an AgentName change listener 
+	 * @param listener the listener to add
+	 */
+	public void addAgentNameChangeListener(final AgentNameChangeListener listener) {
+		if(listener!=null) listeners.add(listener);
+	}
+	
+	/**
+	 * Removes an AgentName change listener 
+	 * @param listener the listener to remove
+	 */
+	public void removeAgentNameChangeListener(final AgentNameChangeListener listener) {
+		if(listener!=null) listeners.remove(listener);
+	}
+	
+	/**
+	 * Fires an AgentName change event
+	 * @param app The new app name, or null if only the host changed
+	 * @param host The new host name, or null if only the app changed
+	 */
+	private void fireAgentNameChange(final String app, final String host) {
+		if(app==null && host==null) return;
+		Map<String, String> userData = new HashMap<String, String>(2);
+		String notifType = null;
+		if(app!=null && host!=null) {
+			notifType = NOTIF_BOTH_NAME_CHANGE;
+			userData.put(Constants.APP_TAG, app);
+			userData.put(Constants.HOST_TAG, host);
+			
+		} else {
+			if(app==null) {
+				notifType = NOTIF_HOST_NAME_CHANGE;				
+				userData.put(Constants.HOST_TAG, host);				
+			} else {
+				notifType = NOTIF_APP_NAME_CHANGE;				
+				userData.put(Constants.APP_TAG, app);				
+			}
+		}
+		final Notification n = new Notification(notifType, objectName, notifSerial.incrementAndGet(), System.currentTimeMillis(), "AgentName reset. New Id: [" + appName + "@" + hostName + "]");		
+		n.setUserData(userData);
+		sendNotification(n);
+		for(final AgentNameChangeListener listener: listeners) {
+			Threading.getInstance().async(new Runnable(){
+				public void run() {
+					listener.onAgentNameChange(app, host);
+				}
+			});
+		}
+	}
+	
+	/**
+	 * Resets the cached app and host names. If a new name is set, the corresponding
+	 * system property {@link Constants#PROP_HOST_NAME} and/or {@link Constants#PROP_APP_NAME}
+	 * will be updated. 
+	 * @param newAppName The new app name to set. Ignored if null or empty.
+	 * @param newHostName The new host name to set. Ignored if null or empty.
+	 */
+	public void resetNames(final String newAppName, final String newHostName) {
+		boolean hostUpdated = false;
+		boolean appUpdated = false;
+		if(newHostName!=null && newHostName.trim().isEmpty()) {
+			hostName = newHostName.trim();
+			System.setProperty(Constants.PROP_HOST_NAME, hostName);
+			GLOBAL_TAGS.put(HOST_TAG, hostName);
+			hostUpdated = true;
+		}
+		if(newAppName!=null && newAppName.trim().isEmpty()) {
+			appName = newAppName.trim();
+			System.setProperty(Constants.PROP_APP_NAME, appName);
+			GLOBAL_TAGS.put(APP_TAG, appName);
+			appUpdated = true;
+		}
+		log.info("Names reset: app:[{}], host:[{}]", newAppName, newHostName);
+		fireAgentNameChange(appUpdated ? newAppName : null, hostUpdated ? newHostName : null); 
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.name.AgentNameMXBean#resetAppName(java.lang.String)
+	 */
+	@Override
+	public void resetAppName(final String newAppName) {
+		if(newAppName!=null && newAppName.trim().isEmpty() && !newAppName.trim().equals(appName)) {
+			appName = newAppName.trim();
+			System.setProperty(Constants.PROP_APP_NAME, appName);
+			GLOBAL_TAGS.put(APP_TAG, appName);
+			log.info("AppName reset: app:[{}]", newAppName);
+			fireAgentNameChange(newAppName, null);
+		}
+
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.name.AgentNameMXBean#resetHostName(java.lang.String)
+	 */
+	@Override
+	public void resetHostName(final String newHostName) {
+		if(newHostName!=null && newHostName.trim().isEmpty() && !newHostName.trim().equals(hostName)) {
+			hostName = newHostName.trim();
+			System.setProperty(Constants.PROP_HOST_NAME, hostName);
+			GLOBAL_TAGS.put(HOST_TAG, hostName);
+			log.info("HostName reset: host:[{}]", newHostName);
+			fireAgentNameChange(null, newHostName);
+		}
+
+	}
+	
+	
+	/**
+	 * Attempts a series of methods of divining the host name
+	 * @return the determined host name
+	 */
+	public static String hostName() {	
+		String host = System.getProperty(Constants.PROP_HOST_NAME, "").trim();
+		if(host!=null && !host.isEmpty()) return host;
+		host = Util.getHostNameByNic();
+		if(host!=null) return host;		
+		host = Util.getHostNameByInet();
+		if(host!=null) return host;
+		host = System.getenv(Constants.IS_WIN ? "COMPUTERNAME" : "HOSTNAME");
+		if(host!=null && !host.trim().isEmpty()) return host;
+		return Constants.HOST;
+	}	
+	
+	
+	/**
+	 * Attempts to find a reliable app name
+	 * @return the app name
+	 */
+	public static String appName() {
+		String appName = System.getProperty(Constants.PROP_APP_NAME, "").trim();
+		if(appName!=null && !appName.isEmpty()) return appName;
+		appName = getSysPropAppName();
+		if(appName!=null && !appName.trim().isEmpty()) return appName.trim();
+		appName = getJSAppName();
+		if(appName!=null && !appName.trim().isEmpty()) return appName.trim();		
+		appName = System.getProperty("sun.java.command", null);
+		if(appName!=null && !appName.trim().isEmpty()) {
+			String app = cleanAppName(appName);
+			if(app!=null && !app.trim().isEmpty()) {
+				return app;
+			}
+		}
+		appName = getVMSupportAppName();
+		if(appName!=null && !appName.trim().isEmpty()) return appName;
+		//  --main from args ?
+		return Constants.SPID;
+	}
+	
+	
+	/**
+	 * Attempts to determine the app name by looking up the value of the 
+	 * system property named in the value of the system prop {@link Constants#SYSPROP_APP_NAME}
+	 * @return The app name or null if {@link Constants#SYSPROP_APP_NAME} was not defined
+	 * or did not resolve.
+	 */
+	public static String getSysPropAppName() {
+		String appProp = System.getProperty(Constants.SYSPROP_APP_NAME, "").trim();
+		if(appProp==null || appProp.isEmpty()) return null;
+		boolean env = appProp==null || appProp.isEmpty();
+		String appName = env ? System.getenv(appProp) : System.getProperty(appProp, "").trim();
+		if(appName!=null && !appName.trim().isEmpty()) return appName;
+		return null;		
+	}
+	
+	/**
+	 * Attempts to determine the app name by looking up the value of the 
+	 * system property {@link Constants#JS_APP_NAME}, and compiling its value
+	 * as a JS script, then returning the value of the evaluation of the script.
+	 * The following binds are passed to the script: <ul>
+	 * 	<li><b>sysprops</b>: The system properties</li>
+	 * 	<li><b>agprops</b>: The agent properties which will be an empty properties instance if {@link #getAgentProperties()} failed.</li>
+	 *  <li><b>envs</b>: A map of environment variables</li>
+	 *  <li><b>mbs</b>: The platform MBeanServer</li>
+	 *  <li><b>cla</b>: The command line arguments as an array of strings</li>
+	 * </ul>
+	 * @return The app name or null if {@link Constants#JS_APP_NAME} was not defined
+	 * or did not compile, or did not return a valid app name
+	 */
+	public static String getJSAppName() {
+		String js = System.getProperty(Constants.JS_APP_NAME, "").trim();
+		if(js==null || js.isEmpty()) return null;
+		try {
+			ScriptEngine se = new ScriptEngineManager().getEngineByExtension("js");
+			Bindings b = new SimpleBindings();
+			b.put("sysprops", System.getProperties());
+			b.put("envs", System.getenv());
+			b.put("mbs", ManagementFactory.getPlatformMBeanServer());
+			b.put("cla", ManagementFactory.getRuntimeMXBean().getInputArguments().toArray(new String[0]));
+			Properties p = Util.getAgentProperties();
+			if(p!=null) {
+				b.put("agprops", Util.getAgentProperties());
+			} else {
+				b.put("agprops", new Properties());
+			}
+			Object value = se.eval(js, b);
+			if(value!=null && !value.toString().trim().isEmpty()) return value.toString().trim();
+			return null;
+		} catch (Exception ex) {
+			return null;
+		}
+	}
+	
+	
+	/**
+	 * Attempts to find an app name from a few different properties
+	 * found in <b><code>sun.misc.VMSupport.getAgentProperties()</code></b>.
+	 * Current properties are: <ul>
+	 * 	<li>sun.java.command</li>
+	 * 	<li>program.name</li>
+	 * </ul>
+	 * @return an app name or null if the reflective invocation fails,
+	 * or no property was found, or if the clean of the found app names
+	 * did not return an acceptable name.
+	 */
+	public static String getVMSupportAppName() {
+		Properties p = Util.getAgentProperties();
+		String app = p.getProperty("sun.java.command", null);
+		if(app!=null && !app.trim().isEmpty()) {
+			app = cleanAppName(app);			
+			if(app!=null && !app.trim().isEmpty()) return app;
+		}
+		app = p.getProperty("program.name", null);
+		if(app!=null && !app.trim().isEmpty()) {
+			app = cleanAppName(app);			
+			if(app!=null && !app.trim().isEmpty()) return app;				
+		}
+		return null;
+	}
+	
+	/**
+	 * Cleans an app name
+	 * @param appName The app name
+	 * @return the cleaned name or null if the result is no good
+	 */
+	public static String cleanAppName(final String appName) {
+		final String[] frags = appName.split("\\s+");
+		if(appName.contains(".jar")) {
+			
+			for(String s: frags) {
+				if(s.endsWith(".jar")) {
+					String[] jfrags = s.split("\\.");
+					return jfrags[jfrags.length-1];
+				}
+			}
+		} else {
+			String className = frags[0];
+			Class<?> clazz = Util.loadClassByName(className, null);
+			if(clazz!=null) {
+				return clazz.getSimpleName();
+			}
+		}
+		
+		
+		return null;
+	}
+	
+	
+
+}
