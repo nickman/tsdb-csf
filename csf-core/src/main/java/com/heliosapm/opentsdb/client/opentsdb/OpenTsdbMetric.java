@@ -28,6 +28,8 @@ import java.util.regex.Pattern;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 
+import com.heliosapm.opentsdb.client.name.AgentName;
+
 
 /**
  * @author Sean Scanlon <sean.scanlon@gmail.com>
@@ -55,7 +57,7 @@ public class OpenTsdbMetric {
     public static Builder named(final String name) {
 //    	final String rewrittenName = 
     	final Builder builder = rewriteName(name);
-    	OpenTsdb.getInstance().addOpenTsdbMetricName(named(builder.metric.metric, builder.metric.tags));
+    	//OpenTsdb.getInstance().addOpenTsdbMetricName(named(builder.metric.metric, builder.metric.tags));
         return builder;
     }
     
@@ -236,6 +238,12 @@ public class OpenTsdbMetric {
     		.append("\"timestamp\":").append(timestamp).append(",")
     		.append("\"value\":").append(value).append(",")
     		.append("\"tags\": {");
+    	for(Map.Entry<String, String> gtag: AgentName.getInstance().getGlobalTags().entrySet()) {
+    		if(!tags.containsKey(gtag.getKey())) {
+    			b.append("\"").append(gtag.getKey()).append("\":\"").append(gtag.getValue()).append("\",");
+    		}
+    	}
+
     	for(Map.Entry<String, String> tag: tags.entrySet()) {
     		b.append("\"").append(tag.getKey()).append("\":\"").append(tag.getValue()).append("\",");    		
     	}

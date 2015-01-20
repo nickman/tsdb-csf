@@ -67,7 +67,7 @@ public class OpenTsdbObjectNameFactory implements ObjectNameFactory {
 	    			String key = clean(s.substring(0, index));
 	    			String value = clean(s.substring(index+1));
 	    			if(!key.isEmpty() && !value.isEmpty()) {
-	    				if(CMTYPE.equalsIgnoreCase(key)) continue;
+//	    				if(CMTYPE.equalsIgnoreCase(key)) continue;
 	    				tags.put(key, value);
 	    			}
 	    		}

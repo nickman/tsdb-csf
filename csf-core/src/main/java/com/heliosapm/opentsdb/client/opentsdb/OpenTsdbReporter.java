@@ -15,15 +15,18 @@
  */
 package com.heliosapm.opentsdb.client.opentsdb;
 
-import java.lang.ref.WeakReference;
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 import org.jboss.netty.util.Timeout;
@@ -36,11 +39,11 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricFilter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.ScheduledReporter;
+import com.codahale.metrics.Reporter;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
+import com.heliosapm.opentsdb.client.registry.IMetricRegistry;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -48,15 +51,21 @@ import com.heliosapm.opentsdb.client.util.Util;
  *
  * @author Sean Scanlon <sean.scanlon@gmail.com>
  */
-public class OpenTsdbReporter extends ScheduledReporter {
+public class OpenTsdbReporter implements Closeable, Reporter {
 
     private final OpenTsdb opentsdb;
     private final Clock clock;
     private final String prefix;
     private Timeout scheduleHandle = null;
-    private final MetricRegistry registry;
+    private final IMetricRegistry registry;
     private final Map<String, String> tags;
     private static final Logger LOG = LoggerFactory.getLogger(OpenTsdbReporter.class);
+    protected final MetricFilter metricFilter;
+    protected final TimeUnit rateUnit;
+    protected final TimeUnit durationUnit;
+    protected final double durationFactor;
+    protected final double rateFactor;
+    protected final AtomicBoolean started = new AtomicBoolean(false);
     
     
 
@@ -66,11 +75,12 @@ public class OpenTsdbReporter extends ScheduledReporter {
      * @param registry the registry to report
      * @return a {@link Builder} instance for a {@link OpenTsdbReporter}
      */
-    public static Builder forRegistry(final MetricRegistry registry) {
+    public static Builder forRegistry(final IMetricRegistry registry) {
     	if(registry==null) throw new IllegalArgumentException("The passed registry was null");
-    	OpenTsdb.getInstance().addRegistry(registry);    	
+//    	OpenTsdb.getInstance().addRegistry(registry);    	
         return new Builder(registry);
     }
+    
     
 
     /**
@@ -79,7 +89,7 @@ public class OpenTsdbReporter extends ScheduledReporter {
      * not filtering metrics.
      */
     public static class Builder {
-        private final MetricRegistry registry;
+        private final IMetricRegistry registry;
         private Clock clock;
         private String prefix;
         private TimeUnit rateUnit;
@@ -87,7 +97,7 @@ public class OpenTsdbReporter extends ScheduledReporter {
         private MetricFilter filter;
         private Map<String, String> tags;
 
-        private Builder(MetricRegistry registry) {
+        private Builder(IMetricRegistry registry) {
             this.registry = registry;
             this.clock = Clock.defaultClock();
             this.prefix = null;
@@ -233,16 +243,22 @@ public class OpenTsdbReporter extends ScheduledReporter {
         }
     }
 
-    private OpenTsdbReporter(MetricRegistry registry, OpenTsdb opentsdb, Clock clock, String prefix, TimeUnit rateUnit, TimeUnit durationUnit, MetricFilter filter) {
-        super(registry, "opentsdb-reporter", filter, rateUnit, durationUnit);
+    
+    private OpenTsdbReporter(IMetricRegistry registry, OpenTsdb opentsdb, Clock clock, String prefix, TimeUnit rateUnit, TimeUnit durationUnit, MetricFilter filter) {
         this.opentsdb = opentsdb;
-        tags = this.tags;
+        tags = new TreeMap<String, String>();
         this.clock = clock;
         this.prefix = prefix;
         this.registry = registry;
+        this.metricFilter = filter;
+        this.rateUnit = rateUnit;
+        this.durationUnit = durationUnit;
+        this.durationFactor = 1.0 / durationUnit.toNanos(1);
+        this.rateFactor = rateUnit.toSeconds(1);
+        
     }
 
-    @Override
+    
     public void report(SortedMap<String, Gauge> gauges, SortedMap<String, Counter> counters, SortedMap<String, Histogram> histograms, SortedMap<String, Meter> meters, SortedMap<String, Timer> timers) {
 
         final long timestamp = clock.getTime() / 1000;
@@ -275,38 +291,53 @@ public class OpenTsdbReporter extends ScheduledReporter {
         opentsdb.send(metrics);
     }
     
+ 
     /**
-     * {@inheritDoc}
-     * @see com.codahale.metrics.ScheduledReporter#start(long, java.util.concurrent.TimeUnit)
+     * Starts the reporter on the specified period
+     * @param period The time period the reporter should run on
+     * @param unit The unit of the period
      */
-    @Override
     public void start(final long period, final TimeUnit unit) {
-    	final Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    report();
-                } catch (RuntimeException ex) {
-                    LOG.error("RuntimeException thrown from {}#report. Exception was suppressed.", OpenTsdbReporter.this.getClass().getSimpleName(), ex);
-                }
-            }
-        };
-        scheduleHandle = Threading.getInstance().schedule(r, period, unit);
-        LOG.debug("Started scheduled task for Registry {}", registry.getNames().toString());
+    	if(started.compareAndSet(false, true)) {
+	    	final Runnable r = new Runnable() {
+	            @Override
+	            public void run() {
+	                try {
+	                    report();
+	                } catch (RuntimeException ex) {
+	                    LOG.error("RuntimeException thrown from {}#report. Exception was suppressed.", OpenTsdbReporter.this.getClass().getSimpleName(), ex);
+	                }
+	            }
+	        };
+	        scheduleHandle = Threading.getInstance().schedule(r, period, unit);
+	        LOG.debug("Started scheduled task for Registry {}", registry.getNames().toString());
+    	}
     }
     
     /**
-     * {@inheritDoc}
-     * @see com.codahale.metrics.ScheduledReporter#stop()
+     * Stops the reporter
      */
-    @Override
     public void stop() {
-    	if(scheduleHandle!=null) {
-    		scheduleHandle.cancel();
-    		LOG.debug("Stopped scheduled task for Registry {}", registry.getNames().toString());
-    	}
-    	
+    	if(started.compareAndSet(true, false)) {
+	    	if(scheduleHandle!=null) {
+	    		scheduleHandle.cancel();
+	    		LOG.debug("Stopped scheduled task for Registry {}", registry.getNames().toString());
+	    	}
+    	}    	
     }
+    
+    /**
+     * Report the current values of all metrics in the registry.
+     */
+    public void report() {
+        synchronized (this) {
+            report(registry.getGauges(metricFilter),
+                    registry.getCounters(metricFilter),
+                    registry.getHistograms(metricFilter),
+                    registry.getMeters(metricFilter),
+                    registry.getTimers(metricFilter));
+        }
+    }    
 
     private Set<OpenTsdbMetric> buildTimers(String name, Timer timer, long timestamp) {
         final MetricsCollector collector = MetricsCollector.createNew(prefix(name), tags, timestamp);
@@ -385,10 +416,44 @@ public class OpenTsdbReporter extends ScheduledReporter {
         return OpenTsdbMetric.prefix(prefix, components);
     }
     
+
+    
     
     static {
     	// init boot logging as early as possible
     	LoggingConfiguration.getInstance();
     }
+
+
+	/**
+	 * {@inheritDoc}
+	 * @see java.io.Closeable#close()
+	 */
+	@Override
+	public void close() throws IOException {
+		stop();
+	}
+	
+    protected String getRateUnit() {
+        return durationUnit.toString().toLowerCase(Locale.US);
+    }
+
+    protected String getDurationUnit() {
+        return calculateRateUnit(rateUnit);
+    }
+
+    protected double convertDuration(double duration) {
+        return duration * durationFactor;
+    }
+
+    protected double convertRate(double rate) {
+        return rate * rateFactor;
+    }
+
+    private String calculateRateUnit(TimeUnit unit) {
+        final String s = unit.toString().toLowerCase(Locale.US);
+        return s.substring(0, s.length() - 1);
+    }
+	
 
 }

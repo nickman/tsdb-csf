@@ -1,0 +1,291 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+
+    <groupId>com.heliosapm.tsdb</groupId>
+    <artifactId>tsdb-csf-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>TSDB-CSF</name>
+    <url>https://github.com/nickman/tsdb-csf</url>
+    <modules>
+        <module>csf-core</module>       
+    </modules>
+
+    <description>OpenTSDB Java Agent for implementing Collect, Store and Forward for the JVM</description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <compiler-source.version>1.6</compiler-source.version>
+        <compiler-target.version>1.6</compiler-target.version>        
+        <metrics.version>3.1.0</metrics.version>  <!-- 4.0.0-SNAPSHOT -->
+        <ning.version>1.8.14</ning.version>
+        <junit.version>4.12</junit.version>
+        <json.version>20131018</json.version>
+        <log4j.version>2.1</log4j.version>
+        <!-- Plugin Versions -->
+        <compiler-plugin.version>3.2</compiler-plugin.version>
+        <source-plugin.version>2.4</source-plugin.version>
+        <javadoc-plugin.version>2.9.1</javadoc-plugin.version>
+        <findbugs.version>3.0.0</findbugs.version>
+        <jar-plugin.version>2.4</jar-plugin.version>
+        <eclipse-plugin.version>2.9</eclipse-plugin.version>
+        <surefire.version>2.16</surefire.version>
+        <cobertura.version>2.5.1</cobertura.version>
+        <shade.version>2.1</shade.version>        
+    </properties>
+
+    <developers>
+        <developer>
+            <name>Nicholas Whitehead</name>
+            <email>nwhitehead@heliosdev.org</email>
+            <timezone>-5</timezone>
+        </developer>        
+        <developer>
+            <name>Sean Scanlon</name>
+            <email>sean.scanlon@gmail.com</email>
+            <timezone>-8</timezone>
+        </developer>
+    </developers>
+
+    <licenses>
+        <license>
+            <name>Apache License 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <connection>scm:git:git://github.com/nickman/tsdb-csf.git</connection>
+        <developerConnection>scm:git:git@github.com:nickman/tsdb-csf.git</developerConnection>
+        <url>http://github.com/nickman/tsdb-csf/</url>
+    </scm>
+
+    <issueManagement>
+        <system>github</system>
+        <url>https://github.com/nickman/tsdb-csf/issues#issue</url>
+    </issueManagement>
+    <dependencyManagement>
+        <dependencies>
+
+            <dependency>
+                <groupId>io.dropwizard.metrics</groupId>
+                <artifactId>metrics-core</artifactId>
+                <version>${metrics.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.dropwizard.metrics</groupId>
+                <artifactId>metrics-jvm</artifactId>
+                <version>${metrics.version}</version>
+                <scope>provided</scope>
+            </dependency>
+    		<dependency>
+    		  <groupId>org.apache.logging.log4j</groupId>
+    		  <artifactId>log4j-api</artifactId>
+    		  <version>${log4j.version}</version>
+    		</dependency>		
+    		<dependency>
+    		  <groupId>org.apache.logging.log4j</groupId>
+    		  <artifactId>log4j-core</artifactId>
+    		  <version>${log4j.version}</version>
+    		</dependency>
+    		<dependency>
+    		  <groupId>org.apache.logging.log4j</groupId>
+    		  <artifactId>log4j-slf4j-impl</artifactId>
+    		  <version>${log4j.version}</version>
+    		</dependency>
+    		
+    		
+    		
+            
+            
+
+    		<dependency>
+    		  <groupId>com.ning</groupId>
+    		  <artifactId>async-http-client</artifactId>
+    		  <version>${ning.version}</version>
+    		</dependency>
+    		
+    		<dependency>
+    		  <groupId>org.json</groupId>
+    		  <artifactId>json</artifactId>
+    		  <version>${json.version}</version>
+    		</dependency>
+
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
+                <configuration>
+                    <source>${compiler-source.version}</source>
+                    <target>${compiler-target.version}</target>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>${source-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${javadoc-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>findbugs-maven-plugin</artifactId>
+                <version>${findbugs.version}</version>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>Default</threshold>
+                    <xmlOutput>true</xmlOutput>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-jar-plugin</artifactId>
+              <version>${jar-plugin.version}</version>      
+              <configuration>
+                  <archive>
+                  <manifest>
+                      <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                      <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                      <addClasspath>true</addClasspath>
+                  </manifest>
+                  <manifestEntries>
+                        <!--
+                                <Main-Class>org.helios.apmrouter.Agent</Main-Class> 
+                                <Premain-Class>org.helios.apmrouter.Agent</Premain-Class>
+                                <Agent-Class>org.helios.apmrouter.Agent</Agent-Class>
+                                <Can-Redefine-Classes>true</Can-Redefine-Classes>
+                                <Can-Retransform-Classes>true</Can-Retransform-Classes>
+                                <Can-Set-Native-Method-Prefix>true</Can-Set-Native-Method-Prefix>                   
+                        -->
+                  </manifestEntries>
+                  </archive>
+              </configuration>
+            </plugin>
+              <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                  <artifactId>maven-shade-plugin</artifactId>
+                  <version>${shade.version}</version>
+                    <executions>
+                        <execution>
+                          <phase>package</phase>
+                          <goals>
+                            <goal>shade</goal>
+                          </goals>
+                          <configuration>
+                            <artifactSet>
+                              <excludes>
+                                <exclude>log4j:log4j:jar:</exclude>
+                                <exclude>org.slf4j:*:jar:</exclude>                                
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>                       
+                              </excludes>
+                              <includes>
+                                
+                              </includes>
+                            </artifactSet>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                            <includePluginDependencies>false</includePluginDependencies>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"></transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.DontIncludeResourceTransformer">
+                                    <resource>.SF</resource>
+                                    <resource>.DSA</resource>
+                                    <resource>.RSA</resource>
+                                </transformer>
+                            </transformers>
+                          </configuration>
+                        </execution>
+                      </executions>
+                    </plugin>     
+
+
+            <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-eclipse-plugin</artifactId>
+            <version>${eclipse-plugin.version}</version>
+            <configuration>
+                <downloadJavadocs>true</downloadJavadocs>
+                <downloadSources>true</downloadSources>
+                <classpathContainers>
+                <classpathContainer>
+            org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7
+                </classpathContainer>
+                </classpathContainers>
+            </configuration>
+            </plugin>
+
+
+
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+
+            </build>
+        </profile>
+    </profiles>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>sonatype-nexus-snapshots</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>sonatype-nexus-staging</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
+
+</project>

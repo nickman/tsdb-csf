@@ -33,8 +33,8 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
+import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 //import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 //import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
@@ -47,6 +47,8 @@ import com.heliosapm.opentsdb.client.opentsdb.OpenTsdbReporter;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jmx.OpenTsdbObjectNameFactory;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.BufferPoolMetricSet;
+import com.heliosapm.opentsdb.client.registry.DelegateMetricRegistry;
+import com.heliosapm.opentsdb.client.registry.OpenTsdbMetricRegistry;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -61,7 +63,7 @@ public class KitchenSink {
 	
 	// Gauge, Counter, Histogram, Meter, Timer
 	static final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-	final MetricRegistry registry = new MetricRegistry();
+	final OpenTsdbMetricRegistry registry = new OpenTsdbMetricRegistry();
 	final Gauge<Long> cacheSizeGauge = new Gauge<Long>() {
 		@Override
 		public Long getValue() {		
@@ -85,6 +87,7 @@ public class KitchenSink {
 //	final GarbageCollectorMetricSet garbageCollectorMetricSet = new GarbageCollectorMetricSet(ManagementFactory.getGarbageCollectorMXBeans());
 //	final MemoryUsageGaugeSet memoryUsageGaugeSet = new MemoryUsageGaugeSet(ManagementFactory.getMemoryMXBean(), ManagementFactory.getMemoryPoolMXBeans());
 	final BufferPoolMetricSet bufferPoolMonitor;
+	final ClassLoadingGaugeSet classLoaderMonitor;
 	
 	
 	/**
@@ -99,17 +102,19 @@ public class KitchenSink {
 //		registry.registerAll(classLoadingGauge);
 //		registry.registerAll(garbageCollectorMetricSet);
 //		registry.registerAll(memoryUsageGaugeSet);
+		classLoaderMonitor = new ClassLoadingGaugeSet();
+		registry.registerAll(classLoaderMonitor);
 		if(Util.loadClassByName("java.lang.management.BufferPoolMXBean", null)!=null) {
 			bufferPoolMonitor = new BufferPoolMetricSet(mbs);
-			registry.registerAll(bufferPoolMonitor);
+//			registry.registerAll(bufferPoolMonitor);
 		} else {
 			bufferPoolMonitor = null;
 		}
 		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());		
 		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());
-		jmxReporter = JmxReporter.forRegistry(registry).createsObjectNamesWith(new OpenTsdbObjectNameFactory()).build();
+		jmxReporter = JmxReporter.forRegistry(DelegateMetricRegistry.newInstance(registry)).createsObjectNamesWith(new OpenTsdbObjectNameFactory()).build();
 		reporter.start(5, TimeUnit.SECONDS);		
-		jmxReporter.start();
+		//jmxReporter.start();
 		Threading.getInstance().schedule(new Runnable(){
 			final Random random = new Random(System.currentTimeMillis());
 			public void run() {
@@ -155,7 +160,7 @@ public class KitchenSink {
 //		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4242");
 		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
 		System.setProperty("tsdb.threadpool.size", "60");
-		System.setProperty("tsdb.http.compression.enabled", "true");
+		System.setProperty("tsdb.http.compression.enabled", "false");
 		
 		
 		System.out.println("Host:" + OpenTsdb.getInstance().getHostName());

@@ -1129,7 +1129,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	 */
 	@Override
 	public Set<String> dumpMetricNames(final boolean recurse) {		
-		return OpenTsdb.getInstance().dumpMetricNames(recurse);
+		return Collections.emptySet(); //OpenTsdb.getInstance().dumpMetricNames(recurse);
 	}
 	
 	/**
@@ -1138,6 +1138,6 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	 */
 	@Override
 	public int getMetricCount() {	
-		return OpenTsdb.getInstance().getMetricCount();
+		return -1; //OpenTsdb.getInstance().getMetricCount();
 	}
 }

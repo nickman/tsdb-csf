@@ -174,9 +174,11 @@ public interface Constants {
     
     /** Comma separated Key/Value pattern splitter */
     public static final Pattern KVP_PATTERN = Pattern.compile("\\s*?([^,\\s].*?)\\s*?=\\s*?([^,\\s].*?)\\s*?");
-	
-    public static final LoggingConfiguration LOG_CONFIGURER = LoggingConfiguration.getInstance();
-	
+
+	/** The system property config name for the OpenTsdbMetricRegistry metric map size */
+	public static final String PROP_REG_MAP_SIZE = "tsdb.reg.mapsize";    
+	/** The default OpenTsdbMetricRegistry metric map size */
+	public static final int DEFAULT_REG_MAP_SIZE = 32;
 
 	
 	

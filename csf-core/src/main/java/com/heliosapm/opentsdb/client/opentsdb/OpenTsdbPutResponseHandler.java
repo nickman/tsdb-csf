@@ -211,7 +211,14 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 				// figure out which registry it's in amd yank it
 				// send jmx notification with simplified message:  BAD METRIC: XXX, ERROR: YYY
 				
+			} else {
+				log.error("Failed to pattern match response:\n{}", sb);
+				
+				// TODO:  This looks like what happens if gzip is not supported
+				// Failed to pattern match response:
+				// {"error":{"code":400,"message":"Unable to parse the given JSON","details":"com.fasterxml.jackson.core.JsonParseException: Unexpected character ('�' (code 65533 / 0xfffd)): expected a valid value (number, String, array, object, 'true', 'false' or 'null')\n at [Source: java.io.StringReader@72688124; line: 1, column: 2]"}}
 			}
+			
 		}
 		return counts==null ? EMPTY_COUNTS : counts;
 	}

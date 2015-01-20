@@ -21,6 +21,11 @@
       <attribute value="jar:file:/C:/Users/nwhitehe/.m2/repository/io/dropwizard/metrics/metrics-jvm/3.1.0/metrics-jvm-3.1.0-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/github/stephenc/high-scale-lib/high-scale-lib/1.1.4/high-scale-lib-1.1.4.jar" sourcepath="M2_REPO/com/github/stephenc/high-scale-lib/high-scale-lib/1.1.4/high-scale-lib-1.1.4-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/nwhitehe/.m2/repository/com/github/stephenc/high-scale-lib/high-scale-lib/1.1.4/high-scale-lib-1.1.4-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
   <classpathentry kind="var" path="M2_REPO/org/apache/logging/log4j/log4j-api/2.1/log4j-api-2.1.jar" sourcepath="M2_REPO/org/apache/logging/log4j/log4j-api/2.1/log4j-api-2.1-sources.jar">
     <attributes>
       <attribute value="jar:file:/C:/Users/nwhitehe/.m2/repository/org/apache/logging/log4j/log4j-api/2.1/log4j-api-2.1-javadoc.jar!/" name="javadoc_location"/>

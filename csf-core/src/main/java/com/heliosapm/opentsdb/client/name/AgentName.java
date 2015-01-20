@@ -28,11 +28,11 @@ import static com.heliosapm.opentsdb.client.opentsdb.Constants.APP_TAG;
 import static com.heliosapm.opentsdb.client.opentsdb.Constants.HOST_TAG;
 
 import java.lang.management.ManagementFactory;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
@@ -146,7 +146,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	 * @return the agent's global tags
 	 */
 	public Map<String, String> getGlobalTags() {
-		return Collections.unmodifiableMap(GLOBAL_TAGS);
+		return new TreeMap<String, String>(GLOBAL_TAGS);
 	}
 
 	/**
