@@ -30,8 +30,8 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.JmxAttributeGauge;
 import com.codahale.metrics.JvmAttributeGaugeSet;
 import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
+import com.heliosapm.opentsdb.client.opentsdb.OpenTsdbMetric;
 
 /**
  * <p>Title: BufferPoolMetricSet</p>
@@ -84,7 +84,7 @@ public class BufferPoolMetricSet implements MetricSet {
                 final String attribute = ATTRIBUTES[i];
                 final String poolName = pool.getKeyProperty("name");
                 
-                gauges.put(MetricRegistry.name("java.io.buffers", "type=BufferPool", "name=" + poolName),   // , "attr=" + attribute
+                gauges.put(OpenTsdbMetric.named("java.io.buffers", "type=BufferPool", "name=" + poolName, "attr=" + attribute),   // , "attr=" + attribute
                            new JmxAttributeGauge(mBeanServer, pool, attribute));
                 
             }

@@ -17,19 +17,27 @@ package com.heliosapm.opentsdb.client.opentsdb;
 
 
 import java.lang.management.ManagementFactory;
+import java.lang.ref.WeakReference;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.name.AgentName;
@@ -63,6 +71,75 @@ public class OpenTsdb {
 			.createsObjectNamesWith(new OpenTsdbObjectNameFactory())
 			.registerWith(ManagementFactory.getPlatformMBeanServer())
 			.build();
+	
+    /** Weak reference set of all the registries found using the OpenTsdbReporter */
+    private final Set<MRWR> registries = new CopyOnWriteArraySet<MRWR>();    
+    
+    /** A set of all the opentsdb metric names */
+    private final Set<String>  allMetricNames = new HashSet<String>(1024);
+    
+    /**
+     * Returns all the metric registries that have had OpenTsdbReporters created with them
+     * @return a set of metric registries containing OpenTsdbMetrics
+     */
+    public Set<MetricRegistry> getRegistries() {
+    	Set<MetricRegistry> set = new HashSet<MetricRegistry>(registries.size());
+    	Set<MRWR> remove = new HashSet<MRWR>();
+    	for(MRWR registryRef: registries) {
+    		MetricRegistry mr = registryRef.get(); 
+    		if(mr==null) {
+    			remove.add(registryRef);
+    		} else {
+    			set.add(mr);
+    		}
+    	}
+    	if(!remove.isEmpty()) {
+    		registries.removeAll(remove);
+    	}
+    	return set;
+    }
+    
+    /**
+     * Adds a registry for tracking
+     * @param registry The registry to track
+     * @return true if added, false if it was already added
+     */
+    public boolean addRegistry(final MetricRegistry registry) {
+    	if(registry==null) throw new IllegalArgumentException("The passed metric was null");
+    	return registries.add(new MRWR(registry));
+    }
+    
+    private static class MRWR extends WeakReference<MetricRegistry> {
+    	final private int hash;
+    	
+		public MRWR(final MetricRegistry referent) {
+			super(referent);
+			hash = referent.hashCode();
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#hashCode()
+		 */
+		@Override
+		public int hashCode() {
+			return hash;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#equals(java.lang.Object)
+		 */
+		@Override
+		public boolean equals(Object obj) {
+			if (obj == null) return false;
+			if (MRWR.class != obj.getClass() && MetricRegistry.class != obj.getClass()) return false;
+			return obj.hashCode()==hash;			
+		}
+    	
+    }
+    
+	
 			
 	
     /** Static class logger */
@@ -91,10 +168,86 @@ public class OpenTsdb {
     
 	
 	private OpenTsdb() {
-		batchSize = ConfigurationReader.confInt(Constants.PROP_BATCH_SIZE,  Constants.DEFAULT_BATCH_SIZE);		
+		batchSize = ConfigurationReader.confInt(Constants.PROP_BATCH_SIZE,  Constants.DEFAULT_BATCH_SIZE);	
+		registries.add(new MRWR(registry));
 		jmxReporter.start();
 	}
 	
+	/**
+	 * Adds a metric name to the OpenTsdb metric set
+	 * @param name The name to add
+	 */
+	public void addOpenTsdbMetricName(final String name) {
+		if(name!=null && !name.isEmpty()) {
+			allMetricNames.add(name);
+		}
+	}
+	
+	
+	/**
+	 * Returns a set of all the metric names in the registry
+	 * @param recurse true to recurse through metric sets, false for top level only
+	 * @return all the metric names in the registry
+	 */
+	public Set<String> dumpMetricNames(final boolean recurse) {
+		final Set<String> metricNames = new TreeSet<String>();
+		if(recurse) {
+			metricNames.addAll(allMetricNames);
+		}
+		Set<MRWR> remove = new HashSet<MRWR>();
+		for(MRWR mr: registries) {
+			MetricRegistry r = mr.get();
+			if(r==null) {
+				remove.add(mr);
+				continue;
+			}
+			metricNames.addAll(r.getNames());
+		}
+		if(!remove.isEmpty()) {
+			registries.removeAll(remove);
+		}
+		return metricNames;
+	}
+	
+	protected void getUniqueMetricNames(final MetricSet metricSet, final Set<String> metricNames) {
+        if(metricSet==null) return;        
+        if(metricSet instanceof MetricRegistry) {
+        	final MetricRegistry registry = (MetricRegistry)metricSet;
+        	metricNames.addAll(registry.getGauges().keySet());
+        	metricNames.addAll(registry.getCounters().keySet());
+        	metricNames.addAll(registry.getHistograms().keySet());
+        	metricNames.addAll(registry.getMeters().keySet());
+        	metricNames.addAll(registry.getTimers().keySet());        
+        } else {
+        	recurse(metricSet, metricNames);
+        }
+		
+		
+	}
+	
+	/**
+	 * Recurses through the passed metric set to find all the unique metric names
+	 * @param metricSet The metric set to recurse
+	 * @param metricNames The set of metric names to add to
+	 */
+	protected void recurse(final MetricSet metricSet, final Set<String> metricNames) {
+		if(metricSet==null) return;
+		for(Map.Entry<String, Metric> entry: metricSet.getMetrics().entrySet()) {
+			if(entry.getValue() instanceof MetricSet) {
+				recurse((MetricSet)entry.getValue(), metricNames);
+			} else {
+				metricNames.add(entry.getKey());
+			}			
+		}		
+	}
+	
+	/**
+	 * Returns the total number of metrics in all OpenTsdbReported registries
+	 * @return the total number of metrics
+	 */
+	public int getMetricCount() {
+		return allMetricNames.size();
+	}
 	
 	/**
 	 * Returns the current batch size

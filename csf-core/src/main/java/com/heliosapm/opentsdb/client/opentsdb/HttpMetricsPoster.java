@@ -1123,4 +1123,21 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		this.maxConcurrentFlushes = maxConcurrentFlushes;
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#dumpMetricNames(boolean)
+	 */
+	@Override
+	public Set<String> dumpMetricNames(final boolean recurse) {		
+		return OpenTsdb.getInstance().dumpMetricNames(recurse);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getMetricCount()
+	 */
+	@Override
+	public int getMetricCount() {	
+		return OpenTsdb.getInstance().getMetricCount();
+	}
 }

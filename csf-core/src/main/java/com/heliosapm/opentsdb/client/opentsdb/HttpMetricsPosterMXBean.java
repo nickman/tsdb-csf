@@ -16,6 +16,7 @@
 package com.heliosapm.opentsdb.client.opentsdb;
 
 import java.util.Map;
+import java.util.Set;
 
 
 /**
@@ -40,6 +41,19 @@ public interface HttpMetricsPosterMXBean {
 	 * @return the total number of successfully sent metrics
 	 */
 	public long getSentMetrics();
+	
+	/**
+	 * Returns a set of all the metric names in the registry
+	 * @param recurse true to recurse through metric sets, false for top level only
+	 * @return all the metric names in the registry
+	 */
+	public Set<String> dumpMetricNames(boolean recurse);	
+	
+	/**
+	 * Returns the total number of metrics in all OpenTsdbReported registries
+	 * @return the total number of metrics
+	 */
+	public int getMetricCount();	
 	
 	/**
 	 * Determines if the connectivity checker is connected

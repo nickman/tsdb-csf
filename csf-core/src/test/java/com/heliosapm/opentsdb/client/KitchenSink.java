@@ -21,14 +21,12 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
-
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -38,7 +36,6 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
-import com.heliosapm.opentsdb.client.opentsdb.Constants;
 //import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 //import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 //import com.codahale.metrics.jvm.GarbageCollectorMetricSet;

@@ -27,6 +27,11 @@ package com.heliosapm.opentsdb.client.opentsdb;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 /**
  * <p>Title: OpenTsdbPutResponseHandler</p>
  * <p>Description: Enumerates the options for handling OpenTSDB <b>put</b> call responses.</p> 
@@ -105,9 +110,10 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.OpenTsdbPutResponseHandler.DetailedResponseHandler</code></p>
 	 */
 	public static class DetailedResponseHandler implements PutResponseHandler {
+		final Logger log = LogManager.getLogger(getClass());
 		@Override
 		public int[] process(final int responseCode, final StringBuilder content) {
-			return doDetailedStats(content);
+			return doDetailedStats(content, log);
 		}	
 	}
 
@@ -143,9 +149,10 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	/**
 	 * Extracts the failiure and success counts and the error json from the passed details response and increments the counters
 	 * @param sb The response stringy which the errs are put into if there are any. Otherwise it is truncated to zero length
+	 * @param log The logger to log with
 	 * @return the counts of failed submissions ([0]) and successful submissions ([1]).
 	 */
-	public static int[] doDetailedStats(final StringBuilder sb) {
+	public static int[] doDetailedStats(final StringBuilder sb, final Logger log) {
 		int[] counts = null;
 		Matcher m = DETAILS_PATTERN.matcher(sb);
 		if(m.matches()) {
@@ -158,6 +165,25 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 				// we got fails, yo				
 				counts = getCountsFromMatcher(m);
 				String s = m.group(1).trim();
+				try {
+					if(s.charAt(0)=='[') {
+						final JSONArray jsonArr = new JSONArray(s);
+						final int size = jsonArr.length();
+						for(int i = 0; i < size; i++) {							
+							log.error("BAD METRIC:{}", jsonArr.getJSONObject(i));
+						}
+					} else if(s.charAt(0)=='{') {
+						final JSONObject jsonObj = new JSONObject(s);
+						log.error("BAD METRIC:{}", jsonObj.toString());
+					} else {
+						log.error("Problematic JSON:\n{}", s);
+					}
+					
+					
+				} catch (Exception ex) {
+					log.error("Failed to parse OpenTSDB put response. Content:\n{}", s, ex);
+					
+				}
 //				System.out.println("==============\n" + s + "\n==============");
 //				try {
 //					System.out.println(new JSONObject(s).toString(2));

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -45,11 +46,17 @@ public class OpenTsdbMetric {
 	/** Dot split pattern */
 	protected static final Pattern DOT_SPLITTER = Pattern.compile("\\.");
 	
+	/** Maps the full MetricsRegistry name to the OpenTSDB metric name */	
+	protected static final ConcurrentHashMap<String, String> mapToMetricName = new ConcurrentHashMap<String, String>(); 
+	
     private OpenTsdbMetric() {
     }
 
     public static Builder named(final String name) {
-        return rewriteName(name);
+//    	final String rewrittenName = 
+    	final Builder builder = rewriteName(name);
+    	OpenTsdb.getInstance().addOpenTsdbMetricName(named(builder.metric.metric, builder.metric.tags));
+        return builder;
     }
     
     public static String prefix(final String prefix, String...components) {
@@ -91,6 +98,47 @@ public class OpenTsdbMetric {
     	return new Builder(metricName).withTags(tags);
     }
     
+    /**
+     * Builds an OpenTsdbMetric name 
+     * @param metricName The metric name
+     * @param tags The metric tags
+     * @return the built name
+     */
+    @SuppressWarnings("rawtypes")
+	public static String named(final String metricName, final Map tags) {
+    	final StringBuilder b = new StringBuilder();
+    	if(metricName!=null) b.append(clean(metricName)).append(".");
+    	if(tags!=null && !tags.isEmpty()) {
+    		Set<Map.Entry<Object, Object>> entrySet = tags.entrySet();
+    		for(Map.Entry entry: entrySet) {
+    			b.append(clean(entry.getKey().toString())).append("=").append(clean(entry.getValue().toString())).append(".");
+    		}
+    	}
+    	if(b.length()>0) b.deleteCharAt(b.length()-1);
+    	return b.toString();
+    }
+    
+    /**
+     * Builds an OpenTsdbMetric name 
+     * @param metricName The metric name
+     * @param tagPairs <b><code>=</code></b> separated tag key/value pairs
+     * @return the built name
+     */
+    
+	public static String named(final String metricName, final String...tagPairs) {
+    	Map<String, String> tags = new TreeMap<String, String>();
+    	for(String s: tagPairs) {
+    		s = s.trim();
+    		int index = s.indexOf('=');
+    		if(index==0) continue;
+    		String key = clean(s.substring(0, index));
+    		String value = clean(s.substring(index+1));
+    		if(!key.isEmpty() && !value.isEmpty()) {
+    			tags.put(key, value);
+    		}
+    	}
+    	return named(metricName, tags);
+    }
     
 
     private String metric;
