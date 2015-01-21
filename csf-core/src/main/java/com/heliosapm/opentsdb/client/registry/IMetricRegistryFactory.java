@@ -24,11 +24,15 @@
  */
 package com.heliosapm.opentsdb.client.registry;
 
-import java.util.Collections;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
-import java.util.WeakHashMap;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -52,7 +56,21 @@ import com.codahale.metrics.Timer;
 public class IMetricRegistryFactory {
 
 	/** A wek ref map of known wrapped MetricRegistries keyed by their system id hashcodes. */
-	private static final Map<Integer, IMetricRegistry> metricRegistries = Collections.synchronizedMap(new WeakHashMap<Integer, IMetricRegistry>());
+	private static final Map<Integer, WeakReference<IMetricRegistry>> metricRegistries = new ConcurrentHashMap<Integer, WeakReference<IMetricRegistry>>();
+	
+	private static final ReferenceQueue<IMetricRegistry> refQueue = new ReferenceQueue<IMetricRegistry>();
+	
+	private static class MetricRegistryReference extends WeakReference<IMetricRegistry> {
+		final int id;
+		public MetricRegistryReference(final IMetricRegistry referent, final ReferenceQueue<? super IMetricRegistry> q) {
+			super(referent, q);
+			this.id =  referent.hashCode();
+		}
+		
+		static MetricRegistryReference newInstance(final IMetricRegistry referent) {
+			return new MetricRegistryReference(referent, refQueue);
+		}
+	}
 	
 	/**
 	 * Returns a wrapped {@link MetricRegistry} so that it implements {@link IMetricRegistry}.
@@ -64,13 +82,13 @@ public class IMetricRegistryFactory {
 	public static IMetricRegistry wrap(final MetricRegistry registry) {
 		if(registry==null) throw new IllegalArgumentException("The passed registry was null");
 		final Integer sysIdHash = System.identityHashCode(registry);
-		IMetricRegistry imr = metricRegistries.get(sysIdHash);
+		IMetricRegistry imr = metricRegistries.get(sysIdHash).get();
 		if(imr==null) {
 			synchronized(metricRegistries) {
-				imr = metricRegistries.get(sysIdHash);
+				imr = metricRegistries.get(sysIdHash).get();
 				if(imr==null) {
 					imr = new IMetricRegistryWrapper(registry);
-					metricRegistries.put(sysIdHash, imr);
+					metricRegistries.put(sysIdHash, MetricRegistryReference.newInstance(imr));
 				}
 			}
 		}
@@ -85,11 +103,13 @@ public class IMetricRegistryFactory {
 	 * @return the wrapped registry.
 	 */
 	public static IMetricRegistry wrap(final MetricSet metricSet) {
+		if(metricSet instanceof IMetricRegistry) return (IMetricRegistry)metricSet;
 		return new OpenTsdbMetricRegistry(metricSet);
 	}
 
 	static void register(final OpenTsdbMetricRegistry otreg) {
-		metricRegistries.put(otreg.hashCode(), otreg);
+		metricRegistries.put(otreg.hashCode(), MetricRegistryReference.newInstance(otreg));
+		System.out.println("REG COUNT:" + metricRegistries.size());
 	}
 	
 	static class IMetricRegistryWrapper implements IMetricRegistry {
@@ -328,5 +348,75 @@ public class IMetricRegistryFactory {
 		
 		
 	}
+	
+	  /**
+	  * Returns all the metric registries that have had OpenTsdbReporters created with them
+	  * @return a set of metric registries containing OpenTsdbMetrics
+	  */
+	 public static Set<IMetricRegistry> getRegistries() {
+	 	Set<IMetricRegistry> set = new HashSet<IMetricRegistry>(metricRegistries.size());
+	 	synchronized(metricRegistries) {
+	 	 	for(WeakReference<IMetricRegistry> mr: metricRegistries.values()) {
+	 	 		IMetricRegistry imr = mr.get();
+	 	 		if(imr==null) continue;
+	 			set.add(imr); 		
+	 	 	} 		
+	 	}
+	 	return set;
+	 }
+	 
+	 
+	/**
+	 * Returns a set of all the metric names in the registry
+	 * @param recurse true to recurse through metric sets, false for top level only
+	 * @return all the metric names in the registry
+	 */
+	public static Set<String> dumpMetricNames(final boolean recurse) {
+		final Set<String> metricNames = new TreeSet<String>();
+		final Set<IMetricRegistry> mrs = getRegistries();
+		for(IMetricRegistry mr: mrs) {
+			for(Map.Entry<String, Metric> entry: mr.getMetrics().entrySet()) {
+				final Metric m = entry.getValue();
+				if(m instanceof MetricSet) {
+					recurse((MetricSet)m, metricNames);
+				} else {
+					metricNames.add(entry.getKey());
+				}
+			}
+		}
+		return metricNames;
+	}
+	
+	public static void getUniqueMetricNames(final MetricSet metricSet, final Set<String> metricNames) {
+	    if(metricSet==null) return;        
+	    if(metricSet instanceof IMetricRegistry) {
+	    	final IMetricRegistry registry = (IMetricRegistry)metricSet;
+	    	metricNames.addAll(registry.getGauges().keySet());
+	    	metricNames.addAll(registry.getCounters().keySet());
+	    	metricNames.addAll(registry.getHistograms().keySet());
+	    	metricNames.addAll(registry.getMeters().keySet());
+	    	metricNames.addAll(registry.getTimers().keySet());        
+	    } else {
+	    	recurse(metricSet, metricNames);
+	    }
+	}
+	
+	/**
+	 * Recurses through the passed metric set to find all the unique metric names
+	 * @param metricSet The metric set to recurse
+	 * @param metricNames The set of metric names to add to
+	 */
+	protected static void recurse(final MetricSet metricSet, final Set<String> metricNames) {
+		if(metricSet==null) return;
+		for(Map.Entry<String, Metric> entry: metricSet.getMetrics().entrySet()) {
+			if(entry.getValue() instanceof MetricSet) {
+				recurse((MetricSet)entry.getValue(), metricNames);
+			} else {
+				metricNames.add(entry.getKey());
+			}			
+		}		
+	}
+	
+	
 
 }

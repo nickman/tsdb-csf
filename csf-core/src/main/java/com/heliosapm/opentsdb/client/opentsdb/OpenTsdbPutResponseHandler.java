@@ -24,6 +24,7 @@
  */
 package com.heliosapm.opentsdb.client.opentsdb;
 
+import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,7 +61,7 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	/** Regex matching a details response from OpenTSDB after posting a put with no errors */
 	public static final Pattern DETAILS_PATTERN = Pattern.compile("\\{\"errors\":\\[\\],\"failed\":(\\d+),\"success\":(\\d+)\\}");
 	/** Regex matching a details response from OpenTSDB after posting a put with no errors */
-	public static final Pattern DETAILS_WITH_ERRORS_PATTERN = Pattern.compile("\\{\"errors\":\\[(.+?)\\],\"failed\":(\\d+),\"success\":(\\d+)\\}");
+	public static final Pattern DETAILS_WITH_ERRORS_PATTERN = Pattern.compile("\\{\"errors\":(\\[.+?\\]),\"failed\":(\\d+),\"success\":(\\d+)\\}");
 
 	/** Comma separated valid names */
 	public static final String VALID_NAMES;
@@ -113,7 +114,7 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 		final Logger log = LogManager.getLogger(getClass());
 		@Override
 		public int[] process(final int responseCode, final StringBuilder content) {
-			return doDetailedStats(content, log);
+			return doDetailedStats(responseCode, content, log);
 		}	
 	}
 
@@ -148,12 +149,14 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	
 	/**
 	 * Extracts the failiure and success counts and the error json from the passed details response and increments the counters
+	 * @param responseCode The HTTP response code
 	 * @param sb The response stringy which the errs are put into if there are any. Otherwise it is truncated to zero length
 	 * @param log The logger to log with
 	 * @return the counts of failed submissions ([0]) and successful submissions ([1]).
 	 */
-	public static int[] doDetailedStats(final StringBuilder sb, final Logger log) {
+	public static int[] doDetailedStats(final int responseCode, final StringBuilder sb, final Logger log) {
 		int[] counts = null;
+		log.debug("RESP:{}", sb);
 		Matcher m = DETAILS_PATTERN.matcher(sb);
 		if(m.matches()) {
 			// means no failures
@@ -164,32 +167,12 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 			if(m.matches()) {
 				// we got fails, yo				
 				counts = getCountsFromMatcher(m);
-				String s = m.group(1).trim();
+				String s = m.group(1).trim();				
 				try {
-					if(s.charAt(0)=='[') {
-						final JSONArray jsonArr = new JSONArray(s);
-						final int size = jsonArr.length();
-						for(int i = 0; i < size; i++) {							
-							log.error("BAD METRIC:{}", jsonArr.getJSONObject(i));
-						}
-					} else if(s.charAt(0)=='{') {
-						final JSONObject jsonObj = new JSONObject(s);
-						log.error("BAD METRIC:{}", jsonObj.toString());
-					} else {
-						log.error("Problematic JSON:\n{}", s);
-					}
-					
-					
+					processErrors(s, log);
 				} catch (Exception ex) {
-					log.error("Failed to parse OpenTSDB put response. Content:\n{}", s, ex);
-					
+					log.error("Failed to parse OpenTSDB put response. Content:\n{}", s, ex);					
 				}
-//				System.out.println("==============\n" + s + "\n==============");
-//				try {
-//					System.out.println(new JSONObject(s).toString(2));
-//				} catch (Exception ex) {}
-				sb.setLength(0);
-				sb.delete(0, sb.length()-1).append(s);
 				// index the bad metric names and filter them
 				// TODO:
 				/*
@@ -212,8 +195,13 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 				// send jmx notification with simplified message:  BAD METRIC: XXX, ERROR: YYY
 				
 			} else {
-				log.error("Failed to pattern match response:\n{}", sb);
-				
+				final String content = sb.toString();
+				final boolean gzipErr = couldBeGzipIssue(responseCode, content);
+				log.error("Failed to pattern match response: Server GZip Error:{} Content:\n{}", gzipErr, content);
+				if(couldBeGzipIssue(responseCode, content)) {
+					log.error("Auto disabled http post gzip");
+					HttpMetricsPoster.getInstance().autoDisableGZip();
+				}
 				// TODO:  This looks like what happens if gzip is not supported
 				// Failed to pattern match response:
 				// {"error":{"code":400,"message":"Unable to parse the given JSON","details":"com.fasterxml.jackson.core.JsonParseException: Unexpected character ('�' (code 65533 / 0xfffd)): expected a valid value (number, String, array, object, 'true', 'false' or 'null')\n at [Source: java.io.StringReader@72688124; line: 1, column: 2]"}}
@@ -222,6 +210,51 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 		}
 		return counts==null ? EMPTY_COUNTS : counts;
 	}
+	
+	
+	
+	protected static void processErrors(final String content, final Logger log) {
+		try {
+			final JSONArray arr = new JSONArray(content);
+			final int sz = arr.length();
+			for(int i = 0; i < sz; i++) {
+				JSONObject dp = arr.getJSONObject(i).getJSONObject("datapoint");
+				log.error("BAD METRIC: metric:{}, tags:{}", dp.get("metric"), dp.get("tags"));
+				// TODO: build a metric name that can be used to filter submissions 
+				// so these don't get sent again.
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+		}
+	}
+	
+	/**
+	 * Determines if the put error response indicates that the server does not support gzip
+	 * @param responseCode The HTTP response code
+	 * @param content The response content
+	 * @return true if the error has the signature of a non-gzip-supporting server
+	 */
+	public static boolean couldBeGzipIssue(final int responseCode, final String content) {
+		return (
+				HttpMetricsPoster.getInstance().isEnableCompression() &&
+				responseCode == 400 &&
+				(content.contains("JsonParseException") || content.contains("Unable to parse the given JSON")) &&
+				containsMulti(content)				
+		);
+	}
+	
+	/**
+	 * Determines if the passed content contains multi-byte characters
+	 * @param content The content to test
+	 * @return true if the passed content contains multi-byte characters, false otherwise
+	 */
+	public static boolean containsMulti(final String content) {
+		if(content==null || content.isEmpty()) return false;
+		final char[] chars = content.toCharArray();		
+		Arrays.sort(chars);
+		return (chars[chars.length-1] > Byte.MAX_VALUE);
+	}
+	
 	
 	
 	/**

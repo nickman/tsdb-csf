@@ -131,7 +131,7 @@ public class OpenTsdbMetricRegistry implements IMetricRegistry {
 	
 	
     /**
-     * Concatenates elements to form an OpenTSDB metric in the format of a JMX ObjectName.
+     * Concatenates elements to form an OpenTSDB metric in the sort-of format of a JMX ObjectName.
      *
      * @param name     the first element of the name
      * @param names    the remaining elements of the name
@@ -142,7 +142,7 @@ public class OpenTsdbMetricRegistry implements IMetricRegistry {
     	if(name!=null) {
     		String _name = name.trim();
     		if(!_name.isEmpty()) {
-    			builder.append(_name).append(":");
+    			builder.append(_name).append(".");
     		}
     	}
         if (names != null) {
@@ -404,7 +404,7 @@ public class OpenTsdbMetricRegistry implements IMetricRegistry {
 	    		}
 	    	} else {
 	    		// metric name
-	    		builder.append(part.replace('=', '.')).append(":");
+	    		builder.append(part.replace('=', '.')).append("");
 	    	}
     	}
     	if(blength == builder.length()) {
@@ -646,3 +646,94 @@ public class OpenTsdbMetricRegistry implements IMetricRegistry {
     }
 	
 }
+
+
+
+/*
+
+KitchenSink.cmtype=Counter.op=cache-evictions.service=cacheservice
+KitchenSink.cmtype=Gauge.attr=cache-size.service=cacheservice
+KitchenSink.cmtype=Histogram.op=cache-lookup.service=cacheservice
+KitchenSink.cmtype=Meter.op=cache-lookup.service=cacheservice
+KitchenSink.cmtype=Timer.op=cache-evictions.service=cacheservice
+fd
+heap.committed:
+heap.init:
+heap.max:
+heap.usage:
+heap.used:
+loaded:
+non-heap.committed:
+non-heap.init:
+non-heap.max:
+non-heap.usage:
+non-heap.used:
+pools.Code-Cache.usage:
+pools.PS-Eden-Space.usage:
+pools.PS-Old-Gen.usage:
+pools.PS-Perm-Gen.usage:
+pools.PS-Survivor-Space.usage:
+total.committed:
+total.init:
+total.max:
+total.used:
+unloaded:
+
+==================
+
+BAD METRIC: metric:heap.max:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:non-heap.usage:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:heap.committed:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:pools.PS-Perm-Gen.usage:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:non-heap.committed:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:non-heap.init:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:pools.Code-Cache.usage:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:loaded:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:heap.usage:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:non-heap.used:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:total.committed:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:non-heap.max:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:total.used:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:heap.used:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:heap.init:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:unloaded:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:total.init:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:pools.PS-Survivor-Space.usage:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:pools.PS-Old-Gen.usage:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:total.max:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+BAD METRIC: metric:pools.PS-Eden-Space.usage:.value, tags:{"app":"KitchenSink","host":"tpmint.local"}
+
+
+==================
+
+
+KitchenSink.cmtype=Counter.op=cache-evictions.service=cacheservice
+KitchenSink.cmtype=Gauge.attr=cache-size.service=cacheservice
+KitchenSink.cmtype=Histogram.op=cache-lookup.service=cacheservice
+KitchenSink.cmtype=Meter.op=cache-lookup.service=cacheservice
+KitchenSink.cmtype=Timer.op=cache-evictions.service=cacheservice
+fd
+heap.committed
+heap.init
+heap.max
+heap.usage
+heap.used
+loaded
+non-heap.committed
+non-heap.init
+non-heap.max
+non-heap.usage
+non-heap.used
+pools.Code-Cache.usage
+pools.PS-Eden-Space.usage
+pools.PS-Old-Gen.usage
+pools.PS-Perm-Gen.usage
+pools.PS-Survivor-Space.usage
+total.committed
+total.init
+total.max
+total.used
+unloaded
+
+
+*/

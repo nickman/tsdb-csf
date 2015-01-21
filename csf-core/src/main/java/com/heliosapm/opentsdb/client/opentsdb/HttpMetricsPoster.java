@@ -67,6 +67,7 @@ import org.json.JSONObject;
 import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.AnnotationBuilder.TSDBAnnotation;
 import com.heliosapm.opentsdb.client.opentsdb.EmptyAsyncHandler.FinalHookAsyncHandler;
+import com.heliosapm.opentsdb.client.registry.IMetricRegistryFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 import com.ning.http.client.AsyncHandler;
 import com.ning.http.client.AsyncHttpClient;
@@ -174,7 +175,8 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	private static final MBeanNotificationInfo[] NOTIF_INFOS = new MBeanNotificationInfo[]{
 		new MBeanNotificationInfo(new String[]{NOTIF_CONNECTED}, Notification.class.getName(), "OpenTSDB endpoint connection"),
 		new MBeanNotificationInfo(new String[]{NOTIF_RECONNECTED}, Notification.class.getName(), "OpenTSDB endpoint reconnection"),
-		new MBeanNotificationInfo(new String[]{NOTIF_DISCONNECTED}, Notification.class.getName(), "OpenTSDB endpoint disconnection")
+		new MBeanNotificationInfo(new String[]{NOTIF_DISCONNECTED}, Notification.class.getName(), "OpenTSDB endpoint disconnection"),
+		new MBeanNotificationInfo(new String[]{NOTIF_GZIP_DISABLED}, Notification.class.getName(), "GZip posted content disabled")
 	};
 
 	
@@ -242,6 +244,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		httpClient = new AsyncHttpClient(builder.build());		
 		checker = new ConnectivityChecker(httpClient, tsdbUrl + "/api/version", offlineReconnectPeriod, connectionTimeout, requestTimeout/2, proxy, this);
 		httpHeaders.put(Names.CONTENT_TYPE, Collections.singleton("application/json"));
+		httpHeaders.put(Names.ACCEPT_ENCODING, Collections.singleton("gzip"));
 		if(enableCompression) {
 			httpHeaders.put(Names.CONTENT_ENCODING, Collections.singleton("x-gzip"));
 		}
@@ -511,7 +514,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		final long start = System.currentTimeMillis();
 		try {
 			httpClient.preparePost(postUrl) 
-			.setHeaders(httpHeaders)				
+			.setHeaders(httpHeaders)				  // TODO: add accepts gzip
 			.setBody(new BodyGenerator(){
 				/**
 				 * {@inheritDoc}
@@ -601,6 +604,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 				@Override
 				public STATE onHeadersReceived(final HttpResponseHeaders headers) throws Exception {
 					headers.getHeaders().getFirstValue(Names.CONTENT_LENGTH);
+					log.debug("Response Headers:{}", headers.getHeaders());
 					if(hasHandlers) {
 						for(AsyncHandler<Object> h: handlers) {
 							if(h==null) continue;
@@ -1067,6 +1071,16 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	}	
 	
 	/**
+	 * Callback from response processor to disable gzip on HTTP posts
+	 */
+	public void autoDisableGZip() {
+		if(enableCompression) {
+			enableCompression = false;
+			sendNotification(new Notification(NOTIF_GZIP_DISABLED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Disabled GZip on HTTP posts to OpenTSDB@[" + tsdbUrl + "]"));
+		}
+	}
+	
+	/**
 	 * {@inheritDoc}
 	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getHostName()
 	 */
@@ -1129,7 +1143,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	 */
 	@Override
 	public Set<String> dumpMetricNames(final boolean recurse) {		
-		return Collections.emptySet(); //OpenTsdb.getInstance().dumpMetricNames(recurse);
+		return IMetricRegistryFactory.dumpMetricNames(recurse);
 	}
 	
 	/**

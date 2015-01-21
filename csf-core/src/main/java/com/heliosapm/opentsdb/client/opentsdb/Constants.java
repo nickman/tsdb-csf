@@ -185,6 +185,10 @@ public interface Constants {
 	/** The character set used by OpenTSDB */
 	public static final Charset CHARSET = Charset.forName("ISO-8859-1");  //"UTF-8"
 	
+	/** The system property config name for HTTP endpoint check querey path */
+	public static final String PROP_CHECK_ENDPOINT = "tsdb.http.check.path";
+	/** The default HTTP endpoint check querey path */
+	public static final String DEFAULT_CHECK_ENDPOINT = "/api/version";
 	
 	
 	

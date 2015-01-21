@@ -188,7 +188,7 @@ public class ConnectivityChecker implements Runnable {
 	}
 	
 	public void run() {
-		syncCheck(true);
+		//syncCheck(true);
 	}
 	
 	/**

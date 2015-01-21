@@ -35,6 +35,8 @@ public interface HttpMetricsPosterMXBean {
 	public static final String NOTIF_RECONNECTED = "opentsdb.reconnected";
 	/** Notification type for disconnection */
 	public static final String NOTIF_DISCONNECTED = "opentsdb.disconnected";
+	/** Notification type for gzip auto-disabled */
+	public static final String NOTIF_GZIP_DISABLED = "opentsdb.nogzip";
 	
 	/**
 	 * Returns the total number of successfully sent metrics

@@ -35,7 +35,10 @@ import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
+import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
+import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
 //import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 //import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 //import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
@@ -88,7 +91,8 @@ public class KitchenSink {
 //	final MemoryUsageGaugeSet memoryUsageGaugeSet = new MemoryUsageGaugeSet(ManagementFactory.getMemoryMXBean(), ManagementFactory.getMemoryPoolMXBeans());
 	final BufferPoolMetricSet bufferPoolMonitor;
 	final ClassLoadingGaugeSet classLoaderMonitor;
-	
+	final FileDescriptorRatioGauge fdg;
+	final MemoryUsageGaugeSet mugs = new MemoryUsageGaugeSet();
 	
 	/**
 	 * Creates a new KitchenSink
@@ -104,6 +108,9 @@ public class KitchenSink {
 //		registry.registerAll(memoryUsageGaugeSet);
 		classLoaderMonitor = new ClassLoadingGaugeSet();
 		registry.registerAll(classLoaderMonitor);
+		fdg = new FileDescriptorRatioGauge();
+		registry.register("fd", fdg);
+		registry.registerAll(mugs);
 		if(Util.loadClassByName("java.lang.management.BufferPoolMXBean", null)!=null) {
 			bufferPoolMonitor = new BufferPoolMetricSet(mbs);
 //			registry.registerAll(bufferPoolMonitor);
@@ -158,9 +165,11 @@ public class KitchenSink {
         
 //		ConsoleOutHandler.init();
 //		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4242");
-		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
+//		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
+		System.setProperty("tsdb.http.tsdb.url", "http://localhost:8070");
 		System.setProperty("tsdb.threadpool.size", "60");
 		System.setProperty("tsdb.http.compression.enabled", "false");
+		System.setProperty(Constants.PROP_BATCH_SIZE, "" + Integer.MAX_VALUE);
 		
 		
 		System.out.println("Host:" + OpenTsdb.getInstance().getHostName());
