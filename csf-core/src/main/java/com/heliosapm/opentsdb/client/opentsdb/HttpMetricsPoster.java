@@ -17,10 +17,10 @@ package com.heliosapm.opentsdb.client.opentsdb;
 
 import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.conf;
 import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confBool;
+import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confEnum;
 import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confInt;
 import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confLevel;
 import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confURI;
-import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confEnum;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -39,6 +39,7 @@ import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,8 +47,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.management.MBeanNotificationInfo;
 import javax.management.Notification;
@@ -62,10 +61,10 @@ import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.buffer.DirectChannelBufferFactory;
 import org.jboss.netty.buffer.DynamicChannelBuffer;
 import org.jboss.netty.handler.codec.http.HttpHeaders.Names;
-import org.json.JSONObject;
 
 import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.AnnotationBuilder.TSDBAnnotation;
+import com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.HTTPMethod;
 import com.heliosapm.opentsdb.client.opentsdb.EmptyAsyncHandler.FinalHookAsyncHandler;
 import com.heliosapm.opentsdb.client.registry.IMetricRegistryFactory;
 import com.heliosapm.opentsdb.client.util.Util;
@@ -124,6 +123,18 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	protected int batchSize = confInt(PROP_BATCH_SIZE, DEFAULT_BATCH_SIZE);
 	/** The level name to log bad metrics at */
 	protected Level badLevel = confLevel(PROP_BAD_METRICS_LEVEL, DEFAULT_BAD_METRICS_LEVEL);
+	/** The http endpoint connectivity checker query path */
+	protected String connCheckPath = conf(PROP_CHECK_ENDPOINT, DEFAULT_CHECK_ENDPOINT);
+	/** The connectivity checker period in seconds */
+	protected int connCheckPeriod = confInt(PROP_CHECK_PERIOD, DEFAULT_CHECK_PERIOD);
+	/** The connectivity checker http method */
+	protected HTTPMethod connCheckMethod = confEnum(HTTPMethod.class, PROP_CHECK_METHOD, DEFAULT_CHECK_METHOD);
+	
+	/** The period on which to send a heartbeat metric. Any value less than 1 disables the heartbeat */
+	protected int heartbeatPeriod = confInt(PROP_HEARTBEAT_PERIOD, DEFAULT_HEARTBEAT_PERIOD);
+	/** The metric name prefix to use for the heartbeat metric */
+	protected String heartbeatMetric = conf(PROP_HEARTBEAT_METRIC, DEFAULT_HEARTBEAT_METRIC);
+
 	
 	/** The ObjectName this instance is registered with */
 	protected final ObjectName objectName;
@@ -135,7 +146,8 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	protected String postUrl = "";
 	
 
-
+	/** The heartbeat */
+	protected final Heartbeat heartbeat;
 	/** The connectivity checker */
 	protected final ConnectivityChecker checker;
 	/** A count of consecutive failures */
@@ -213,6 +225,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	/**
 	 * Creates a new HttpMetricsPoster
 	 */
+	@SuppressWarnings("resource")
 	private HttpMetricsPoster() {
 		super(Threading.getInstance().getThreadPool(), NOTIF_INFOS);
 		URI proxyURI = confURI(PROP_CONNECTION_PROXY, DEFAULT_CONNECTION_PROXY);
@@ -241,13 +254,14 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 //		if(proxy!=null) {
 //			builder.setProxyServer(proxy);
 //		} 
-		httpClient = new AsyncHttpClient(builder.build());		
-		checker = new ConnectivityChecker(httpClient, tsdbUrl + "/api/version", offlineReconnectPeriod, connectionTimeout, requestTimeout/2, proxy, this);
+		httpClient = new AsyncHttpClient(builder.build());
+		checker = new ConnectivityChecker(httpClient, tsdbUrl + connCheckPath, connCheckMethod, offlineReconnectPeriod, connectionTimeout, connCheckPeriod, proxy, this);
 		httpHeaders.put(Names.CONTENT_TYPE, Collections.singleton("application/json"));
 		httpHeaders.put(Names.ACCEPT_ENCODING, Collections.singleton("gzip"));
 		if(enableCompression) {
 			httpHeaders.put(Names.CONTENT_ENCODING, Collections.singleton("x-gzip"));
 		}
+		heartbeat = new Heartbeat(this, heartbeatMetric, heartbeatPeriod).start();
 		log.info("AsyncHttpClient Created");
 		objectName = registerMBean();
 		if(checker.syncCheck(true)) {
@@ -491,6 +505,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		}
 	}
 	
+	
 	/**
 	 * This is where the real metrics HTTP post is done
 	 * @param body
@@ -658,6 +673,24 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 			ex.printStackTrace();  // FIXME:  We don't want to throw anything here, but track errors, and write to pers. file
 		}		
 	}
+	
+	/**
+	 * Sends an array of metrics
+	 * @param metrics the metrics to send
+	 */
+	public void send(final OpenTsdbMetric...metrics) {
+		if(metrics!=null && metrics.length > 0) {
+			Set<OpenTsdbMetric> ms = new HashSet<OpenTsdbMetric>(metrics.length);
+			for(OpenTsdbMetric metric: metrics) {
+				if(metric==null) continue;
+				ms.add(metric);
+			}
+			if(!ms.isEmpty()) {
+				postMetrics(ms);
+			}
+		}
+	}
+	
 
 
 

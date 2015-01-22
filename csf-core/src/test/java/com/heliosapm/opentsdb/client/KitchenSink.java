@@ -170,6 +170,8 @@ public class KitchenSink {
 		System.setProperty("tsdb.threadpool.size", "60");
 		System.setProperty("tsdb.http.compression.enabled", "false");
 		System.setProperty(Constants.PROP_BATCH_SIZE, "" + Integer.MAX_VALUE);
+		System.setProperty(Constants.PROP_CHECK_ENDPOINT, "/api/config");
+		System.setProperty(Constants.PROP_CHECK_METHOD, "HEAD");
 		
 		
 		System.out.println("Host:" + OpenTsdb.getInstance().getHostName());

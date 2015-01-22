@@ -188,17 +188,17 @@ public class OpenTsdbMetric {
             return metric;
         }
 
-        public Builder withValue(Object value) {
+        public Builder withValue(final Object value) {
             metric.value = value;
             return this;
         }
 
-        public Builder withTimestamp(Long timestamp) {
+        public Builder withTimestamp(final Long timestamp) {
             metric.timestamp = timestamp;
             return this;
         }
 
-        public Builder withTags(Map<String, String> tags) {
+        public Builder withTags(final Map<String, String> tags) {
             if (tags != null) {
                 metric.tags.putAll(tags);
             }

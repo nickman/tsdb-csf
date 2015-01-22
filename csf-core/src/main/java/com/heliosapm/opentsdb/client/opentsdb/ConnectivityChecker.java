@@ -22,12 +22,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jboss.netty.handler.codec.http.HttpMethod;
 
 import com.ning.http.client.AsyncCompletionHandler;
 import com.ning.http.client.AsyncHttpClient;
+import com.ning.http.client.AsyncHttpClient.BoundRequestBuilder;
 import com.ning.http.client.AsyncHttpClientConfig;
 import com.ning.http.client.HttpResponseStatus;
 import com.ning.http.client.ProxyServer;
@@ -62,38 +63,27 @@ public class ConnectivityChecker implements Runnable {
 	protected final AtomicLong failedConnections = new AtomicLong();
 	/** The async http client to issue connectivity checks with */
 	protected final AsyncHttpClient httpClient;
+	/** The http method to issue connectivity checks with */
+	protected final HTTPMethod method;
+	
 	/** Instance logger */
 	private final Logger log = LogManager.getLogger(ConnectivityChecker.class);
 
-	/**
-	 * Creates a new ConnectivityChecker with a new http client
-	 * @param client The async http client to use
-	 * @param urlToCheck The URL to check
-	 * @param checkPeriod The period, in seconds, to check the connection
-	 * @param connectTimeout The connection timeout in ms.
-	 * @param requestTimeout The request timeout in ms.
-	 * @param proxy An optional proxy server
-	 * @param listeners An optional array of connectivity state change listeners
-	 */
-	ConnectivityChecker(final String urlToCheck, final int checkPeriod, final int connectTimeout, final int requestTimeout, final ProxyServer proxy, final ConnectivityListener...listeners) {
-		this(null, urlToCheck, checkPeriod, connectTimeout, requestTimeout, proxy, listeners);
-	}
-
-	
-	 
 	
 	/**
 	 * Creates a new ConnectivityChecker with a supplied http client
 	 * @param client The async http client to use
 	 * @param urlToCheck The URL to check
+	 * @param method The HTTP method to use
 	 * @param checkPeriod The period, in seconds, to check the connection
 	 * @param connectTimeout The connection timeout in ms.
 	 * @param requestTimeout The request timeout in ms.
 	 * @param proxy An optional proxy server
 	 * @param listeners An optional array of connectivity state change listeners
 	 */
-	ConnectivityChecker(final AsyncHttpClient client, final String urlToCheck, final int checkPeriod, final int connectTimeout, final int requestTimeout, final ProxyServer proxy, final ConnectivityListener...listeners) {
+	ConnectivityChecker(final AsyncHttpClient client, final String urlToCheck, final HTTPMethod method, final int checkPeriod, final int connectTimeout, final int requestTimeout, final ProxyServer proxy, final ConnectivityListener...listeners) {
 		this.urlToCheck = urlToCheck;
+		this.method = method;
 		this.checkPeriod = checkPeriod;
 		this.connectTimeout= connectTimeout;
 		this.requestTimeout = requestTimeout;
@@ -137,7 +127,8 @@ public class ConnectivityChecker implements Runnable {
 			final Throwable[] throwable = new Throwable[1];
 			final HttpResponseStatus[] _response = new HttpResponseStatus[1];
 			try {
-				httpClient.prepareGet(urlToCheck).execute(new AsyncCompletionHandler<Response>(){
+				method.build(httpClient, urlToCheck).execute(new AsyncCompletionHandler<Response>(){
+				//httpClient.prepareGet().execute(new AsyncCompletionHandler<Response>(){
 					@Override
 					public Response onCompleted(final Response response) throws Exception {				
 						return response;
@@ -188,7 +179,7 @@ public class ConnectivityChecker implements Runnable {
 	}
 	
 	public void run() {
-		//syncCheck(true);
+		syncCheck(true);
 	}
 	
 	/**
@@ -273,36 +264,6 @@ public class ConnectivityChecker implements Runnable {
 		if(listener!=null) listeners.remove(listener);
 	}
 	
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
-		final Logger LOG = LogManager.getLogger("ConnectivityCheckerTest");
-//		ConnectivityChecker cc = new ConnectivityChecker("http://www.google.com", 3000, 500, 500, null, new ConnectivityListener(){
-		ConnectivityChecker cc = new ConnectivityChecker("http://localhost:8070", 3000, 500, 500, null, new ConnectivityListener(){
-
-			@Override
-			public void onDisconnected(Throwable t) {
-				LOG.log(Level.ERROR, "ConnectionChecker Failed", t);				
-			}
-
-			@Override
-			public void onConnected() {
-				LOG.info("Initial Connect OK !");
-				
-			}
-
-			@Override
-			public void onReconnected() {
-				LOG.info("Reconnected OK !");
-				
-			}
-			
-		});
-		
-		try { Thread.currentThread().join(); } catch (Exception e) {}
-
-	}
 	
 	/**
 	 * <p>Title: ConnectivityListener</p>
@@ -382,6 +343,82 @@ public class ConnectivityChecker implements Runnable {
 		if(urlToCheck!=null && !urlToCheck.trim().isEmpty()) {
 			this.urlToCheck = urlToCheck;
 		}
+	}
+	
+	/**
+	 * <p>Title: CheckRequestFactory</p>
+	 * <p>Description: Defines a factory that can create an async client request builder</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.CheckRequestFactory</code></p>
+	 */
+	public static interface CheckRequestFactory {
+		/**
+		 * Creates an async client request builder for a specific method 
+		 * @param httpClient The client that will create and execute the method
+		 * @param url The url to check
+		 * @return the request builder
+		 */
+		public BoundRequestBuilder build(AsyncHttpClient httpClient, String url);
+	}
+	
+	/**
+	 * <p>Title: HTTPMethod</p>
+	 * <p>Description: Functional enum to assign a {@link CheckRequestFactory} to each supported HTTP check method</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.HTTPMethod</code></p>
+	 */
+	public static enum HTTPMethod implements CheckRequestFactory {
+		/** OPTIONS Http Method */
+		OPTIONS {
+			@Override
+			public BoundRequestBuilder build(final AsyncHttpClient httpClient, final String url) {
+				return httpClient.prepareOptions(url);
+			}
+		},
+		/** GET Http Method */
+		GET {
+			@Override
+			public BoundRequestBuilder build(final AsyncHttpClient httpClient, final String url) {
+				return httpClient.prepareGet(url);
+			}
+		},
+		/** HEAD Http Method */
+		HEAD {
+			@Override
+			public BoundRequestBuilder build(final AsyncHttpClient httpClient, final String url) {
+				return httpClient.prepareHead(url);
+			}
+		},
+		/** POST Http Method */
+		POST {
+			@Override
+			public BoundRequestBuilder build(final AsyncHttpClient httpClient, final String url) {
+				return httpClient.preparePost(url);
+			}
+		},
+		/** PUT Http Method */
+		PUT {
+			@Override
+			public BoundRequestBuilder build(final AsyncHttpClient httpClient, final String url) {
+				return httpClient.preparePut(url);
+			}
+		},
+		/** DELETE Http Method */
+		DELETE {
+			@Override
+			public BoundRequestBuilder build(final AsyncHttpClient httpClient, final String url) {
+				return httpClient.prepareDelete(url);
+			}
+		},
+		/** CONNECT Http Method */
+		CONNECT {
+			@Override
+			public BoundRequestBuilder build(final AsyncHttpClient httpClient, final String url) {
+				return httpClient.prepareConnect(url);
+			}
+		};
 	}
 
 }

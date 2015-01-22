@@ -15,14 +15,15 @@
  */
 package com.heliosapm.opentsdb.client.opentsdb;
 
-import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.Charset;
 import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.Level;
+import org.jboss.netty.handler.codec.http.HttpMethod;
 
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
+import com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.HTTPMethod;
 
 /**
  * <p>Title: Constants</p>
@@ -185,11 +186,41 @@ public interface Constants {
 	/** The character set used by OpenTSDB */
 	public static final Charset CHARSET = Charset.forName("ISO-8859-1");  //"UTF-8"
 	
-	/** The system property config name for HTTP endpoint check querey path */
+	/** The system property config name for the HTTP endpoint check query path */
 	public static final String PROP_CHECK_ENDPOINT = "tsdb.http.check.path";
-	/** The default HTTP endpoint check querey path */
+	/** The default HTTP endpoint check query path */
 	public static final String DEFAULT_CHECK_ENDPOINT = "/api/version";
+
+	/** The system property config name for the HTTP endpoint check period in seconds */
+	public static final String PROP_CHECK_PERIOD = "tsdb.http.check.period";
+	/** The default HTTP endpoint check query path */
+	public static final int DEFAULT_CHECK_PERIOD = 5;
+	
+	/** The system property config name for the HTTP endpoint check HTTP method */
+	public static final String PROP_CHECK_METHOD = "tsdb.http.check.method";
+	/** The default HTTP endpoint check HTTP method */
+	public static final HTTPMethod DEFAULT_CHECK_METHOD = HTTPMethod.GET;
+	
+	/** The system property config name for the heartbeat metric submssion period  in seconds. Less than 1 disables */
+	public static final String PROP_HEARTBEAT_PERIOD = "tsdb.heartbeat.period";
+	/** The default hearbeat period in seconds */
+	public static final int DEFAULT_HEARTBEAT_PERIOD = 5;
+	
+	/** The system property config name for the value to send in heartbeat metrics */
+	public static final String PROP_HEARTBEAT_VALUE = "tsdb.heartbeat.value";
+	/** The default hearbeat metric value */
+	public static final int DEFAULT_HEARTBEAT_VALUE = 100;
 	
 	
+	/** The system property config name for the heartbeat metric name. Tags will be the host and app. */
+	public static final String PROP_HEARTBEAT_METRIC = "tsdb.heartbeat.metric";
+	/** The default heartbeat metric name */
+	public static final String DEFAULT_HEARTBEAT_METRIC = "heartbeat";
+
+	/** The system property config name for the time reporting granularity where true is seconds, false is milliseconds. */
+	public static final String PROP_TIME_IN_SEC = "tsdb.time.seconds";
+	/** The default hearbeat period in seconds */
+	public static final boolean DEFAULT_TIME_IN_SEC = true;
+
 	
 }
