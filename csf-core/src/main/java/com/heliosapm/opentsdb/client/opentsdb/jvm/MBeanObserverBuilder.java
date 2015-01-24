@@ -54,8 +54,6 @@ public class MBeanObserverBuilder {
 	private String hostName = null;
 	/** The provided app name to use */
 	private String appName = null;	
-	
-	
 	/** An agent name finder that will use the mbean server connection to discover the AgentName */
 	private RemoteMBeanServerAgentNameFinder nameFinder = null;
 	private Class<?> mxBeanIface = null;
