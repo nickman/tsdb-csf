@@ -26,12 +26,14 @@ package com.heliosapm.opentsdb.client.opentsdb.jvm;
 
 import java.lang.management.CompilationMXBean;
 import java.lang.management.ManagementFactory;
+import java.util.Map;
 
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Metric;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -51,24 +53,32 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 	protected final boolean compileTimeSupported;
 	/** The compilation time gauge */
 	protected final Gauge<Long> compileTime;
+
 	
 	
 	
-	protected CompilationMBeanObserver(final MBeanServerConnection connection, final JMXConnector jmxConnector, final ObjectName objectName) {
+	/**
+	 * Creates a new CompilationMBeanObserver
+	 * @param connection The delegate MBeanServerConnection or null if one will be acquired from the passed JMXConnector
+	 * @param jmxConnector The JMXConnector which will supply a MBeanServerConnection, or null if one is passed directly. 
+	 */
+	protected CompilationMBeanObserver(final MBeanServerConnection connection, final JMXConnector jmxConnector) {
 		super(connection, jmxConnector, OBJECT_NAME);
 		proxy = mbs.isLocalPlatform() ? 
 				ManagementFactory.getCompilationMXBean() : 
 				newPlatformMXBeanProxy(ManagementFactory.COMPILATION_MXBEAN_NAME, CompilationMXBean.class);
 		compileTimeSupported = proxy.isCompilationTimeMonitoringSupported();
-		compileTime = compileTimeSupported ? new Gauge<Long>() {
-		     public Long getValue() {
-		         return delta("compiletime", proxy.getTotalCompilationTime(), 0L);
-		     }
-		 } : new Gauge<Long>() {
-		     public Long getValue() {
-		         return -1L;
-		     }
-		 };		
+		if(compileTimeSupported) {
+			compileTime = new Gauge<Long>() {
+			     @Override
+					public Long getValue() {
+				         return delta("compiletime", proxy.getTotalCompilationTime(), 0L);
+				     }
+				 };
+			metrics.put("java.lang.compiler.CompileTime:" + OBJECT_NAME.getCanonicalKeyPropertyListString(), compileTime);
+		} else {
+			compileTime = null;
+		}
 	}
 	 
 	/**
@@ -76,7 +86,7 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 	 * @param connection The MBeanServerConnection to the MBeanServer to observe
 	 */
 	public CompilationMBeanObserver(final MBeanServerConnection connection) {
-		this(connection, null, OBJECT_NAME);
+		this(connection, null);
 	}
 
 	/**
@@ -84,18 +94,22 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 	 * @param jmxConnector The JMXConnector that supplies the MBeanServerConnection to the MBeanServer to observe
 	 */
 	public CompilationMBeanObserver(final JMXConnector jmxConnector) {
-		this((MBeanServerConnection)null, jmxConnector, OBJECT_NAME);
+		this((MBeanServerConnection)null, jmxConnector);
 	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.BaseMBeanObserver#doCollect()
-	 */
+	
 	@Override
-	protected void doCollect() {
-		if(!compileTimeSupported) return;
-		
-
+	public Map<String, Metric> getMetrics() {
+		if(!compileTimeSupported) return EMPTY_METRIC_MAP; 
+		return null;
 	}
+
+//	/**
+//	 * {@inheritDoc}
+//	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.BaseMBeanObserver#doCollect()
+//	 */
+//	@Override
+//	protected void doCollect() {
+//		if(!compileTimeSupported) return;
+//	}
 
 }

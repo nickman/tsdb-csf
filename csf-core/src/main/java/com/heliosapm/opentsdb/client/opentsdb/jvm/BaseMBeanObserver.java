@@ -24,10 +24,12 @@
  */
 package com.heliosapm.opentsdb.client.opentsdb.jvm;
 
-import java.lang.management.CompilationMXBean;
 import java.lang.management.ManagementFactory;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 
 import javax.management.MBeanServerConnection;
 import javax.management.Notification;
@@ -41,6 +43,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricSet;
+import com.heliosapm.opentsdb.client.name.AgentName;
 
 /**
  * <p>Title: BaseMBeanObserver</p>
@@ -54,13 +57,16 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	/** The MBeanServerConnection to the MBeanServer to observe */
 	protected RuntimeMBeanServerConnection mbs = null;
 	/** The metrics created by this observer */
-	protected final NonBlockingHashMap<String, Metric> metrics = new NonBlockingHashMap<String, Metric>(16); 
+	protected final NonBlockingHashMap<String, Metric> metrics = new NonBlockingHashMap<String, Metric>(); 
 	/** The jmx ObjectName pattern to collect from */
 	protected final ObjectName objectName;
 	/** The resolved ObjectNames to collect from */
 	protected final Set<ObjectName> objectNames = new NonBlockingHashSet<ObjectName>();
 	/** A long delta tracker */
-	protected final NonBlockingHashMap<String, long[]> longDeltas = new NonBlockingHashMap<String, long[]>(); 
+	protected final NonBlockingHashMap<String, long[]> longDeltas = new NonBlockingHashMap<String, long[]>();
+	
+	/** Empty metric map const  */
+	protected static final Map<String, Metric> EMPTY_METRIC_MAP = Collections.unmodifiableMap(new HashMap<String, Metric>(0));
 	
 	/**
 	 * Creates a new BaseMBeanObserver
@@ -70,6 +76,9 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	protected BaseMBeanObserver(final MBeanServerConnection connection, final ObjectName objectName) {
 		mbs = RuntimeMBeanServerConnection.newInstance(connection);
 		this.objectName = objectName;
+		if(this.objectName.isPattern()) {
+			objectNames.addAll(mbs.queryNames(this.objectName, null));
+		}		
 	}
 	
 	/**
@@ -80,6 +89,9 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	protected BaseMBeanObserver(final JMXConnector jmxConnector, final ObjectName objectName) {
 		mbs = RuntimeMBeanServerConnection.newInstance(jmxConnector);
 		this.objectName = objectName;
+		if(this.objectName.isPattern()) {
+			objectNames.addAll(mbs.queryNames(this.objectName, null));
+		}		
 	}
 	
 	/**
@@ -91,26 +103,26 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	 * @param objectName The jmx ObjectName pattern to collect from
 	 */
 	protected BaseMBeanObserver(final MBeanServerConnection connection,final JMXConnector jmxConnector, final ObjectName objectName) {
-		mbs = connection==null ? RuntimeMBeanServerConnection.newInstance(jmxConnector) : RuntimeMBeanServerConnection.newInstance(connection); 
+		mbs = connection==null ? RuntimeMBeanServerConnection.newInstance(jmxConnector) : RuntimeMBeanServerConnection.newInstance(connection);
 		this.objectName = objectName;
-	}
-	
-	
-	/**
-	 * Collects from the observed MBean
-	 */
-	protected void collect() {
-		try {
-			
-		} catch (Exception ex) {
-			
+		if(this.objectName.isPattern()) {
+			objectNames.addAll(mbs.queryNames(this.objectName, null));
 		}
 	}
 	
 	/**
-	 * The collect procedure imple for Concrete observers
+	 * Attempts to assign a host and app name from the delegate MBeanServerConnection.
+	 * If the delegate is local, this has already been done and the names can be acquired from {@link AgentName}.
+	 * Otherwise, we use some of the same techniques {@link AgentName} does, but remotely.
+	 * @return The agent tag string in the format <b><code>host=[host-name],app=[app-name]</code></b>.
 	 */
-	protected abstract void doCollect();
+	protected String getAgentNameTags() {
+		if(mbs.isLocalPlatform()) {
+			return "host=" + AgentName.getInstance().getHostName() + ",app=" + AgentName.getInstance().getAppName();  
+		}
+		return null;
+	}
+	
 	
 	/**
 	 * Computes a delta between the named passed sample and the prior sample for the same name.
@@ -149,14 +161,14 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 		}
 	}
 	
-	/**
-	 * {@inheritDoc}
-	 * @see com.codahale.metrics.MetricSet#getMetrics()
-	 */
-	@Override
-	public Map<String, Metric> getMetrics() {
-		return metrics;
-	}
+//	/**
+//	 * {@inheritDoc}
+//	 * @see com.codahale.metrics.MetricSet#getMetrics()
+//	 */
+//	@Override
+//	public Map<String, Metric> getMetrics() {
+//		return metrics;
+//	}
 	
 	/**
 	 * {@inheritDoc}

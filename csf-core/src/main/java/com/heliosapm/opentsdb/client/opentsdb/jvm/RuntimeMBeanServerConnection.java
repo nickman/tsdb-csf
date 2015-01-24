@@ -215,6 +215,15 @@ public class RuntimeMBeanServerConnection implements MBeanServerConnection, Noti
 	public boolean isLocalPlatform() {
 		return localPlatform;
 	}
+	
+	/**
+	 * Determines if the delegate is in this JVM
+	 * @return true if the delegate is in this JVM, false otherwise
+	 *    // FIXME: Need a better model
+	 */
+	public boolean isInVM() {
+		return localPlatform;
+	}
 
 	
 	/**
