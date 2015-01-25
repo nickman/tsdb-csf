@@ -27,6 +27,7 @@ package com.heliosapm.opentsdb.client.opentsdb.jvm;
 import java.lang.management.CompilationMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import javax.management.ObjectName;
 
@@ -58,7 +59,7 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 	protected long compileTime = 0L;
 	
 	CompilationMBeanObserver(final MBeanObserverBuilder builder) {
-		super(builder);
+		super(builder.period(3).unit(TimeUnit.SECONDS));
 		proxy = mbs.isLocalPlatform() ? 
 				ManagementFactory.getCompilationMXBean() : 
 				newPlatformMXBeanProxy(ManagementFactory.COMPILATION_MXBEAN_NAME, CompilationMXBean.class);
@@ -70,27 +71,37 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 				        return compileTime;
 				     }
 				 };
-			metrics.put("java.lang.compiler.CompileTime:" + OBJECT_NAME.getCanonicalKeyPropertyListString() + "," + getAgentNameTags(), compileTimeGauge);
+			metrics.put("java.lang.compiler.CompileTime:" 
+				 + OBJECT_NAME.getCanonicalKeyPropertyListString() 
+				 + "," 
+				 + getAgentNameTags()
+				 , compileTimeGauge);
 		} else {
 			compileTimeGauge = null;
 		}
 	}
 	
 	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.BaseMBeanObserver#getMetrics()
+	 */
 	@Override
 	public Map<String, Metric> getMetrics() {
 		if(!compileTimeSupported) return EMPTY_METRIC_MAP; 
-		final Context ctx = this.timer.time();
-		try {
-			Long d = delta("compiletime", proxy.getTotalCompilationTime());
-			ctx.stop();
-			if(d==null) return EMPTY_METRIC_MAP; 
-			compileTime = d.longValue();			
-			return metrics;
-		} catch (Exception ex) {
-			collectionFailures.incrementAndGet();
-			return EMPTY_METRIC_MAP;
-		}
+		return metrics;	
+	}
+
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.BaseMBeanObserver#acceptData(java.util.Map)
+	 */
+	@Override
+	protected void acceptData(final Map<ObjectName, Map<String, Object>> attrMaps) {
+		Map<String, Object> attrValues = attrMaps.get(OBJECT_NAME);
+		compileTime = (Long)attrValues.get("TotalCompilationTime");
+
 	}
 
 

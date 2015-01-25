@@ -85,10 +85,12 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	/** The number of collection failures */
 	protected final AtomicLong collectionFailures = new AtomicLong(0);
 	/** A timer to gather collection times */
-	protected final Timer timer = new Timer();
-	
+	protected final Timer timer = new Timer();	
 	/** The refresh task scheduler handle */
 	protected Timeout timerHandle = null;
+	
+	/** The laych to prevent metrics from the same collector to be sampled with different period readings */
+	protected final ResettingCountDownLatch latch;
 	
 	/** The frequency of the observer observations in ms. */
 	private long period = 15000;
@@ -96,8 +98,6 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	private long timeout = 2000;
 	/** The attribute names to collect */
 	private final String[] collectionAttrNames;
-	/** The map of attribute values from the most recent collection */
-	protected final AtomicReference<Map<ObjectName, Map<String, Object>>> collectionRef = new AtomicReference<Map<ObjectName, Map<String, Object>>>(); 
 	/** Empty metric map const  */
 	protected static final Map<String, Metric> EMPTY_METRIC_MAP = Collections.unmodifiableMap(new HashMap<String, Metric>(0));
 
@@ -110,13 +110,19 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 		this.objectName = builder.getTarget();
 		if(this.objectName.isPattern()) {
 			objectNames.addAll(mbs.queryNames(this.objectName, null));
+		} else {
+			objectNames.add(this.objectName);
 		}
 		this.collectionAttrNames = collectionAttrNames;
 		period = TimeUnit.MILLISECONDS.convert(builder.getPeriod(), builder.getUnit());
 		timeout = TimeUnit.MILLISECONDS.convert(builder.getTimeout(), builder.getTimeoutUnit());
+		latch = ResettingCountDownLatch.newInstance(collectionAttrNames.length);
+		agentNameFinder = builder.getNameFinder();
+		setAgentNameTags();
 		if(period > 0) {
 			timerHandle = Threading.getInstance().schedule(this, period);
 		}
+		
 	}
 	
 	public void run() {
@@ -140,8 +146,16 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 		for(ObjectName on: objectNames) {
 			attrMaps.put(on, getAttributes(on, mbs, collectionAttrNames));
 		}
-		collectionRef.set(attrMaps);
+		try {
+			latch.await(500, TimeUnit.MILLISECONDS);
+			acceptData(attrMaps);
+		} catch (Exception ex) {
+			// what to do here ?
+		}
 	}
+	
+
+	protected abstract void acceptData(final Map<ObjectName, Map<String, Object>> attrMaps);
 	
 	
 	/**

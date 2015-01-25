@@ -18,6 +18,8 @@ package com.heliosapm.opentsdb.client.opentsdb.jvm;
 
 import java.util.Map;
 
+import javax.management.ObjectName;
+
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricSet;
 
@@ -46,6 +48,13 @@ public class DelegatingMBeanObserver extends BaseMBeanObserver {
 	public Map<String, Metric> getMetrics() {
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+
+	@Override
+	protected void acceptData(Map<ObjectName, Map<String, Object>> attrMaps) {
+		// TODO Auto-generated method stub
+		
 	}
 
 }

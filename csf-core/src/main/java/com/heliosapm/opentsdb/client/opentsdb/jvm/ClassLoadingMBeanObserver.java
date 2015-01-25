@@ -67,23 +67,26 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 	 * @param builder
 	 */
 	public ClassLoadingMBeanObserver(MBeanObserverBuilder builder) {
-		super(builder);
+		super(builder, ATTR_NAMES);
 		proxy = null;  // we're bulk collecting
 		loadedClassCountGauge = new Gauge<Integer>() {
 			@Override
 			public Integer getValue() {
+				latch.countDown();
 				return loadedClassCount;
 			}
 		};
 		totalLoadedClassCountGauge = new Gauge<Long>() {
 			@Override
 			public Long getValue() {
+				latch.countDown();
 				return totalLoadedClassCount;
 			}
 		};
 		unloadedClassCountGauge = new Gauge<Long>() {
 			@Override
 			public Long getValue() {
+				latch.countDown();
 				return unloadedClassCount;
 			}
 		};
@@ -92,26 +95,14 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 		metrics.put("java.lang.classload.UnloadedClasses:" + OBJECT_NAME.getCanonicalKeyPropertyListString() + "," + getAgentNameTags(), unloadedClassCountGauge);
 	}
 	
-	protected void poll() {
-		Map<String, Object> attrValues = getAttributes(OBJECT_NAME, mbs, ATTR_NAMES);
+	protected void acceptData(final Map<ObjectName, Map<String, Object>> attrMaps) {
+		Map<String, Object> attrValues = attrMaps.get(OBJECT_NAME);
 		loadedClassCount = (Integer)attrValues.get(ATTR_NAMES[0]);
 		totalLoadedClassCount = (Long)attrValues.get(ATTR_NAMES[1]);
 		unloadedClassCount = (Long)attrValues.get(ATTR_NAMES[2]);
 	}
 	
-	@Override
-	public Map<String, Metric> getMetrics() {
-		final Context ctx = this.timer.time();
-		try {
-			poll();
-			ctx.stop();
-			return super.getMetrics();
-		} catch (Exception ex) {
-			collectionFailures.incrementAndGet();
-			return EMPTY_METRIC_MAP;
-		}
-		
-	}
+	
 
 
 }
