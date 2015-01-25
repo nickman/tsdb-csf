@@ -37,7 +37,7 @@ import com.heliosapm.opentsdb.client.name.AgentName;
  */
 
 public class DefaultMBeanServerAgentNameFinder implements RemoteMBeanServerAgentNameFinder {
-	/** The shareable instamce */
+	/** The shareable instance */
 	public static final RemoteMBeanServerAgentNameFinder INSTANCE = new DefaultMBeanServerAgentNameFinder();
 	
 	/** The AgentName */
