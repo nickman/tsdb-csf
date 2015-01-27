@@ -100,7 +100,7 @@ See [AllKitchenSinkMetrics](https://github.com/nickman/tsdb-csf/wiki/AllKitchenS
 
 For our efforts, here's how OpenTSDB sees it:
 
-
+![](https://github.com/nickman/tsdb-csf/wiki/img/Selection_001.png)
 
 
 
