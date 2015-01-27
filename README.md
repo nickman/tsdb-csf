@@ -10,7 +10,15 @@ CSF is a java library to provide an agent that combines implementations of the f
  
 
 ### More Detail on Features
-TBD
+* High performance file system metric storage and retrieval store to save collected metrics when the OpenTSDB endpoint is inaccessible.
+* Background configurable OpenTSDB non-intrusive connectivity monitor. Issues JMX notifications on initial connect, disconnect and reconnect events.
+* Automatic (configurable override) **host** and **app** tag values discovery to identify the provenance of all submitted metrics. If tags are provided, automatic tags are ignored to support monitoring of a remote app or service
+* Bad metric name detection and suppression.
+* Extensive JMX instrumentation.
+* Automatically generated hearbeat metric generation. Optional app start and clean shutdown OpenTSDB annotation generation and submission.
+* Fast and efficient GZIP enabled HTTP metric submission using Netty based [AsyncHttpClient](https://github.com/AsyncHttpClient/async-http-client). GZIP automatically disengaged if OpenTSDB does not support GZIP. (OpenTSDB <= 2.1).
+* Tested with [Bosun](http://bosun.org).
+* See (RoadMap).
 
 ### Getting Started (Build)
 - Clone the project (on most planets, this means ```git clone https://github.com/nickman/tsdb-csf.git```)
