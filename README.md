@@ -77,7 +77,12 @@ One of the big motivations for starting this project was to provide a means of u
 Back at the KitchenSink, we're using the MetricRegistry's static *name* method to generate what ends up being a fairly detailed (albeit contrived) OpenTSDB metric name (going forward, the OMN). Once again, here's the counter Metric creation:
 
 ```java
-final Counter evictions = registry.counter(name(getClass().getSimpleName(), "evictions", "op=cache-evictions", "service=cacheservice"));
+	// Create a new Counter Metric
+	final Counter evictions = 
+			registry.counter(name(getClass().getSimpleName(), 
+					"evictions", 
+					"op=cache-evictions", 
+					"service=cacheservice"));
 ```
 
 * The simple class name ("KitchenSink") becomes the first part of the OMN's *metric* portion. This is not strictly a popular naming convention, but this is contrived.
