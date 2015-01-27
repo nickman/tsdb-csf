@@ -193,6 +193,20 @@ public class Threading {
 	 * @return The timeout handle of the task which can be used to check on the state of the task and cancel the task
 	 */
 	public Timeout schedule(final Runnable task, final long delay, final TimeUnit unit) {
+		return schedule(task, -1L, delay, unit);
+	}
+
+	
+	/**
+	 * Schedules a task for repeated fixed delay execution on the specified period
+	 * @param task The task to execute
+	 * @param initialDelay The initial delay before the first execution
+	 * @param delay The initial and post execution delay
+	 * @param unit The unit of the delay
+	 * @return The timeout handle of the task which can be used to check on the state of the task and cancel the task
+	 * 	// FIXME: Perhaps we need to go back to using a ScheduledThreadPoolExecutor
+	 */
+	public Timeout schedule(final Runnable task, final long initialDelay, final long delay, final TimeUnit unit) {
 		if(task==null) throw new IllegalArgumentException("The passed task was null");
 		if(unit==null) throw new IllegalArgumentException("The passed time unit was null");
 		final DelegatingTimeout dt = new DelegatingTimeout(null);
@@ -206,27 +220,37 @@ public class Threading {
 							task.run();
 						} finally {
 							if(!timeout.isCancelled()) {
-								dt.setTimeout(((DelegatingTimeout)schedule(task, delay, unit)).timeout);
+								dt.setTimeout(((DelegatingTimeout)schedule(task, 0L, delay, unit)).timeout);
 							}
 						}
 					}
 				});
 			}
-		}, delay, unit);
-		dt.setTimeout(actualTimeOut);
-		return dt;
+		}, initialDelay < 1L ? delay : initialDelay, unit);
+		return dt.setTimeout(actualTimeOut);
 	}
 	
+	
 	/**
-	 * Schedules a task for repeated fixed delay execution on the specified period in ms/
+	 * Schedules a task for repeated fixed delay execution on the specified period in ms
 	 * @param task The task to execute
 	 * @param delay The initial and post execution delay in ms.
 	 * @return The timeout handle of the task which can be used to check on the state of the task and cancel the task
 	 */
 	public Timeout schedule(final Runnable task, final long delay) {
-		return schedule(task, delay, TimeUnit.MILLISECONDS);		
+		return schedule(task, 0L, delay, TimeUnit.MILLISECONDS);		
 	}
 	
+	/**
+	 * Schedules a task for repeated fixed delay execution on the specified period in ms
+	 * @param task The task to execute
+	 * @param initialDelay The initial delay before the first execution
+	 * @param delay The initial and post execution delay in ms.
+	 * @return The timeout handle of the task which can be used to check on the state of the task and cancel the task
+	 */
+	public Timeout schedule(final Runnable task, final long initialDelay, final long delay) {
+		return schedule(task, initialDelay, delay, TimeUnit.MILLISECONDS);		
+	}
 	
 	private static class DelegatingTimeout implements Timeout {
 		Timeout timeout = null;
@@ -235,11 +259,12 @@ public class Threading {
 			this.timeout = timeout;
 		}
 		
-		public void setTimeout(Timeout timeout) {
+		public DelegatingTimeout setTimeout(Timeout timeout) {
 			if(this.timeout!=null) {
 				try { this.timeout.cancel(); } catch (Exception x) {/* No Op */}
 			}
 			this.timeout = timeout;
+			return this;
 		};
 		
 		

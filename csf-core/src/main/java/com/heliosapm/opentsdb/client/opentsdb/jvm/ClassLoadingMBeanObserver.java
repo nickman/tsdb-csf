@@ -16,15 +16,12 @@
 
 package com.heliosapm.opentsdb.client.opentsdb.jvm;
 
-import java.lang.management.ClassLoadingMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.Map;
 
 import javax.management.ObjectName;
 
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.Timer.Context;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -44,8 +41,6 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 	/** The attribute names to bulk retrieve */
 	static final String[] ATTR_NAMES = {"LoadedClassCount", "TotalLoadedClassCount", "UnloadedClassCount"};
 	
-	/** The ClassLoading MXBean proxy */
-	protected final ClassLoadingMXBean proxy;
 	/** The loaded class count gauge */
 	protected final Gauge<Integer> loadedClassCountGauge;
 	/** The total number of classes ever loaded */
@@ -64,11 +59,10 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 
 	/**
 	 * Creates a new ClassLoadingMBeanObserver
-	 * @param builder
+	 * @param builder The observer builder
 	 */
-	public ClassLoadingMBeanObserver(MBeanObserverBuilder builder) {
+	public ClassLoadingMBeanObserver(final MBeanObserverBuilder builder) {
 		super(builder, ATTR_NAMES);
-		proxy = null;  // we're bulk collecting
 		loadedClassCountGauge = new Gauge<Integer>() {
 			@Override
 			public Integer getValue() {

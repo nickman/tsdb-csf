@@ -23,6 +23,7 @@
             <artifactId>metrics-core</artifactId>
             <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-jvm</artifactId>

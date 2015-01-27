@@ -89,7 +89,7 @@ public class KitchenSink {
 //	final FileDescriptorRatioGauge fileDescriptorRatioGauge = new FileDescriptorRatioGauge(ManagementFactory.getOperatingSystemMXBean());
 //	final GarbageCollectorMetricSet garbageCollectorMetricSet = new GarbageCollectorMetricSet(ManagementFactory.getGarbageCollectorMXBeans());
 //	final MemoryUsageGaugeSet memoryUsageGaugeSet = new MemoryUsageGaugeSet(ManagementFactory.getMemoryMXBean(), ManagementFactory.getMemoryPoolMXBeans());
-	final BufferPoolMetricSet bufferPoolMonitor;
+//	final BufferPoolMetricSet bufferPoolMonitor;
 	final ClassLoadingGaugeSet classLoaderMonitor;
 	final FileDescriptorRatioGauge fdg;
 	final MemoryUsageGaugeSet mugs = new MemoryUsageGaugeSet();
@@ -111,12 +111,12 @@ public class KitchenSink {
 		fdg = new FileDescriptorRatioGauge();
 		registry.register("fd", fdg);
 		registry.registerAll(mugs);
-		if(Util.loadClassByName("java.lang.management.BufferPoolMXBean", null)!=null) {
-			bufferPoolMonitor = new BufferPoolMetricSet(mbs);
-//			registry.registerAll(bufferPoolMonitor);
-		} else {
-			bufferPoolMonitor = null;
-		}
+//		if(Util.loadClassByName("java.lang.management.BufferPoolMXBean", null)!=null) {
+//			bufferPoolMonitor = new BufferPoolMetricSet(mbs);
+////			registry.registerAll(bufferPoolMonitor);
+//		} else {
+//			bufferPoolMonitor = null;
+//		}
 		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());		
 		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());
 		jmxReporter = JmxReporter.forRegistry(DelegateMetricRegistry.newInstance(registry)).createsObjectNamesWith(new OpenTsdbObjectNameFactory()).build();

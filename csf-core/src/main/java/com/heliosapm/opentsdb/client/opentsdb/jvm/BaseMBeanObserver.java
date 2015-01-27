@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import javax.management.Attribute;
 import javax.management.AttributeList;
@@ -121,9 +120,29 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 		setAgentNameTags();
 		if(period > 0) {
 			timerHandle = Threading.getInstance().schedule(this, period);
+			Threading.getInstance().async(this);
 		}
 		
 	}
+	
+	/**
+	 * Creates a unique key using the passed ObjectName and string attribute element keys
+	 * @param on The ObjectName
+	 * @param attrKeys the string attribute element keys
+	 * @return the unique key
+	 */
+	public static String recorderKey(final ObjectName on, String...attrKeys) {
+		StringBuilder b = new StringBuilder(on.toString());
+		if(attrKeys!=null && attrKeys.length>0) {
+			for(String attrKey: attrKeys) {
+				if(attrKey!=null && !attrKey.isEmpty()) {
+					b.append("/").append(attrKey);
+				}
+			}
+		}
+		return b.toString();
+	}
+	
 	
 	public void run() {
 		final Context ctx = this.timer.time();
@@ -151,6 +170,7 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 			acceptData(attrMaps);
 		} catch (Exception ex) {
 			// what to do here ?
+			ex.printStackTrace(System.err);
 		}
 	}
 	
@@ -305,6 +325,18 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to getAttributes on [" + on + "]", e);
 		}
+	}
+	
+	/**
+	 * Calculates a percentage
+	 * @param part The part
+	 * @param whole The whole
+	 * @return the percentage
+	 */
+	public static long percent(final double part, final double whole) {
+		if(part==0 || whole==0) return 0;
+		double perc = (part/whole*100d);
+		return Math.round(perc);
 	}
 	
 

@@ -15,23 +15,15 @@
  */
 package com.heliosapm.opentsdb.client.opentsdb.jvm;
 
-import java.lang.management.ManagementFactory;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
-import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.codahale.metrics.JmxAttributeGauge;
-import com.codahale.metrics.JvmAttributeGaugeSet;
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricSet;
-import com.heliosapm.opentsdb.client.opentsdb.OpenTsdbMetric;
+import com.codahale.metrics.ExponentiallyDecayingReservoir;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.heliosapm.opentsdb.client.util.Util;
 
 /**
  * <p>Title: BufferPoolMetricSet</p>
@@ -41,55 +33,82 @@ import com.heliosapm.opentsdb.client.opentsdb.OpenTsdbMetric;
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.BufferPoolMetricSet</code></p>
  */
 
-public class BufferPoolMetricSet implements MetricSet {
-    private static final Logger LOGGER = LoggerFactory.getLogger(BufferPoolMetricSet.class);
-    private static final String[] ATTRIBUTES = { "Count", "MemoryUsed", "TotalCapacity" };
-    private static final String[] NAMES = { "count", "used", "capacity" };
-    private static final String[] POOLS = { "direct", "mapped" };
-
-    private final MBeanServerConnection mBeanServer;
-    private final Set<ObjectName> bufferPoolMBeans;
+public class BufferPoolMetricSet extends BaseMBeanObserver {
     
-    
-    //  java.io.buffers.type=BufferPool.name=direct.attr=MemoryUsed
-    
+	public static final String OBJECT_PATTERN = "java.nio:type=BufferPool,name=*";
+	
+	/** The class loading mxbean jmx ObjectName */
+	static final ObjectName OBJECT_NAME = Util.objectName(OBJECT_PATTERN);
+	/** The attribute names to bulk retrieve */
+	static final String[] ATTR_NAMES = {"Count", "MemoryUsed", "TotalCapacity"};
+	
+	protected final Map<ObjectName, long[]> poolAttrValues;
+	protected final Map<String, Histogram> histograms;
+	
+	/**
+	 * Creates a new histogram for the passed ObjectName and registers it in the histogram map
+	 * @param on The ObjectName to associate with
+	 * @return the created histogram
+	 */
+	protected Histogram createAndRegisterHistogram(final ObjectName on, String...attrs) {
+		final Histogram hist = new Histogram(new ExponentiallyDecayingReservoir());
+		final String key = recorderKey(on, attrs);
+		histograms.put(key, hist);
+		return hist;
+	}
+	
 
     /**
      * Creates a new BufferPoolMetricSet
-     * @param mBeanServer An optional MBeanServerConnection. If null, will use the platform MBeanServer
+     * @param builder The observer builder
      */
-    public BufferPoolMetricSet(final MBeanServerConnection mBeanServer) {
-        this.mBeanServer = mBeanServer!=null ? mBeanServer: ManagementFactory.getPlatformMBeanServer();
-        Set<ObjectName> tmp = null;
-        try {
-        	tmp = this.mBeanServer.queryNames(new ObjectName("java.nio:type=BufferPool,name=*"), null);        	        
-        } catch (Exception ex) {/* No Op */}
-        bufferPoolMBeans = (tmp==null || tmp.isEmpty()) ? null : Collections.unmodifiableSet(tmp);                
-    }
-    
-    /**
-     * Creates a new BufferPoolMetricSet using the platform MBeanServer
-     */
-    public BufferPoolMetricSet() {
-    	this(ManagementFactory.getPlatformMBeanServer());
+    public BufferPoolMetricSet(final MBeanObserverBuilder builder) {
+    	super(builder, ATTR_NAMES);
+    	poolAttrValues = new HashMap<ObjectName, long[]>(objectNames.size());
+    	histograms = new HashMap<String, Histogram>(objectNames.size());
+    	for(final ObjectName on: objectNames) {
+//    		metrics.put("java.lang.bufferpools.Count:" + on.getCanonicalKeyPropertyListString() + "," + getAgentNameTags(), new Gauge<Long>() {
+//    			@Override
+//    			public Long getValue() {
+//    				latch.countDown();
+//    				return poolAttrValues.get(on)[0];
+//    			}
+//    		});
+    		metrics.put("java.lang.bufferpools.Count:" + on.getCanonicalKeyPropertyListString() + "," + getAgentNameTags(),
+    				createAndRegisterHistogram(on)
+    		);
+    		
+    		// 
+    		metrics.put("java.lang.bufferpools.MemoryUsed:" + on.getCanonicalKeyPropertyListString() + "," + getAgentNameTags(), new Gauge<Long>() {    			
+    			@Override
+    			public Long getValue() {
+    				latch.countDown();
+    				long[] vals = poolAttrValues.get(on);
+    				return vals[0];
+    				//return poolAttrValues.get(on)[0];
+    			}
+    		});
+    		metrics.put("java.lang.bufferpools.TotalCapacity:" + on.getCanonicalKeyPropertyListString() + "," + getAgentNameTags(), new Gauge<Long>() {
+    			@Override
+    			public Long getValue() {
+    				latch.countDown();
+    				return poolAttrValues.get(on)[1];
+    			}
+    		});
+    		
+    	}
     }
 
-    @Override
-    public Map<String, Metric> getMetrics() {
-    	if(bufferPoolMBeans==null) return Collections.emptyMap();
-        final Map<String, Metric> gauges = new HashMap<String, Metric>();
-        JvmAttributeGaugeSet gs = new JvmAttributeGaugeSet(); 
-        for (ObjectName pool : bufferPoolMBeans) {
-            for (int i = 0; i < ATTRIBUTES.length; i++) {
-                final String attribute = ATTRIBUTES[i];
-                final String poolName = pool.getKeyProperty("name");
-                
-                gauges.put(OpenTsdbMetric.named("java.io.buffers", "type=BufferPool", "name=" + poolName, "attr=" + attribute),   // , "attr=" + attribute
-                           new JmxAttributeGauge(mBeanServer, pool, attribute));
-                
-            }
-        }
-        return Collections.unmodifiableMap(gauges);
-    }
+	@Override
+	protected void acceptData(final Map<ObjectName, Map<String, Object>> attrMaps) {
+		for(Map.Entry<ObjectName, Map<String, Object>> entry : attrMaps.entrySet()) {
+			final Map<String, Object> vals = entry.getValue();
+			poolAttrValues.put(entry.getKey(), new long[]{
+				(Long)vals.get(ATTR_NAMES[1]),
+				(Long)vals.get(ATTR_NAMES[2])
+			});
+			histograms.get(recorderKey(entry.getKey())).update((Long)vals.get(ATTR_NAMES[0]));
+		}
+	}
 
 }

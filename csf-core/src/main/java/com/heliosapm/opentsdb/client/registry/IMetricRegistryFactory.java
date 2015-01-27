@@ -82,10 +82,13 @@ public class IMetricRegistryFactory {
 	public static IMetricRegistry wrap(final MetricRegistry registry) {
 		if(registry==null) throw new IllegalArgumentException("The passed registry was null");
 		final Integer sysIdHash = System.identityHashCode(registry);
-		IMetricRegistry imr = metricRegistries.get(sysIdHash).get();
+		IMetricRegistry imr = null;
+		WeakReference<IMetricRegistry> wmr = metricRegistries.get(sysIdHash);
+		if(wmr!=null) imr = wmr.get();
 		if(imr==null) {
 			synchronized(metricRegistries) {
-				imr = metricRegistries.get(sysIdHash).get();
+				wmr = metricRegistries.get(sysIdHash);
+				if(wmr!=null) imr = wmr.get();				
 				if(imr==null) {
 					imr = new IMetricRegistryWrapper(registry);
 					metricRegistries.put(sysIdHash, MetricRegistryReference.newInstance(imr));
