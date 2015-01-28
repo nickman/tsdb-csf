@@ -128,6 +128,7 @@ public class KitchenSink {
 		//=========================================================================================
 		
 		/** We don't need this, it's the default */
+		System.setProperty("tsdb.http.tsdb.url", "http://localhost:6262");
 //		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
 		/** We don't need this, but if we were using a local Bosun instance, this would work */
 //		System.setProperty("tsdb.http.tsdb.url", "http://localhost:8070");

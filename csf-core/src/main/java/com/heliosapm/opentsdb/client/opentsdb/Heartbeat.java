@@ -155,7 +155,8 @@ public class Heartbeat implements Closeable, Runnable, AgentNameChangeListener {
 	@Override
 	public void run() {
 		poster.send(
-				OpenTsdbMetric.named(OpenTsdbMetric.named(metricNamePrefix, tags))
+				OpenTsdbMetric.named(metricNamePrefix)
+				.withTags(tags)
 				.withTimestamp(time())
 				.withValue(value)
 				.build()

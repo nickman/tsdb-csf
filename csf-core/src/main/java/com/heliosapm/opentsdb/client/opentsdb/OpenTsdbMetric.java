@@ -26,6 +26,8 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
+import javax.management.ObjectName;
+
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import com.heliosapm.opentsdb.client.name.AgentName;
@@ -55,10 +57,20 @@ public class OpenTsdbMetric {
     }
 
     public static Builder named(final String name) {
+    	if(name.indexOf(':')==-1) return new Builder(name);
 //    	final String rewrittenName = 
     	final Builder builder = rewriteName(name);
     	//OpenTsdb.getInstance().addOpenTsdbMetricName(named(builder.metric.metric, builder.metric.tags));
         return builder;
+    }
+    
+    public static Builder tsdbName(final String name, final String prefix) {
+    	try {
+    		final ObjectName on = new ObjectName(name.trim());
+    		return new Builder(on.getDomain() + "." + prefix).withTags(on.getKeyPropertyList());
+    	} catch (Exception ex) {/* No Op */}
+    	return named(name + "." + prefix);
+
     }
     
     public static String prefix(final String prefix, String...components) {
@@ -77,6 +89,10 @@ public class OpenTsdbMetric {
     	if(name==null || name.trim().isEmpty()) {
     		return null;  // what else ?
     	}
+    	try {
+    		final ObjectName on = new ObjectName(name.trim());
+    		return new Builder(on.getDomain()).withTags(on.getKeyPropertyList());
+    	} catch (Exception ex) {/* No Op */}
     	String[] dots = DOT_SPLITTER.split(name.trim());
     	Map<String, String> tags = new TreeMap<String, String>();
     	StringBuilder b = new StringBuilder();

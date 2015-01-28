@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
 
+import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.MetricRegistry;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTsdb;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTsdbReporter;
@@ -22,6 +23,7 @@ public class MBeanObserverTest {
 
 	public static void main(String[] args) {		
 		log("MBeanObserverTest");
+		System.setProperty("tsdb.http.tsdb.url", "http://localhost:6262");
 		final MBeanServer server = ManagementFactory.getPlatformMBeanServer();
 		final BaseMBeanObserver compileTime = MBeanObserverBuilder.newBuilder(server, Util.objectName(ManagementFactory.COMPILATION_MXBEAN_NAME), CompilationMBeanObserver.class).build();
 		final BaseMBeanObserver classLoads = MBeanObserverBuilder.newBuilder(server, Util.objectName(ManagementFactory.CLASS_LOADING_MXBEAN_NAME), ClassLoadingMBeanObserver.class).build();
@@ -32,9 +34,10 @@ public class MBeanObserverTest {
 		reg.registerAll(classLoads);
 		reg.registerAll(bufferPools);
 		reg.registerAll(mem);
-		//ConsoleReporter reporter = ConsoleReporter.forRegistry(reg).outputTo(System.out).build();
-		OpenTsdbReporter reporter = OpenTsdbReporter.forRegistry(IMetricRegistryFactory.wrap(reg)).build(OpenTsdb.getInstance());
+		ConsoleReporter creporter = ConsoleReporter.forRegistry(reg).outputTo(System.out).build();
+		OpenTsdbReporter reporter = OpenTsdbReporter.forRegistry(reg).build(OpenTsdb.getInstance());
 		reporter.start(5, TimeUnit.SECONDS);
+		creporter.start(5, TimeUnit.SECONDS);
 		final Random r = new Random(System.currentTimeMillis());
 		while(true) {
 			ByteBuffer.allocateDirect(Math.abs(r.nextInt(100))+1);

@@ -1109,6 +1109,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	public void autoDisableGZip() {
 		if(enableCompression) {
 			enableCompression = false;
+			httpHeaders.remove(Names.CONTENT_ENCODING);
 			sendNotification(new Notification(NOTIF_GZIP_DISABLED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Disabled GZip on HTTP posts to OpenTSDB@[" + tsdbUrl + "]"));
 		}
 	}

@@ -19,6 +19,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -28,6 +29,8 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+
+import javax.management.ObjectName;
 
 import org.jboss.netty.util.Timeout;
 import org.slf4j.Logger;
@@ -209,8 +212,9 @@ public class OpenTsdbReporter implements Closeable, Reporter {
         private final Set<OpenTsdbMetric> metrics = new HashSet<OpenTsdbMetric>();
 
         private MetricsCollector(String prefix, Map<String, String> tags, long timestamp) {
-            this.prefix = prefix;
-            this.tags = tag(prefix, tags);
+        	final ObjectName on = Util.objectName(prefix);
+            this.prefix = on.getDomain();
+            this.tags = new LinkedHashMap<String, String>(on.getKeyPropertyList());
             this.timestamp = timestamp;
         }
 
@@ -220,6 +224,16 @@ public class OpenTsdbReporter implements Closeable, Reporter {
         
         private static final Pattern DOT_SPLITTER = Pattern.compile("\\.");
         private static final Pattern EQ_SPLITTER = Pattern.compile("\\=");
+        
+        protected static ObjectName tsdbTag(String prefix, Map<String, String> tags) {
+        	try {
+        		final ObjectName on = new ObjectName(prefix);
+        		final Map<String, String> newTags = new LinkedHashMap<String, String>();
+        		newTags.putAll(tags);
+        		newTags.putAll(on.getKeyPropertyList());        		
+        		return new ObjectName(on.getDomain(), new Hashtable<String, String>(newTags));
+        	} catch (Exception x) {throw new RuntimeException(x);}        	
+        }
         
         protected static Map<String, String> tag(String prefix, Map<String, String> tags) {
         	final Map<String, String> newTags = new LinkedHashMap<String, String>();
@@ -407,7 +421,7 @@ public class OpenTsdbReporter implements Closeable, Reporter {
     }
 
     private OpenTsdbMetric buildCounter(String name, Counter counter, long timestamp) {
-        return OpenTsdbMetric.named(prefix(name, "count"))
+        return OpenTsdbMetric.tsdbName(name, "count")
                 .withTimestamp(timestamp)
                 .withValue(counter.getCount())
                 .withTags(tags)
@@ -416,7 +430,7 @@ public class OpenTsdbReporter implements Closeable, Reporter {
 
 
     private OpenTsdbMetric buildGauge(String name, Gauge gauge, long timestamp) {    	
-        return OpenTsdbMetric.named(prefix(name, "value"))
+        return OpenTsdbMetric.tsdbName(name, "value")
                 .withValue(gauge.getValue()) 
                 .withTimestamp(timestamp)
                 .withTags(tags)
