@@ -112,7 +112,6 @@ public class IMetricRegistryFactory {
 
 	static void register(final OpenTsdbMetricRegistry otreg) {
 		metricRegistries.put(otreg.hashCode(), MetricRegistryReference.newInstance(otreg));
-		System.out.println("REG COUNT:" + metricRegistries.size());
 	}
 	
 	static class IMetricRegistryWrapper implements IMetricRegistry {

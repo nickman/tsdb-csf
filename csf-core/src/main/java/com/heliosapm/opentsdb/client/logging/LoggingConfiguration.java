@@ -54,6 +54,7 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.spi.LoggerContext;
 
 import com.heliosapm.opentsdb.client.name.AgentName;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -147,6 +148,7 @@ public class LoggingConfiguration {
 	
 	
 	public void initAppLogging(final AgentName agentName) {
+		// ${sys:tsdb.logging.dir}/tsdb-csf-${sys:tsdb.logging.pid}-${sys:tsdb.logging.host}-boot-${sys:tsdb.logging.systime}.log
 		InputStream is = null;
 		try {
 			URL configUrl = LoggingConfiguration.class.getResource("/log4j/tsdb-csf-log4j2.xml");
@@ -154,8 +156,20 @@ public class LoggingConfiguration {
         	c.setConfigLocation(configUrl.toURI());
         	bootContext = (org.apache.logging.log4j.core.LoggerContext)LogManager.getContext(true);
         	
-			LogManager.getLogger(LoggingConfiguration.class).info("tsdb-csf Logging Service configured from [{}]", configUrl);
-			
+			Logger logLog = LogManager.getLogger(LoggingConfiguration.class);
+			logLog.info("tsdb-csf Logging Service configured from [{}]", configUrl);
+			// Delete the PID log if we get here.
+			final String pidLogFile = String.format("tsdb-csf-%s-%s-boot-%s.log", Constants.SPID, HOST, SYSTIME);
+			final File pidFile = new File(metricsRootDir, pidLogFile);
+			if(pidFile.exists()) {
+				if(!pidFile.delete()) {
+					Util.sdhook(pidFile);
+					logLog.info("PID Log File: [{}] was still locked. Adding to delete on exit queue.", pidFile);
+				} else {
+					logLog.info("Deleted PID Log File: [{}]", pidFile);
+				}
+			}
+			// e.g.  Deleted PID Log File: [/home/nwhitehead/.tsdb-metrics/tsdb-csf-23969-hserval-boot-1422391526795.log]
 		} catch (Exception ex) {
 			System.err.println("Failed to initialize tsdb-csf logging");
 			ex.printStackTrace(System.err);

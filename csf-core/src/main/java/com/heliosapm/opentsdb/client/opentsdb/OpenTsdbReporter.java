@@ -39,11 +39,13 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricFilter;
+import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Reporter;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.registry.IMetricRegistry;
+import com.heliosapm.opentsdb.client.registry.IMetricRegistryFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -77,8 +79,17 @@ public class OpenTsdbReporter implements Closeable, Reporter {
      */
     public static Builder forRegistry(final IMetricRegistry registry) {
     	if(registry==null) throw new IllegalArgumentException("The passed registry was null");
-//    	OpenTsdb.getInstance().addRegistry(registry);    	
         return new Builder(registry);
+    }
+    
+    /**
+     * Returns a new {@link Builder} for {@link OpenTsdbReporter}.
+     * @param registry The metric registry to be wrapped and registered
+     * @return the reporter builder
+     */
+    public static Builder forRegistry(final MetricRegistry registry) {
+    	if(registry==null) throw new IllegalArgumentException("The passed registry was null");
+    	return new Builder(IMetricRegistryFactory.wrap(registry));
     }
     
     

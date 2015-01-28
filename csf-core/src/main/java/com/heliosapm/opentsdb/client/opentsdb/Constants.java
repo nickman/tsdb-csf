@@ -20,7 +20,6 @@ import java.nio.charset.Charset;
 import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.Level;
-import org.jboss.netty.handler.codec.http.HttpMethod;
 
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.HTTPMethod;
@@ -56,7 +55,7 @@ public interface Constants {
 	/** The system property config name for HTTP Payload compression */
 	public static final String PROP_COMPRESS = "tsdb.http.compression.enabled";
 	/** The default HTTP Payload compression enablement */
-	public static final boolean DEFAULT_COMPRESS = false;
+	public static final boolean DEFAULT_COMPRESS = true;
 	/** The system property config name for the maximum number of retries */
 	public static final String PROP_REQUEST_RETRY = "tsdb.http.request.retries";
 	/** The default HTTP Payload compression enablement */
@@ -221,6 +220,7 @@ public interface Constants {
 	public static final String PROP_TIME_IN_SEC = "tsdb.time.seconds";
 	/** The default hearbeat period in seconds */
 	public static final boolean DEFAULT_TIME_IN_SEC = true;
+
 
 	
 }

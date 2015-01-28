@@ -97,7 +97,7 @@ public class OpenTsdbMetric {
     	}
     	if(!hasMn) return null;
     	String metricName = b.deleteCharAt(b.length()-1).toString();
-    	return new Builder(metricName).withTags(tags);
+    	return new Builder(metricName.replace("..", ".")).withTags(tags);
     }
     
     /**

@@ -18,27 +18,17 @@ package com.heliosapm.opentsdb.client;
 import static com.codahale.metrics.MetricRegistry.name;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.lang.management.ManagementFactory;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import javax.management.MBeanServer;
-
+import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
-import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
-import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
-import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
-import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
-import com.heliosapm.opentsdb.client.opentsdb.Constants;
 //import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 //import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 //import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
@@ -48,11 +38,6 @@ import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTsdb;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTsdbReporter;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
-import com.heliosapm.opentsdb.client.opentsdb.jmx.OpenTsdbObjectNameFactory;
-import com.heliosapm.opentsdb.client.opentsdb.jvm.BufferPoolMetricSet;
-import com.heliosapm.opentsdb.client.registry.DelegateMetricRegistry;
-import com.heliosapm.opentsdb.client.registry.OpenTsdbMetricRegistry;
-import com.heliosapm.opentsdb.client.util.Util;
 
 /**
  * <p>Title: KitchenSink</p>
@@ -64,9 +49,10 @@ import com.heliosapm.opentsdb.client.util.Util;
 
 public class KitchenSink {
 	
-	// Gauge, Counter, Histogram, Meter, Timer
-	static final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-	final OpenTsdbMetricRegistry registry = new OpenTsdbMetricRegistry();
+	
+	// Create a new MetricRegistry
+	final MetricRegistry registry = new MetricRegistry();
+	// Create a new Gauge Metric
 	final Gauge<Long> cacheSizeGauge = new Gauge<Long>() {
 		@Override
 		public Long getValue() {		
@@ -74,54 +60,40 @@ public class KitchenSink {
 			return new Long(Math.abs(random.nextInt(1000)));
 		}
 	};
-	final Counter evictions = registry.counter(name(getClass().getSimpleName(), "cmtype=Counter", "op=cache-evictions", "service=cacheservice"));
-	final Histogram resultCounts = registry.histogram(name(getClass().getSimpleName(), "cmtype=Histogram", "op=cache-lookup", "service=cacheservice"));
-	final Meter lookupRequests = registry.meter(name(getClass().getSimpleName(), "cmtype=Meter", "op=cache-lookup", "service=cacheservice"));
-	final Timer timer = registry.timer(name(getClass().getSimpleName(), "cmtype=Timer", "op=cache-evictions", "service=cacheservice"));
+	// Create a new Counter Metric
+	final Counter evictions = 
+			registry.counter(name(getClass().getSimpleName(), 
+					"evictions", 
+					"op=cache-evictions", 
+					"service=cacheservice"));
+	// Create a new Histogram Metric
+	final Histogram resultCounts = registry.histogram(name(getClass().getSimpleName(), "resultCounts", "op=cache-lookup", "service=cacheservice"));
+	// Create a new Meter Metric
+	final Meter lookupRequests = registry.meter(name(getClass().getSimpleName(), "lookupRequests",  "op=cache-lookup", "service=cacheservice"));
+	// Create a new Timer Metric
+	final Timer timer = registry.timer(name(getClass().getSimpleName(), "evictelapsed", "op=cache-evictions", "service=cacheservice"));
 	
-	OpenTsdbReporter reporter;
-	JmxReporter jmxReporter;
-	// =============================================================
-	//  JVM Monitors
-	// =============================================================
-//	final ThreadStatesGaugeSet threadStateGauge = new ThreadStatesGaugeSet(ManagementFactory.getThreadMXBean(), new ThreadDeadlockDetector());
-//	final ClassLoadingGaugeSet classLoadingGauge = new ClassLoadingGaugeSet(ManagementFactory.getClassLoadingMXBean());
-//	final FileDescriptorRatioGauge fileDescriptorRatioGauge = new FileDescriptorRatioGauge(ManagementFactory.getOperatingSystemMXBean());
-//	final GarbageCollectorMetricSet garbageCollectorMetricSet = new GarbageCollectorMetricSet(ManagementFactory.getGarbageCollectorMXBeans());
-//	final MemoryUsageGaugeSet memoryUsageGaugeSet = new MemoryUsageGaugeSet(ManagementFactory.getMemoryMXBean(), ManagementFactory.getMemoryPoolMXBeans());
-//	final BufferPoolMetricSet bufferPoolMonitor;
-	final ClassLoadingGaugeSet classLoaderMonitor;
-	final FileDescriptorRatioGauge fdg;
-	final MemoryUsageGaugeSet mugs = new MemoryUsageGaugeSet();
 	
 	/**
 	 * Creates a new KitchenSink
 	 */
 	public KitchenSink() {
-		registry.register(name(getClass().getSimpleName(), "cmtype=Gauge", "attr=cache-size", "service=cacheservice"), cacheSizeGauge);
+		// Register the cacheSizeGauge Gauge
+		registry.register(name(getClass().getSimpleName(), "cache-size", "cmtype=Gauge", "attr=cache-size", "service=cacheservice"), cacheSizeGauge);
+		// We don't need this. The AgentName service will take care of it.
+		/*
 		final Map<String, String> rootTags = new HashMap<String, String>();
-		rootTags.put("host", "PP-WK-NWHI-01.cpex.com".toLowerCase());
-		rootTags.put("app", "ptms");		
-//		registry.registerAll(threadStateGauge);
-//		registry.registerAll(classLoadingGauge);
-//		registry.registerAll(garbageCollectorMetricSet);
-//		registry.registerAll(memoryUsageGaugeSet);
-		classLoaderMonitor = new ClassLoadingGaugeSet();
-		registry.registerAll(classLoaderMonitor);
-		fdg = new FileDescriptorRatioGauge();
-		registry.register("fd", fdg);
-		registry.registerAll(mugs);
-//		if(Util.loadClassByName("java.lang.management.BufferPoolMXBean", null)!=null) {
-//			bufferPoolMonitor = new BufferPoolMetricSet(mbs);
-////			registry.registerAll(bufferPoolMonitor);
-//		} else {
-//			bufferPoolMonitor = null;
-//		}
-		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());		
-		reporter = OpenTsdbReporter.forRegistry(registry).withTags(rootTags).build(OpenTsdb.getInstance());
-		jmxReporter = JmxReporter.forRegistry(DelegateMetricRegistry.newInstance(registry)).createsObjectNamesWith(new OpenTsdbObjectNameFactory()).build();
+		rootTags.put("host", "myappserver.loodicrous.org".toLowerCase());
+		rootTags.put("app", "KitchenSink");
+		*/		
+		/* Create the reporter */
+		// Define the OpenTsdbReporter. Will create in the ctor
+		final OpenTsdbReporter reporter = OpenTsdbReporter.forRegistry(registry).build(OpenTsdb.getInstance());
+		final ConsoleReporter creporter = ConsoleReporter.forRegistry(registry).build();
+		/** Start the reporter with a reporting period of 5 seconds */
 		reporter.start(5, TimeUnit.SECONDS);		
-		//jmxReporter.start();
+		creporter.start(5, TimeUnit.SECONDS);
+		/** Start a thread to generate some random data */
 		Threading.getInstance().schedule(new Runnable(){
 			final Random random = new Random(System.currentTimeMillis());
 			public void run() {
@@ -131,55 +103,53 @@ public class KitchenSink {
 				timer.update(Math.abs(random.nextInt(50)), TimeUnit.MILLISECONDS);
 			}
 		}, 3);
-			
-		
+		// Let it run
 		try { Thread.currentThread().join(); } catch (Exception x) {/* No Op */}
-		
 	}
 	
 	
 
 	/**
+	 * Start KitchenSink
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		LoggingConfiguration.getInstance();
-		InputStream is = null;
-		startExitListener();
-//        try {
-//        	org.apache.logging.log4j.spi.LoggerContext lctx = LogManager.getFactory().getContext(KitchenSink.class.getName(), null, null, true, null, "TSDB");
-//    		final LoggerContext ctx = new LoggerContext("TSDB-CSF");
-//                    	
-//        	URL configUrl = KitchenSink.class.getResource("/log4j/log4j2.xml");
-//        	is = configUrl.openStream();
-//        	ConfigurationSource csource = new ConfigurationSource(is, configUrl);
-//        	XmlConfiguration config = new XmlConfiguration(csource); 
-//        	ctx.start(config);        	
-//        	log = LogManager.getLogger(KitchenSink.class);
-//        	log.info("Configuration Loaded: {}", ((LoggerContext)lctx).getName());
-//        } catch (Exception x) {
-//        	x.printStackTrace(System.err);
-//        } finally {
-//        	if(is!=null) try { is.close(); } catch (Exception x) {/* No Op */}
-//        }
-        
-//		ConsoleOutHandler.init();
-//		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4242");
-//		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
-		System.setProperty("tsdb.http.tsdb.url", "http://localhost:8070");
-		System.setProperty("tsdb.threadpool.size", "60");
-		System.setProperty("tsdb.http.compression.enabled", "false");
-		System.setProperty(Constants.PROP_BATCH_SIZE, "" + Integer.MAX_VALUE);
-		System.setProperty(Constants.PROP_CHECK_ENDPOINT, "/api/config");
-		System.setProperty(Constants.PROP_CHECK_METHOD, "HEAD");
-		
-		
-		System.out.println("Host:" + OpenTsdb.getInstance().getHostName());
-		System.out.println("App:" + OpenTsdb.getInstance().getAppName());
-		
-		KitchenSink ks = new KitchenSink();
-		
+		System.out.println(org.apache.logging.log4j.LogManager.class.getProtectionDomain().getCodeSource().getLocation());
 
+		/**
+		 * If you want a clean shutdown, use this, and just type "exit" <return> at the console.
+		 * If you don't care, comment it.
+		 * 
+		 */
+		startExitListener();
+		//=========================================================================================
+		//  Here are some system props you could set, but mostly don't need to.
+		//  See com.heliosapm.opentsdb.client.opentsdb.Constants for the full set of props.
+		//=========================================================================================
+		
+		/** We don't need this, it's the default */
+//		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
+		/** We don't need this, but if we were using a local Bosun instance, this would work */
+//		System.setProperty("tsdb.http.tsdb.url", "http://localhost:8070");
+		/** You might need this. Default thread pool size is (<# of cores>*2) + 2 */
+//		System.setProperty("tsdb.threadpool.size", "60");
+		/** We don't need this, it's enabled automatically,and disabled if the server complains */
+//		System.setProperty("tsdb.http.compression.enabled", "false");
+		/** We don't need this. The default is 100. The commented example would be used if you
+		 * wanted to batch as many metrics together as possible. Server might (should) limit post sizes. */
+//		System.setProperty(""tsdb.http.batch.size"", "" + Integer.MAX_VALUE);
+		/** We don't need this, by default uses the "/api/config" end point of the target OpenTSDB server. 
+		 * The same end point will work for Bosun. */
+//		System.setProperty("tsdb.http.check.path", "/api/config");
+		/** We don't need this. Defaults to GET which OpenTSDB likes, and it won't accept HEAD
+		 * which is a quicker check. Bosun accepts HEAD requests, so changing to HEAD in that case
+		 * might make sense.
+		 */
+//		System.setProperty("tsdb.http.check.method", "HEAD");
+
+		//  Start the KitchenSink
+		KitchenSink ks = new KitchenSink();
+		System.out.println("KitchenSink Started");
 	}
 	
 	private static void startExitListener() {
@@ -198,7 +168,5 @@ public class KitchenSink {
 				}				
 			}
 		}.start();
-		
 	}
-
 }

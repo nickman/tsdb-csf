@@ -7,10 +7,10 @@ import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
 
+import com.codahale.metrics.MetricRegistry;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTsdb;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTsdbReporter;
 import com.heliosapm.opentsdb.client.registry.IMetricRegistryFactory;
-import com.heliosapm.opentsdb.client.registry.OpenTsdbMetricRegistry;
 import com.heliosapm.opentsdb.client.util.Util;
 
 public class MBeanObserverTest {
@@ -27,7 +27,7 @@ public class MBeanObserverTest {
 		final BaseMBeanObserver classLoads = MBeanObserverBuilder.newBuilder(server, Util.objectName(ManagementFactory.CLASS_LOADING_MXBEAN_NAME), ClassLoadingMBeanObserver.class).build();
 		final BaseMBeanObserver bufferPools = MBeanObserverBuilder.newBuilder(server, Util.objectName(BufferPoolMetricSet.OBJECT_PATTERN), BufferPoolMetricSet.class).build();
 		final BaseMBeanObserver mem = MBeanObserverBuilder.newBuilder(server, Util.objectName(ManagementFactory.MEMORY_MXBEAN_NAME), MemoryMonitorMetricSet.class).build();
-		OpenTsdbMetricRegistry reg = new OpenTsdbMetricRegistry();
+		MetricRegistry reg = new MetricRegistry();
 		reg.registerAll(compileTime);
 		reg.registerAll(classLoads);
 		reg.registerAll(bufferPools);
