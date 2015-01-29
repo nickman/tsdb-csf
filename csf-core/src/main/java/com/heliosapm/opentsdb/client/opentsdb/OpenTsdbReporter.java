@@ -64,7 +64,7 @@ public class OpenTsdbReporter implements Closeable, Reporter {
     private Timeout scheduleHandle = null;
     private final IMetricRegistry registry;
     private final Map<String, String> tags;
-    private static final Logger LOG = LoggerFactory.getLogger(OpenTsdbReporter.class);
+    private static final Logger LOG;
     protected final MetricFilter metricFilter;
     protected final TimeUnit rateUnit;
     protected final TimeUnit durationUnit;
@@ -447,6 +447,7 @@ public class OpenTsdbReporter implements Closeable, Reporter {
     static {
     	// init boot logging as early as possible
     	LoggingConfiguration.getInstance();
+    	LOG = LoggerFactory.getLogger(OpenTsdbReporter.class);
     }
 
 
