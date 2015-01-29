@@ -18,7 +18,7 @@ package com.heliosapm.opentsdb.client.opentsdb;
 
 /**
  * <p>Title: MetricNameStore</p>
- * <p>Description: An indexed, in memory store of metric names</p> 
+ * <p>Description: An indexed, in memory store of flat metric names to OTMs</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.MetricNameStore</code></p>

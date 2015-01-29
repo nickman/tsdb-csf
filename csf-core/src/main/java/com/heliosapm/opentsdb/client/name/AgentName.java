@@ -28,6 +28,7 @@ import static com.heliosapm.opentsdb.client.opentsdb.Constants.APP_TAG;
 import static com.heliosapm.opentsdb.client.opentsdb.Constants.HOST_TAG;
 
 import java.lang.management.ManagementFactory;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -36,6 +37,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 
 import javax.management.Notification;
@@ -51,6 +53,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
+import com.heliosapm.opentsdb.client.opentsdb.OffHeapFIFOFile;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -67,6 +70,19 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	private static volatile AgentName instance = null;
 	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
+	
+	private final AtomicReference<ByteBuffer[]> bufferizedAgentName = new AtomicReference<ByteBuffer[]>(null);
+	
+	
+	/*
+	 * Looks like this:
+	 * ================
+	 * <total size>	 
+	 * <app tag size>
+	 * <app tag bytes>
+	 * <hots tag size>
+	 * <hots tag bytes>
+	 */
 	
 	
 	
@@ -109,12 +125,27 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 		loadExtraTags();
 		getAppName();
 		getHostName();
+		initBufferized();
 		Util.registerMBean(this, objectName);
 		sendInitialNotif();
 		LoggingConfiguration.getInstance().initAppLogging(this);
 		log = LogManager.getLogger(getClass());
 	}
 	
+	/**  */
+	private static final byte[] COMMA_BYTE = ",".getBytes(Constants.UTF8); 
+	
+	private synchronized void initBufferized() {		
+		ByteBuffer[] buffs = new ByteBuffer[3];		
+		final byte[] appTag = ("\"" + Constants.APP_TAG + "\":\"" + appName + "\"").getBytes(Constants.UTF8);
+		final byte[] hostTag = ("\"" + Constants.HOST_TAG + "\":\"" + hostName + "\"").getBytes(Constants.UTF8);
+		buffs[0] = (ByteBuffer)ByteBuffer.allocateDirect(appTag.length).put(appTag).flip();
+		buffs[1] = (ByteBuffer)ByteBuffer.allocateDirect(hostTag.length).put(hostTag).flip();
+		buffs[2] = (ByteBuffer)ByteBuffer.allocateDirect(appTag.length + hostTag.length + COMMA_BYTE.length).put(appTag).put(COMMA_BYTE).put(hostTag).flip();		
+		final ByteBuffer[] oldBuff = bufferizedAgentName.getAndSet(buffs);
+		OffHeapFIFOFile.clean(oldBuff);
+	}
+
 	private void sendInitialNotif() {
 		final Notification n = new Notification(NOTIF_ASSIGNED, objectName, notifSerial.incrementAndGet(), System.currentTimeMillis(), "AgentName assigned [" + appName + "@" + hostName + "]");
 		Map<String, String> userData = new HashMap<String, String>(2);
@@ -171,6 +202,30 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 		return getAppName() + "@" + getHostName();
 	}
 	
+	/**
+	 * Returns the agent name app tag, already prepped for serialization
+	 * @return the agent name app tag buffer
+	 */
+	public ByteBuffer getAgentNameAppTagBuffer() {
+		return bufferizedAgentName.get()[0].asReadOnlyBuffer();
+	}
+	
+	/**
+	 * Returns the agent name host tag, already prepped for serialization
+	 * @return the agent name host tag buffer
+	 */
+	public ByteBuffer getAgentNameHostTagBuffer() {
+		return bufferizedAgentName.get()[1].asReadOnlyBuffer();
+	}
+	
+	/**
+	 * Returns the agent name app and host tags, already prepped for serialization
+	 * @return the agent name app and host tags buffer
+	 */
+	public ByteBuffer getAgentNameTagsBuffer() {
+		return bufferizedAgentName.get()[2].asReadOnlyBuffer();
+	}
+
 	
 	/**
 	 * Attempts to find a reliable app name
@@ -259,6 +314,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 			GLOBAL_TAGS.put(APP_TAG, appName);
 			appUpdated = true;
 		}
+		initBufferized();
 		log.info("Names reset: app:[{}], host:[{}]", newAppName, newHostName);
 		fireAgentNameChange(appUpdated ? newAppName : null, hostUpdated ? newHostName : null); 
 	}
@@ -271,6 +327,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	public void resetAppName(final String newAppName) {
 		if(newAppName!=null && newAppName.trim().isEmpty() && !newAppName.trim().equals(appName)) {
 			appName = newAppName.trim();
+			initBufferized();
 			System.setProperty(Constants.PROP_APP_NAME, appName);
 			GLOBAL_TAGS.put(APP_TAG, appName);
 			log.info("AppName reset: app:[{}]", newAppName);
@@ -287,6 +344,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	public void resetHostName(final String newHostName) {
 		if(newHostName!=null && newHostName.trim().isEmpty() && !newHostName.trim().equals(hostName)) {
 			hostName = newHostName.trim();
+			initBufferized();
 			System.setProperty(Constants.PROP_HOST_NAME, hostName);
 			GLOBAL_TAGS.put(HOST_TAG, hostName);
 			log.info("HostName reset: host:[{}]", newHostName);

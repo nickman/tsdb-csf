@@ -826,26 +826,31 @@ public class OffHeapFIFOFile {
 	
 	
 	/**
-	 * Manual deallocation of the memory allocated for a direct byte buffer.
+	 * Manual deallocation of the memory allocated for direct byte buffers.
 	 * Does nothing if the cleaner class and methods were not reflected successfully,
 	 * the passed buffer is null or not a DirectByteBuffer, 
 	 * or if the clean invocation fails.
-	 * @param buff The buffer to clean
+	 * @param buffs The buffers to clean
 	 */
-	public static void clean(final ByteBuffer buff) {
-		if(directByteBuffClass!=null && buff!=null && directByteBuffClass.isInstance(buff)) {
-			try {
-				Object cleaner = getCleanerMethod.invoke(buff);
-				if(cleaner!=null) {
-					cleanMethod.invoke(cleaner);					
+	public static void clean(final ByteBuffer... buffs) {
+		if(buffs!=null) {
+			for(ByteBuffer buff: buffs) {
+				if(buff==null) continue;
+				if(directByteBuffClass!=null && buff!=null && directByteBuffClass.isInstance(buff)) {
+					try {
+						Object cleaner = getCleanerMethod.invoke(buff);
+						if(cleaner!=null) {
+							cleanMethod.invoke(cleaner);					
+						}
+						return;
+					} catch (Throwable t) {
+						t.printStackTrace(System.err);
+						/* No Op */
+					}
 				}
-				return;
-			} catch (Throwable t) {
-				t.printStackTrace(System.err);
-				/* No Op */
+				if(Constants.IS_WIN) log.error("Uncleaned MappedByteBuffer on Windows !!!!");				
 			}
 		}
-		if(Constants.IS_WIN) log.error("Uncleaned MappedByteBuffer on Windows !!!!");
 	}
 	
 	/** The direct byte buff class */
