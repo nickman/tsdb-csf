@@ -223,6 +223,10 @@ public interface Constants {
 	/** The default hearbeat period in seconds */
 	public static final boolean DEFAULT_TIME_IN_SEC = true;
 
+	/** The system property config name for the on heap OTMetric guava cache spec. */
+	public static final String PROP_OTMETRIC_CACHE_SPEC = "tsdb.otmetric.cachespec";
+	/** The default on heap OTMetric guava cache spec */
+	public static final String DEFAULT_OTMETRIC_CACHE_SPEC = String.format("concurrencyLevel=%s,initialCapacity=512,maximumSize=4096,weakKeys,recordStats", CORES);
 
 	
 }

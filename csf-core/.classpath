@@ -21,6 +21,11 @@
       <attribute value="jar:file:/home/nwhitehead/.m2/repository/io/dropwizard/metrics/metrics-jvm/3.1.0/metrics-jvm-3.1.0-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/google/guava/guava/17.0/guava-17.0.jar" sourcepath="M2_REPO/com/google/guava/guava/17.0/guava-17.0-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/home/nwhitehead/.m2/repository/com/google/guava/guava/17.0/guava-17.0-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
   <classpathentry kind="var" path="M2_REPO/com/github/stephenc/high-scale-lib/high-scale-lib/1.1.4/high-scale-lib-1.1.4.jar" sourcepath="M2_REPO/com/github/stephenc/high-scale-lib/high-scale-lib/1.1.4/high-scale-lib-1.1.4-sources.jar">
     <attributes>
       <attribute value="jar:file:/home/nwhitehead/.m2/repository/com/github/stephenc/high-scale-lib/high-scale-lib/1.1.4/high-scale-lib-1.1.4-javadoc.jar!/" name="javadoc_location"/>

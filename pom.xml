@@ -25,6 +25,7 @@
         <json.version>20131018</json.version>
         <log4j.version>2.1</log4j.version>
         <high-scale-lib.version>1.1.4</high-scale-lib.version>
+        <guava.version>17.0</guava.version>
         <!-- Plugin Versions -->
         <compiler-plugin.version>3.2</compiler-plugin.version>
         <source-plugin.version>2.4</source-plugin.version>
@@ -88,6 +89,13 @@
 					  <artifactId>high-scale-lib</artifactId>
 					  <version>${high-scale-lib.version}</version>
 					</dependency>
+
+            <dependency>
+              <groupId>com.google.guava</groupId>
+              <artifactId>guava</artifactId>
+              <version>${guava.version}</version>
+            </dependency>
+
             
     		<dependency>
     		  <groupId>org.apache.logging.log4j</groupId>

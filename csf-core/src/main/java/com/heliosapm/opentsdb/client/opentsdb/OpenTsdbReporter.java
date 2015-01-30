@@ -58,11 +58,11 @@ import com.heliosapm.opentsdb.client.util.Util;
  */
 public class OpenTsdbReporter implements Closeable, Reporter {
 
-    private final OpenTsdb opentsdb;
+    private final OpenTsdb opentsdb = OpenTsdb.getInstance();
     private final Clock clock;
     private final String prefix;
     private Timeout scheduleHandle = null;
-    private final IMetricRegistry registry;
+    private final MetricRegistry registry;
     private final Map<String, String> tags;
     private static final Logger LOG;
     protected final MetricFilter metricFilter;
@@ -73,18 +73,6 @@ public class OpenTsdbReporter implements Closeable, Reporter {
     protected final AtomicBoolean started = new AtomicBoolean(false);
     
     
-
-    /**
-     * Returns a new {@link Builder} for {@link OpenTsdbReporter}.
-     *
-     * @param registry the registry to report
-     * @return a {@link Builder} instance for a {@link OpenTsdbReporter}
-     */
-    public static Builder forRegistry(final IMetricRegistry registry) {
-    	if(registry==null) throw new IllegalArgumentException("The passed registry was null");
-        return new Builder(registry);
-    }
-    
     /**
      * Returns a new {@link Builder} for {@link OpenTsdbReporter}.
      * @param registry The metric registry to be wrapped and registered
@@ -92,7 +80,7 @@ public class OpenTsdbReporter implements Closeable, Reporter {
      */
     public static Builder forRegistry(final MetricRegistry registry) {
     	if(registry==null) throw new IllegalArgumentException("The passed registry was null");
-    	return new Builder(IMetricRegistryFactory.wrap(registry));
+    	return new Builder(registry);
     }
     
     
@@ -103,7 +91,7 @@ public class OpenTsdbReporter implements Closeable, Reporter {
      * not filtering metrics.
      */
     public static class Builder {
-        private final IMetricRegistry registry;
+        private final MetricRegistry registry;
         private Clock clock;
         private String prefix;
         private TimeUnit rateUnit;
@@ -111,7 +99,7 @@ public class OpenTsdbReporter implements Closeable, Reporter {
         private MetricFilter filter;
         private Map<String, String> tags;
 
-        private Builder(IMetricRegistry registry) {
+        private Builder(final MetricRegistry registry) {
             this.registry = registry;
             this.clock = Clock.defaultClock();
             this.prefix = null;
@@ -196,7 +184,6 @@ public class OpenTsdbReporter implements Closeable, Reporter {
          */
         public OpenTsdbReporter build(OpenTsdb opentsdb) {            
             return new OpenTsdbReporter(registry,
-                    opentsdb,
                     clock,
                     prefix,
                     rateUnit,
@@ -269,8 +256,7 @@ public class OpenTsdbReporter implements Closeable, Reporter {
     }
 
     
-    private OpenTsdbReporter(IMetricRegistry registry, OpenTsdb opentsdb, Clock clock, String prefix, TimeUnit rateUnit, TimeUnit durationUnit, MetricFilter filter) {
-        this.opentsdb = opentsdb;
+    private OpenTsdbReporter(final MetricRegistry registry, final Clock clock, final String prefix, final TimeUnit rateUnit, final TimeUnit durationUnit, final MetricFilter filter) {
         tags = new TreeMap<String, String>();
         this.clock = clock;
         this.prefix = prefix;

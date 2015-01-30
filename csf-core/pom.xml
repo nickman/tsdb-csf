@@ -29,6 +29,12 @@
             <artifactId>metrics-jvm</artifactId>
             <scope>provided</scope>
         </dependency>
+        
+	    <dependency>
+	      <groupId>com.google.guava</groupId>
+	      <artifactId>guava</artifactId>
+	    </dependency>
+        
 
 		<dependency>
 		  <groupId>com.github.stephenc.high-scale-lib</groupId>
