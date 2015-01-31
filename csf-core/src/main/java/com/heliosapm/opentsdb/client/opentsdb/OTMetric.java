@@ -31,9 +31,12 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 
 import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.util.Util;
+
+import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
 
 /**
  * <p>Title: OTMetric</p>
@@ -41,11 +44,14 @@ import com.heliosapm.opentsdb.client.util.Util;
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.OTMetric</code></p>
+ * FIXME:  All calls to duplicate need to be inited with a reset.
  */
 
 public class OTMetric implements Serializable {
 	/** The buffer containing the OTMetric details */
 	final ByteBuffer nameBuffer;
+	/** The calculated hash code */
+	final int hashCode;
 	
 	static final short HAS_APP_TAG = 0;							// 1 byte
 	static final short HAS_HOST_TAG = HAS_APP_TAG + 1;			// 1 byte
@@ -59,19 +65,21 @@ public class OTMetric implements Serializable {
 	
 	
 	
+	
+	
 	static final byte ZERO_BYTE = 1;
 	static final byte ONE_BYTE = 2;
 	
 	/** The equals byte const */
-	static final byte EQ_BYTE = "=".getBytes(Constants.UTF8)[0];
+	static final byte EQ_BYTE = "=".getBytes(UTF8)[0];
 	/** Empty tag map const */
 	static final Map<String, String> EMPTY_TAG_MAP = Collections.unmodifiableMap(new HashMap<String, String>(0));
 	
-	static final byte[] APP_TAG_BYTES = Constants.APP_TAG.getBytes(Constants.UTF8);
-	static final byte[] HOST_TAG_BYTES = Constants.HOST_TAG.getBytes(Constants.UTF8);
-    static final byte[] JSON_OPEN_ARR = "[".getBytes(Constants.UTF8);
-    static final byte[] JSON_CLOSE_ARR = "]".getBytes(Constants.UTF8);
-    static final byte[] JSON_COMMA = ",".getBytes(Constants.UTF8);
+	static final byte[] APP_TAG_BYTES = Constants.APP_TAG.getBytes(UTF8);
+	static final byte[] HOST_TAG_BYTES = Constants.HOST_TAG.getBytes(UTF8);
+    static final byte[] JSON_OPEN_ARR = "[".getBytes(UTF8);
+    static final byte[] JSON_CLOSE_ARR = "]".getBytes(UTF8);
+    static final byte[] JSON_COMMA = ",".getBytes(UTF8);
 	
 	
 	static final Pattern COMMA_SPLITTER = Pattern.compile(",");
@@ -96,7 +104,7 @@ public class OTMetric implements Serializable {
 				fname = fname + "." + fext; 
 			}			
 			// totally flat metric.
-			final byte[] name = fname.getBytes(Constants.UTF8);
+			final byte[] name = fname.getBytes(UTF8);
 			nameBuffer = (ByteBuffer)ByteBuffer.allocateDirect(name.length + TOTAL_SIZE)
 					.put(ZERO_BYTE)						// No app tag
 					.put(ZERO_BYTE)						// No host tag
@@ -106,14 +114,16 @@ public class OTMetric implements Serializable {
 					.putInt(ZERO_BYTE)					// Zero tags
 					.put(name)
 					.asReadOnlyBuffer()
-					.flip();			
+					.flip();
+			hashCode = fname.hashCode();
 		} else {
 			ByteBuffer buff = null;
 			try {
-				buff = ByteBuffer.allocateDirect(fname.getBytes(Constants.UTF8).length*2);
+				buff = ByteBuffer.allocateDirect(fname.getBytes(UTF8).length*2);
 				int cindex = fname.indexOf(':');
-				final boolean wasPseudo = cindex==-1; 
+				final boolean wasPseudo = cindex==-1;				
 				if(cindex==-1) {
+					
 					// pseudo flat metric, e.g. [KitchenSink.resultCounts.op=cache-lookup.service=cacheservice]
 					final String[] prefixes = DOT_SPLITTER.split(fname.substring(0, eindex));
 					
@@ -137,10 +147,10 @@ public class OTMetric implements Serializable {
 				}
 				final byte[] prefix =
 						(isext && !wasPseudo) ?
-								(fname.substring(0, cindex) + "." + fext).getBytes(Constants.UTF8)
+								(fname.substring(0, cindex) + "." + fext).getBytes(UTF8)
 								
 							:
-								fname.substring(0, cindex).getBytes(Constants.UTF8);
+								fname.substring(0, cindex).getBytes(UTF8);
 				final String[] tags = COMMA_SPLITTER.split(fname.substring(cindex+1));
 				buff					
 					.put(ZERO_BYTE)			// App Tag, Zero for now
@@ -150,23 +160,24 @@ public class OTMetric implements Serializable {
 					.putInt(prefix.length)	// Length of the prefix
 					.putInt(tags.length)	// Tag count for now
 					.put(prefix);			// The prefix bytes
+				
 				int actualTagCount = 0;
 				int totalLength = prefix.length;
 				byte hasAppTag = ZERO_BYTE, hasHostTag = ZERO_BYTE;
 				for(String tag: tags) {
 					final int eind = tag.indexOf('=');
 					if(eind==-1) continue;
-					final byte[] key = Util.clean(tag.substring(0, eind)).getBytes(Constants.UTF8);
+					final byte[] key = Util.clean(tag.substring(0, eind)).getBytes(UTF8);
 					if(key.length==0) continue;
-					final byte[] value = Util.clean(tag.substring(eind+1)).getBytes(Constants.UTF8);
+					final byte[] value = Util.clean(tag.substring(eind+1)).getBytes(UTF8);
 					if(value.length==0) continue;
 					if(Arrays.equals(APP_TAG_BYTES, key)) {
 						hasAppTag = ONE_BYTE;
 					} else if(Arrays.equals(HOST_TAG_BYTES, key)) {
 						hasHostTag = ONE_BYTE;
 					}
-					int tagLength = key.length + value.length + 1; 
-					buff.putInt(tagLength).put(key).put(EQ_BYTE).put(value);
+					int tagLength = key.length + value.length + TAG_OVERHEAD; 
+					buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);
 					actualTagCount++;						
 					totalLength += tagLength;
 				}
@@ -181,15 +192,18 @@ public class OTMetric implements Serializable {
 				buff.limit(pos);
 				buff.position(0);				
 				nameBuffer = ByteBuffer.allocateDirect(buff.limit()).put(buff).asReadOnlyBuffer();
+				hashCode = toString().hashCode();
 			} finally {
 				OffHeapFIFOFile.clean(buff);
 			}
 		}
 	}
 	
+	
+	
 	public static void main(String[] args) {
 		log("OTMetric Test");
-		log("Creating OTM for [" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME + "] (" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME.getBytes(Constants.UTF8).length + ")");
+		log("Creating OTM for [" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME + "] (" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME.getBytes(UTF8).length + ")");
 		OTMetric otm = new OTMetric(ManagementFactory.CLASS_LOADING_MXBEAN_NAME);
 		printDetails(otm);
 		for(GarbageCollectorMXBean gc: ManagementFactory.getGarbageCollectorMXBeans()) {
@@ -208,6 +222,8 @@ public class OTMetric implements Serializable {
 		printDetails(otm);
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX", "p75");
 		printDetails(otm);
+		
+		
 
 
 	}
@@ -225,6 +241,8 @@ public class OTMetric implements Serializable {
 		b.append("\n\tPrefix:").append(otm.getMetricName());
 		b.append("\n\tTagCount:").append(otm.getTagCount());
 		b.append("\n\tTags:").append(otm.getTags());
+		b.append("\n\thashCode:").append(otm.hashCode());
+		b.append("\n\tJSON:").append(otm.toJSON(System.currentTimeMillis(), 0));
 		log(b);
 	}
 	
@@ -273,7 +291,7 @@ public class OTMetric implements Serializable {
 		final ByteBuffer buff = nameBuffer.duplicate();
 		buff.position(FTAG_SIZE_OFFSET);
 		buff.get(bytes);
-		return new String(bytes, Constants.UTF8);
+		return new String(bytes, UTF8);
 	}
 	
 	/**
@@ -297,13 +315,14 @@ public class OTMetric implements Serializable {
 		int startingOffset = TAG_COUNT_OFFSET + mnSize + 4;
 		buff.position(startingOffset);
 		for(int i = 0; i < tagCount; i++) {
-			String tagPair = readString(buff, buff.getInt());
-			int index = tagPair.indexOf('=');
+			final int tagLength = buff.getInt();
+			String tagPair = readString(buff, tagLength);
+			int index = tagPair.indexOf(':');
 			if(index==-1) {
 				//log.warn("")  // FIXME
 				continue;
 			}
-			tmap.put(tagPair.substring(0, index), tagPair.substring(index+1));
+			tmap.put(tagPair.substring(1, index-1), tagPair.substring(index+2, tagLength-1));
 		}
 		return tmap;
 	}
@@ -331,7 +350,7 @@ public class OTMetric implements Serializable {
 		int tagCount = buff.getInt();
 		StringBuilder b = new StringBuilder(totalLength + tagCount + 1);
 		b.append(readString(buff, prefixLength)).append(":");
-		System.out.println("-------------------------------------- buff pos:" + buff.position());
+		
 		for(int i = 0; i < tagCount; i++) {
 			b.append(readString(buff, buff.getInt())).append(",");
 		}
@@ -350,34 +369,116 @@ public class OTMetric implements Serializable {
 	protected static final String readString(final ByteBuffer buff, final int length) {
 		final byte[] content = new byte[length];
 		buff.get(content);
-		return new String(content, Constants.UTF8);
+		return new String(content, UTF8);
 	}
+	
+	private static final byte[] METRIC_OPENER = "{\"metric\":\"".getBytes(UTF8);
+	private static final byte[] CLOSER = "\",".getBytes(UTF8);
+	private static final byte[] TS_OPENER = "\"timestamp\":".getBytes(UTF8);
+	private static final byte[] COMMA = ",".getBytes(UTF8);
+	private static final byte[] VALUE_OPENER = "\"value\":".getBytes(UTF8);
+	private static final byte[] TAGS_OPENER = "\"tags\":{".getBytes(UTF8);
+	private static final byte[] METRIC_CLOSER = "}}".getBytes(UTF8);
+	private static final byte[] COLON = ":".getBytes(UTF8);
+	private static final byte[] QT = "\"".getBytes(UTF8);
+	
+	static final int TAG_OVERHEAD = (QT.length*4) + COLON.length;
+	
+	
+	
+	public String toJSON(final long timestamp, final Object value) {
+		final ChannelBuffer cbuff = ChannelBuffers.dynamicBuffer(128);
+		return toJSON(timestamp, value, cbuff).toString(UTF8);
+	}
+	
 	
     /**
      * Renders this metric into the passed buffer, or a new buffer if the passed buffer is null
      * @param buff The optional buffer to render into
-     * @return the rendered metric
+     * @return the buffer passed in
      */
-    public StringBuilder toJSON(final long timestamp, final Object value, final StringBuilder buff) {
-    	final StringBuilder b;
-    	if(buff==null) b = new StringBuilder();
-    	else b = buff;
-    	b.append("{\"metric\":\"")
-    		.append(getMetricName()).append("\",")
-    		.append("\"timestamp\":").append(timestamp).append(",")
-    		.append("\"value\":").append(value).append(",")
-    		.append("\"tags\": {");
-    	final Map<String, String> tags = getTags();
-    	for(Map.Entry<String, String> gtag: AgentName.getInstance().getGlobalTags().entrySet()) {
-    		if(!tags.containsKey(gtag.getKey())) {
-    			b.append("\"").append(gtag.getKey()).append("\":\"").append(gtag.getValue()).append("\",");
-    		}
+    public ChannelBuffer toJSON(final long timestamp, final Object value, final ChannelBuffer cbuff) {
+		//final byte[] bytes = new byte[nameBuffer.getInt(MN_SIZE_OFFSET)];
+    	
+    	final ByteBuffer nbuff = nameBuffer.duplicate();
+    	final int tagCount = nameBuffer.getInt(TAG_COUNT_OFFSET);
+    	cbuff.writeBytes(METRIC_OPENER);
+    	nbuff.position(FTAG_SIZE_OFFSET);
+		transfer(cbuff, nbuff, nameBuffer.getInt(MN_SIZE_OFFSET)); // metric name
+		cbuff.writeBytes(CLOSER);
+		cbuff.writeBytes(TS_OPENER);
+		cbuff.writeBytes(Long.toString(timestamp).getBytes(UTF8));
+		cbuff.writeBytes(COMMA);
+		cbuff.writeBytes(VALUE_OPENER);
+		cbuff.writeBytes(value.toString().getBytes(UTF8));
+		cbuff.writeBytes(COMMA);
+		cbuff.writeBytes(TAGS_OPENER);
+		boolean tagsWritten = false;
+		if(!hasAppTag()) {
+			transfer(cbuff, AgentName.getInstance().getAgentNameAppTagBuffer(), AgentName.getInstance().getAgentNameAppTagBuffer().capacity());
+			cbuff.writeBytes(COMMA);
+			tagsWritten = true;
+		}
+		if(!hasHostTag()) {
+			transfer(cbuff, AgentName.getInstance().getAgentNameHostTagBuffer(), AgentName.getInstance().getAgentNameHostTagBuffer().capacity());
+			cbuff.writeBytes(COMMA);
+			tagsWritten = true;
+		}
+		if(tagCount!=0) {
+			for(int i = 0; i < tagCount; i++) {
+				final int tagLength = nbuff.getInt();
+				transfer(cbuff, nbuff, tagLength);
+				cbuff.writeBytes(COMMA);
+			}
+			cbuff.writerIndex(cbuff.writerIndex()-1);
+		} else {
+			if(tagsWritten) {
+				cbuff.writerIndex(cbuff.writerIndex()-1);
+			}			
+		}
+		
+//		final int mnSize = nameBuffer.getInt(MN_SIZE_OFFSET);
+//		final ByteBuffer buff = nameBuffer.duplicate();
+//		int startingOffset = TAG_COUNT_OFFSET + mnSize + 4;
+//		buff.position(startingOffset);
+//		for(int i = 0; i < tagCount; i++) {
+//			final int tagLength = buff.getInt();
+		
+		
+		
+		cbuff.writeBytes(METRIC_CLOSER);
+    	return cbuff;
+//    	b.append("{\"metric\":\"")
+//    		.append(getMetricName()).append("\",")
+//    		.append("\"timestamp\":").append(timestamp).append(",")
+//    		.append("\"value\":").append(value).append(",")
+//    		.append("\"tags\": {");
+//    	final Map<String, String> tags = getTags();
+//    	for(Map.Entry<String, String> gtag: AgentName.getInstance().getGlobalTags().entrySet()) {
+//    		if(!tags.containsKey(gtag.getKey())) {
+//    			b.append("\"").append(gtag.getKey()).append("\":\"").append(gtag.getValue()).append("\",");
+//    		}
+//    	}
+//
+//    	for(Map.Entry<String, String> tag: tags.entrySet()) {
+//    		b.append("\"").append(tag.getKey()).append("\":\"").append(tag.getValue()).append("\",");    		
+//    	}
+//    	return b.deleteCharAt(b.length()-1).append("}}");    	
+    }
+    
+    /**
+     * @param target
+     * @param source
+     * @param bytes
+     */
+    protected void transfer(final ChannelBuffer target, final ByteBuffer source, final int bytes) {
+    	final int limit = source.limit();
+    	try {
+    		source.limit(source.position() + bytes);
+    		target.writeBytes(source);
+    	} finally {
+    		source.limit(limit);
     	}
-
-    	for(Map.Entry<String, String> tag: tags.entrySet()) {
-    		b.append("\"").append(tag.getKey()).append("\":\"").append(tag.getValue()).append("\",");    		
-    	}
-    	return b.deleteCharAt(b.length()-1).append("}}");    	
     }
     
     /**
@@ -413,7 +514,7 @@ public class OTMetric implements Serializable {
     	final int last = metrics.size()-1;
     	int index = 0;
     	for(OTMetric m: metrics) {
-//    		buffer.writeBytes(m.toJSON().toString().getBytes(Constants.UTF8));
+//    		buffer.writeBytes(m.toJSON().toString().getBytes(UTF8));
     		if(index != last) {
     			buffer.writeBytes(JSON_COMMA);
     		}
@@ -422,6 +523,36 @@ public class OTMetric implements Serializable {
     	buffer.writeBytes(JSON_CLOSE_ARR);
     	return index;
     }
+
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#hashCode()
+	 */
+	@Override
+	public int hashCode() {
+		return hashCode;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.Object#equals(java.lang.Object)
+	 */
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		OTMetric other = (OTMetric) obj;
+		if (nameBuffer == null) {
+			if (other.nameBuffer != null)
+				return false;
+		} else if (!nameBuffer.equals(other.nameBuffer))
+			return false;
+		return true;
+	}
 	
 
 }
