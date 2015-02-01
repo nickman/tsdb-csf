@@ -16,6 +16,7 @@
 
 package com.heliosapm.opentsdb.client.opentsdb;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -190,6 +191,15 @@ public class OTMetricCacheStats implements OTMetricCacheStatsMBean {
 	public long getTotalLoadTime() {
 		return check().totalLoadTime();
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.OTMetricCacheStatsMBean#getTotalLoadTimeMs()
+	 */
+	@Override
+	public long getTotalLoadTimeMs() {		
+		return TimeUnit.MILLISECONDS.convert(check().totalLoadTime(), TimeUnit.NANOSECONDS);				
+	}
 
 	/**
 	 * {@inheritDoc}
@@ -198,6 +208,15 @@ public class OTMetricCacheStats implements OTMetricCacheStatsMBean {
 	@Override
 	public double getAverageLoadPenalty() {
 		return check().averageLoadPenalty();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.OTMetricCacheStatsMBean#getAverageLoadPenaltyMs()
+	 */
+	@Override
+	public double getAverageLoadPenaltyMs() {		
+		return TimeUnit.MILLISECONDS.convert((long)check().averageLoadPenalty(), TimeUnit.NANOSECONDS);
 	}
 
 	/**

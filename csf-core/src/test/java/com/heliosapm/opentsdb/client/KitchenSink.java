@@ -29,6 +29,7 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
+import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
 //import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 //import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 //import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
@@ -88,11 +89,11 @@ public class KitchenSink {
 		*/		
 		/* Create the reporter */
 		// Define the OpenTsdbReporter. Will create in the ctor
-		final OpenTsdbReporter reporter = OpenTsdbReporter.forRegistry(registry).build(OpenTsdb.getInstance());
+		final OpenTSDBReporter reporter = OpenTSDBReporter.forRegistry(registry).build();
 		final ConsoleReporter creporter = ConsoleReporter.forRegistry(registry).build();
 		/** Start the reporter with a reporting period of 5 seconds */
 		reporter.start(5, TimeUnit.SECONDS);		
-		creporter.start(5, TimeUnit.SECONDS);
+//		creporter.start(5, TimeUnit.SECONDS);
 		/** Start a thread to generate some random data */
 		Threading.getInstance().schedule(new Runnable(){
 			final Random random = new Random(System.currentTimeMillis());
@@ -128,8 +129,8 @@ public class KitchenSink {
 		//=========================================================================================
 		
 		/** We don't need this, it's the default */
-		System.setProperty("tsdb.http.tsdb.url", "http://localhost:6262");
-//		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
+//		System.setProperty("tsdb.http.tsdb.url", "http://localhost:6262");
+		System.setProperty("tsdb.http.tsdb.url", "http://localhost:4242");
 		/** We don't need this, but if we were using a local Bosun instance, this would work */
 //		System.setProperty("tsdb.http.tsdb.url", "http://localhost:8070");
 		/** You might need this. Default thread pool size is (<# of cores>*2) + 2 */

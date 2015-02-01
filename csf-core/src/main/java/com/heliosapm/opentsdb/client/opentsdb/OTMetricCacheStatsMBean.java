@@ -119,15 +119,29 @@ public interface OTMetricCacheStatsMBean {
 
 	/**
 	 * Returns the total number of nanoseconds the cache has spent loading new values.
-	 * @return the cache load time
+	 * @return the cache load time in ns
 	 */
 	public long getTotalLoadTime();
+	
+	/**
+	 * Returns the total number of milliseconds the cache has spent loading new values.
+	 * @return the cache load time in ms
+	 */
+	public long getTotalLoadTimeMs();
+	
 
 	/**
 	 * Returns the average time spent loading new values.
 	 * @return the cache average load time
 	 */
 	public double getAverageLoadPenalty();
+	
+	/**
+	 * Returns the average time spent loading new values in ms.
+	 * @return the cache average load time in ms.
+	 */
+	public double getAverageLoadPenaltyMs();
+	
 
 	/**
 	 * Returns the number of times an entry has been evicted.

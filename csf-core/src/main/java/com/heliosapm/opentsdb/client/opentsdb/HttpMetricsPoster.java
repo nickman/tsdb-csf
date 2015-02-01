@@ -505,6 +505,14 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		}
 	}
 	
+	void send(final ChannelBuffer body, final int metricsToWrite) {
+		try {
+			send(body, metricsToWrite, 0, null);
+		} catch (Exception ex) {
+			log.error("Failed to send [{}] metrics", metricsToWrite, ex);
+		}
+	}
+	
 	
 	/**
 	 * This is where the real metrics HTTP post is done

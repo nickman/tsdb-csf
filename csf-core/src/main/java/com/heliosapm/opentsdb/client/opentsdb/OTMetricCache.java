@@ -18,15 +18,17 @@ package com.heliosapm.opentsdb.client.opentsdb;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheBuilderSpec;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.heliosapm.opentsdb.client.util.Util;
@@ -51,9 +53,9 @@ public class OTMetricCache implements RemovalListener<String, OTMetric> {
 	/** Instance logger */
 	private final Logger log;
 	/** The OTMetric spec */
-	private final LoadingCache<String, OTMetric> cache;
-	/** The cache loader */
-	private final CacheLoader<String, OTMetric> loader;
+	private final Cache<String, OTMetric> cache;
+//	/** The cache loader */
+//	private final CacheLoader<String, OTMetric> loader;
 	
 	/**
 	 * Acquires the OTMetricCache singleton instance
@@ -84,15 +86,15 @@ public class OTMetricCache implements RemovalListener<String, OTMetric> {
 			cacheSpec = Constants.DEFAULT_OTMETRIC_CACHE_SPEC;
 			spec = CacheBuilderSpec.parse(cacheSpec);
 		}
-		loader = new CacheLoader<String, OTMetric>() {
-			@Override
-			public OTMetric load(String key) throws Exception {				
-				return new OTMetric(key);
-			}
-		};
+//		loader = new CacheLoader<String, OTMetric>() {
+//			@Override
+//			public OTMetric load(String key) throws Exception {				
+//				return new OTMetric(key);
+//			}
+//		};
 		cache = CacheBuilder.from(spec)
 				.removalListener(this)				
-				.build(loader);
+				.build();
 		if(cacheSpec.contains("recordStats")) {
 			OTMetricCacheStats stats = new OTMetricCacheStats(cache);
 			try {
@@ -104,14 +106,76 @@ public class OTMetricCache implements RemovalListener<String, OTMetric> {
 	}
 	
 	/**
-	 * Returns the OTMetric for the passed name
-	 * @param name The metric name 
-	 * @return the OTMetric or null if the passed name was null or empty
+	 * Returns the OTMetric for the provided parameters
+	 * @param name The plain flat name from the Metric name
+	 * @return the OTMetric
 	 */
 	public OTMetric getOTMetric(final String name) {
-		if(name==null || name.trim().isEmpty()) return null;
-		return cache.getUnchecked(name.trim());
+		return getOTMetric(name, null, null, null);
 	}
+	
+	
+	/**
+	 * Returns the OTMetric for the provided parameters
+	 * @param name The plain flat name from the Metric name
+	 * @param nprefix The optional prefix which is prefixed to the flat name
+	 * @return the OTMetric
+	 */
+	public OTMetric getOTMetric(final String name, final String nprefix) {
+		return getOTMetric(name, nprefix, null, null);
+	}
+	
+	
+	/**
+	 * Returns the OTMetric for the provided parameters
+	 * @param name The plain flat name from the Metric name
+	 * @param nprefix The optional prefix which is prefixed to the flat name
+	 * @param extension The optional extension which is appended to the TSDB metric name
+	 * @return the OTMetric
+	 */
+	public OTMetric getOTMetric(final String name, final String nprefix, final String extension) {
+		return getOTMetric(name, nprefix, extension, null);
+	}
+	
+	/**
+	 * Returns the OTMetric for the provided parameters
+	 * @param name The plain flat name from the Metric name
+	 * @param nprefix The optional prefix which is prefixed to the flat name
+	 * @param extension The optional extension which is appended to the TSDB metric name
+	 * @param extraTags The optional extra tags to add
+	 * @return the OTMetric
+	 */
+	public OTMetric getOTMetric(final String name, final String nprefix, final String extension, final Map<String, String> extraTags) {
+		if(name==null || name.trim().isEmpty()) return null;
+		final String key = new StringBuilder()
+			.append(post(nprefix, "."))
+			.append(name.trim())
+			.append(pre(extension, "."))
+			.append(extraTags==null || extraTags.isEmpty() ? "" : extraTags.toString())
+			.toString();
+		try {
+			return cache.get(key, new Callable<OTMetric>(){
+				@Override
+				public OTMetric call() throws Exception {
+					return new OTMetric(name, nprefix, extension, extraTags);
+				}
+			});
+		} catch (Exception ex) {
+			log.error("Failed to create OTMetric for key [{}]", key, ex);
+			throw new RuntimeException("Failed to create OTMetric", ex);
+		}
+	}
+	
+	private String pre(final String s, final String pre) {
+		if(s!=null && !s.trim().isEmpty()) return pre + s.trim();
+		return "";
+	}
+	
+	private String post(final String s, final String post) {
+		if(s!=null && !s.trim().isEmpty()) return s.trim() + post;
+		return "";
+	}
+	
 	
 	/**
 	 * Returns the OTMetrics matching the passed pattern

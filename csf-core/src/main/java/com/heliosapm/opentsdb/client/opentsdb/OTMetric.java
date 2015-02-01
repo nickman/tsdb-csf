@@ -16,12 +16,13 @@
 
 package com.heliosapm.opentsdb.client.opentsdb;
 
+import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
+
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,12 +32,11 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
 import com.heliosapm.opentsdb.client.name.AgentName;
+import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBuffer;
+import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
-
-import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
 
 /**
  * <p>Title: OTMetric</p>
@@ -85,16 +85,45 @@ public class OTMetric implements Serializable {
 	static final Pattern COMMA_SPLITTER = Pattern.compile(",");
 	static final Pattern DOT_SPLITTER = Pattern.compile("\\.");
 	
+	/**
+	 * Creates a new OTMetric
+	 * @param flatName The plain flat name from the Metric name
+	 */
 	OTMetric(final String flatName) {
 		this(flatName, null);
 	}
 	
 	/**
 	 * Creates a new OTMetric
+	 * @param flatName The plain flat name from the Metric name
+	 * @param prefix The optional prefix which is prefixed to the flat name
 	 */
-	OTMetric(final String flatName, final String extension) {
+	OTMetric(final String flatName, final String prefix) {
+		this(flatName, prefix, null, null);
+	}
+	
+	
+	/**
+	 * Creates a new OTMetric
+	 * @param flatName The plain flat name from the Metric name
+	 * @param prefix The optional prefix which is prefixed to the flat name
+	 * @param extension The optional extension which is appended to the TSDB metric name
+	 */
+	OTMetric(final String flatName, final String prefix, final String extension) {
+		this(flatName, prefix, extension, null);
+	}
+	
+	/**
+	 * Creates a new OTMetric
+	 * @param flatName The plain flat name from the Metric name
+	 * @param nprefix The optional prefix which is prefixed to the flat name
+	 * @param extension The optional extension which is appended to the TSDB metric name
+	 * @param extraTags The optional extra tags to add
+	 */
+	OTMetric(final String flatName, final String nprefix, final String extension, final Map<String, String> extraTags) {
 		if(flatName==null) throw new IllegalArgumentException("The passed flat name was null");
-		String fname = flatName.replace(" ", "");
+		final String fprefix = nprefix==null ? null : nprefix.trim();
+		String fname = (fprefix==null ? "" : (fprefix + ".")) + flatName.replace(" ", "");
 		if(fname.isEmpty()) throw new IllegalArgumentException("The passed flat name was empty");
 		final String fext = extension==null ? null : extension.trim(); 
 		final boolean isext = fext!=null && !fext.isEmpty();
@@ -180,6 +209,22 @@ public class OTMetric implements Serializable {
 					buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);
 					actualTagCount++;						
 					totalLength += tagLength;
+				}
+				if(extraTags!=null && !extraTags.isEmpty()) {
+					for(Map.Entry<String, String> entry: extraTags.entrySet()) {
+						final byte[] key = Util.clean(entry.getKey()).getBytes(UTF8);
+						final byte[] value = Util.clean(entry.getValue()).getBytes(UTF8);
+						if(key.length==0 || value.length==0) continue;
+						if(hasAppTag!=ONE_BYTE && Arrays.equals(APP_TAG_BYTES, key)) {
+							hasAppTag = ONE_BYTE;
+						} else if(hasHostTag!=ONE_BYTE && Arrays.equals(HOST_TAG_BYTES, key)) {
+							hasHostTag = ONE_BYTE;
+						}
+						int tagLength = key.length + value.length + TAG_OVERHEAD;
+						buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);
+						actualTagCount++;						
+						totalLength += tagLength;
+					}
 				}
 				final int pos = buff.position();
 				buff.rewind();
@@ -384,22 +429,26 @@ public class OTMetric implements Serializable {
 	
 	static final int TAG_OVERHEAD = (QT.length*4) + COLON.length;
 	
-	
+	private static final DynamicByteBufferBackedChannelBufferFactory factory = new DynamicByteBufferBackedChannelBufferFactory();
 	
 	public String toJSON(final long timestamp, final Object value) {
-		final ChannelBuffer cbuff = ChannelBuffers.dynamicBuffer(128);
-		return toJSON(timestamp, value, cbuff).toString(UTF8);
+		final ChannelBuffer cbuff = factory.getBuffer(16);
+		System.out.println("BUFF INITIAL CAP:" + cbuff.capacity());
+		String s = toJSON(timestamp, value, cbuff, false).toString(UTF8);
+		System.out.println("BUFF CAP:" + cbuff.capacity() + ", LIMIT:" + cbuff.writerIndex());
+		return s;
 	}
 	
 	
     /**
      * Renders this metric into the passed buffer, or a new buffer if the passed buffer is null
-     * @param buff The optional buffer to render into
-     * @return the buffer passed in
+     * @param timestamp The timestamp to render
+     * @param value The value to render
+     * @param cbuff The buffer to render into
+     * @param appendComma true to append a command (if we're generating an array), false otherwise
+     * @return The buffer to render into
      */
-    public ChannelBuffer toJSON(final long timestamp, final Object value, final ChannelBuffer cbuff) {
-		//final byte[] bytes = new byte[nameBuffer.getInt(MN_SIZE_OFFSET)];
-    	
+    public ChannelBuffer toJSON(final long timestamp, final Object value, final ChannelBuffer cbuff, final boolean appendComma) {
     	final ByteBuffer nbuff = nameBuffer.duplicate();
     	final int tagCount = nameBuffer.getInt(TAG_COUNT_OFFSET);
     	cbuff.writeBytes(METRIC_OPENER);
@@ -437,33 +486,11 @@ public class OTMetric implements Serializable {
 			}			
 		}
 		
-//		final int mnSize = nameBuffer.getInt(MN_SIZE_OFFSET);
-//		final ByteBuffer buff = nameBuffer.duplicate();
-//		int startingOffset = TAG_COUNT_OFFSET + mnSize + 4;
-//		buff.position(startingOffset);
-//		for(int i = 0; i < tagCount; i++) {
-//			final int tagLength = buff.getInt();
-		
-		
-		
 		cbuff.writeBytes(METRIC_CLOSER);
+		if(appendComma) {
+			cbuff.writeBytes(COMMA);
+		}
     	return cbuff;
-//    	b.append("{\"metric\":\"")
-//    		.append(getMetricName()).append("\",")
-//    		.append("\"timestamp\":").append(timestamp).append(",")
-//    		.append("\"value\":").append(value).append(",")
-//    		.append("\"tags\": {");
-//    	final Map<String, String> tags = getTags();
-//    	for(Map.Entry<String, String> gtag: AgentName.getInstance().getGlobalTags().entrySet()) {
-//    		if(!tags.containsKey(gtag.getKey())) {
-//    			b.append("\"").append(gtag.getKey()).append("\":\"").append(gtag.getValue()).append("\",");
-//    		}
-//    	}
-//
-//    	for(Map.Entry<String, String> tag: tags.entrySet()) {
-//    		b.append("\"").append(tag.getKey()).append("\":\"").append(tag.getValue()).append("\",");    		
-//    	}
-//    	return b.deleteCharAt(b.length()-1).append("}}");    	
     }
     
     /**

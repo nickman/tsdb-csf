@@ -20,17 +20,20 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jboss.netty.buffer.AbstractChannelBuffer;
+import org.jboss.netty.buffer.ByteBufferBackedChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBufferFactory;
 import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.buffer.DuplicatedChannelBuffer;
-import org.jboss.netty.buffer.DynamicChannelBuffer;
-import org.jboss.netty.buffer.SlicedChannelBuffer;
-import org.jboss.netty.buffer.TruncatedChannelBuffer;
+import org.jboss.netty.buffer.DirectChannelBufferFactory;
+import org.jboss.netty.buffer.HeapChannelBufferFactory;
+
+import com.heliosapm.opentsdb.client.opentsdb.OffHeapFIFOFile;
 
 /**
  * <p>Title: DynamicByteBufferBackedChannelBuffer</p>
@@ -43,168 +46,98 @@ import org.jboss.netty.buffer.TruncatedChannelBuffer;
  */
 
 public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer {
-	
-    protected final ChannelBufferFactory factory;
-    protected final ByteOrder endianness;
-    protected ChannelBuffer buffer;
+    /** The current buffer */
+    private ByteBuffer buffer;
+    /** The buffer's byte order */
+    private final ByteOrder order;
+    /** The buffer's current capacity */
+    private final AtomicInteger capacity;
+    /** The percentage of current capacity to extend by when extending */
+    private final float extend;
+    
+    /** The default extend percentage */
+    public static final float DEFAULT_EXTEND = .5f;
+    /** The default initial capacity */
+    public static final int DEFAULT_INITIAL = 1024;
+    
 
-	
-
-	/**
-	 * Creates a new DynamicByteBufferBackedChannelBuffer
-	 * @param endianness
-	 * @param initialCapacity
-	 * @param factory
-	 */
-	public DynamicByteBufferBackedChannelBuffer(ByteOrder endianness, int initialCapacity, ChannelBufferFactory factory) {
-		super();
-		this.factory = factory;
-		this.endianness = endianness;
-		this.buffer = buffer;
-	}
-
+    public DynamicByteBufferBackedChannelBuffer(final ByteOrder order, final int initialSize, final float extendSize) {
+    	this.capacity = new AtomicInteger(0);
+    	this.capacity.set(initialSize);
+    	this.extend = extendSize;
+    	buffer = ByteBuffer.allocateDirect(initialSize);
+    	buffer.order(order);
+    	this.order = order;
+    }
+    
+    
+    
+    /**
+     * THIS IS THE KEY
+     * {@inheritDoc}
+     * @see org.jboss.netty.buffer.AbstractChannelBuffer#ensureWritableBytes(int)
+     */
+    
     @Override
-    public void ensureWritableBytes(int minWritableBytes) {
-        if (minWritableBytes <= writableBytes()) {
-            return;
-        }
-
-        int newCapacity;
-        if (capacity() == 0) {
-            newCapacity = 1;
-        } else {
-            newCapacity = capacity();
-        }
-        int minNewCapacity = writerIndex() + minWritableBytes;
-        while (newCapacity < minNewCapacity) {
-            newCapacity <<= 1;
-
-            // Check if we exceeded the maximum size of 2gb if this is the case then
-            // newCapacity == 0
-            //
-            // https://github.com/netty/netty/issues/258
-            if (newCapacity == 0) {
-                throw new IllegalStateException("Maximum size of 2gb exceeded");
+    public void ensureWritableBytes(int minWritableBytes) {        
+    	synchronized(capacity) {
+    		if (minWritableBytes <= writableBytes()) {
+    			return;
+    		}
+            final int currentCapacity = capacity.get();
+            final int minNewCapacity = writerIndex() + minWritableBytes;
+            int increment = (int) (capacity.get() * extend);        
+            while (increment + currentCapacity < minNewCapacity) {
+            	increment += (int) (increment * extend);
+                // https://github.com/netty/netty/issues/258
+                if (increment == 0) {
+                    throw new IllegalStateException("Maximum size of 2gb exceeded");
+                }
             }
-        }
-
-        ChannelBuffer newBuffer = factory().getBuffer(order(), newCapacity);
-        newBuffer.writeBytes(buffer, 0, writerIndex());
-        buffer = newBuffer;
+            int newCapacity = increment + currentCapacity;
+            if(capacity.compareAndSet(currentCapacity, newCapacity)) {
+    	        ByteBuffer newBuffer = ByteBuffer.allocate(newCapacity);
+    	        newBuffer.put((ByteBuffer)buffer.duplicate().rewind());
+    	        ByteBuffer oldBuffer = buffer; 
+    	        buffer = newBuffer;
+    	        clean(oldBuffer);
+            }    		
+    	}        
     }
-
-    public ChannelBufferFactory factory() {
-        return factory;
+    
+    private static void clean(final ByteBuffer buff) {
+    	OffHeapFIFOFile.clean(buff);
     }
-
-    public ByteOrder order() {
-        return endianness;
+    
+    public void clean() {
+    	clean(buffer);
     }
+    
+    
+//    public void ensureWritableBytes(int writableBytes) {
+//        if (writableBytes > writableBytes()) {
+//            throw new IndexOutOfBoundsException("Writable bytes exceeded: Got "
+//                    + writableBytes + ", maximum is " + writableBytes());
+//        }
+//    }
+    
+    
+    
 
-    public boolean isDirect() {
-        return buffer.isDirect();
+  private DynamicByteBufferBackedChannelBuffer(final DynamicByteBufferBackedChannelBuffer buffer) {
+      this.buffer = buffer.buffer;
+      this.extend = buffer.extend;      
+      order = buffer.order;
+      capacity = buffer.capacity;
+      setIndex(buffer.readerIndex(), buffer.writerIndex());
+  }
+    
+    public ChannelBuffer duplicate() {
+        return new DynamicByteBufferBackedChannelBuffer(this);
     }
-
-    public int capacity() {
-        return buffer.capacity();
-    }
-
-    public boolean hasArray() {
-        return buffer.hasArray();
-    }
-
-    public byte[] array() {
-        return buffer.array();
-    }
-
-    public int arrayOffset() {
-        return buffer.arrayOffset();
-    }
-
-    public byte getByte(int index) {
-        return buffer.getByte(index);
-    }
-
-    public short getShort(int index) {
-        return buffer.getShort(index);
-    }
-
-    public int getUnsignedMedium(int index) {
-        return buffer.getUnsignedMedium(index);
-    }
-
-    public int getInt(int index) {
-        return buffer.getInt(index);
-    }
-
-    public long getLong(int index) {
-        return buffer.getLong(index);
-    }
-
-    public void getBytes(int index, byte[] dst, int dstIndex, int length) {
-        buffer.getBytes(index, dst, dstIndex, length);
-    }
-
-    public void getBytes(int index, ChannelBuffer dst, int dstIndex, int length) {
-        buffer.getBytes(index, dst, dstIndex, length);
-    }
-
-    public void getBytes(int index, ByteBuffer dst) {
-        buffer.getBytes(index, dst);
-    }
-
-    public int getBytes(int index, GatheringByteChannel out, int length)
-            throws IOException {
-        return buffer.getBytes(index, out, length);
-    }
-
-    public void getBytes(int index, OutputStream out, int length)
-            throws IOException {
-        buffer.getBytes(index, out, length);
-    }
-
-    public void setByte(int index, int value) {
-        buffer.setByte(index, value);
-    }
-
-    public void setShort(int index, int value) {
-        buffer.setShort(index, value);
-    }
-
-    public void setMedium(int index, int value) {
-        buffer.setMedium(index, value);
-    }
-
-    public void setInt(int index, int value) {
-        buffer.setInt(index, value);
-    }
-
-    public void setLong(int index, long value) {
-        buffer.setLong(index, value);
-    }
-
-    public void setBytes(int index, byte[] src, int srcIndex, int length) {
-        buffer.setBytes(index, src, srcIndex, length);
-    }
-
-    public void setBytes(int index, ChannelBuffer src, int srcIndex, int length) {
-        buffer.setBytes(index, src, srcIndex, length);
-    }
-
-    public void setBytes(int index, ByteBuffer src) {
-        buffer.setBytes(index, src);
-    }
-
-    public int setBytes(int index, InputStream in, int length)
-            throws IOException {
-        return buffer.setBytes(index, in, length);
-    }
-
-    public int setBytes(int index, ScatteringByteChannel in, int length)
-            throws IOException {
-        return buffer.setBytes(index, in, length);
-    }
-
+    
+    
+    
     @Override
     public void writeByte(int value) {
         ensureWritableBytes(1);
@@ -271,34 +204,283 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         ensureWritableBytes(length);
         super.writeZero(length);
     }
+    
+    
 
-    public ChannelBuffer duplicate() {
-        return new DuplicatedChannelBuffer(this);
-    }
-
-    public ChannelBuffer copy(int index, int length) {
-    	DynamicByteBufferBackedChannelBuffer copiedBuffer = new DynamicByteBufferBackedChannelBuffer(order(), Math.max(length, 64), factory());
-        copiedBuffer.buffer = buffer.copy(index, length);
-        copiedBuffer.setIndex(0, length);
-        return copiedBuffer;
-    }
-
-    public ChannelBuffer slice(int index, int length) {
-        if (index == 0) {
-            if (length == 0) {
-                return ChannelBuffers.EMPTY_BUFFER;
-            }
-            return new TruncatedChannelBuffer(this, length);
+    public ChannelBufferFactory factory() {
+        if (buffer.isDirect()) {
+            return DirectChannelBufferFactory.getInstance(order());
         } else {
-            if (length == 0) {
-                return ChannelBuffers.EMPTY_BUFFER;
-            }
-            return new SlicedChannelBuffer(this, index, length);
+            return HeapChannelBufferFactory.getInstance(order());
         }
     }
 
-    public ByteBuffer toByteBuffer(int index, int length) {
-        return buffer.toByteBuffer(index, length);
+    public boolean isDirect() {
+        return buffer.isDirect();
     }
+
+    public ByteOrder order() {
+        return order;
+    }
+
+    public int capacity() {
+        return capacity.get();
+    }
+
+    public boolean hasArray() {
+        return buffer.hasArray();
+    }
+
+    public byte[] array() {
+        return buffer.array();
+    }
+
+    public int arrayOffset() {
+        return buffer.arrayOffset();
+    }
+
+    public byte getByte(int index) {
+        return buffer.get(index);
+    }
+
+    public short getShort(int index) {
+        return buffer.getShort(index);
+    }
+
+    public int getUnsignedMedium(int index) {
+        return  (getByte(index)     & 0xff) << 16 |
+                (getByte(index + 1) & 0xff) <<  8 |
+                getByte(index + 2) & 0xff;
+    }
+
+    public int getInt(int index) {
+        return buffer.getInt(index);
+    }
+
+    public long getLong(int index) {
+        return buffer.getLong(index);
+    }
+
+    public void getBytes(int index, ChannelBuffer dst, int dstIndex, int length) {
+        if (dst instanceof DynamicByteBufferBackedChannelBuffer) {
+        	DynamicByteBufferBackedChannelBuffer bbdst = (DynamicByteBufferBackedChannelBuffer) dst;
+            ByteBuffer data = bbdst.buffer.duplicate();
+
+            data.limit(dstIndex + length).position(dstIndex);
+            getBytes(index, data);
+        } else if (buffer.hasArray()) {
+            dst.setBytes(dstIndex, buffer.array(), index + buffer.arrayOffset(), length);
+        } else {
+            dst.setBytes(dstIndex, this, index, length);
+        }
+    }
+
+    public void getBytes(int index, byte[] dst, int dstIndex, int length) {
+        ByteBuffer data = buffer.duplicate();
+        try {
+            data.limit(index + length).position(index);
+        } catch (IllegalArgumentException e) {
+            throw new IndexOutOfBoundsException("Too many bytes to read - Need "
+                    + (index + length) + ", maximum is " + data.limit());
+        }
+        data.get(dst, dstIndex, length);
+    }
+
+    public void getBytes(int index, ByteBuffer dst) {
+        ByteBuffer data = buffer.duplicate();
+        int bytesToCopy = Math.min(capacity() - index, dst.remaining());
+        try {
+            data.limit(index + bytesToCopy).position(index);
+        } catch (IllegalArgumentException e) {
+            throw new IndexOutOfBoundsException("Too many bytes to read - Need "
+                    + (index + bytesToCopy) + ", maximum is " + data.limit());
+        }
+        dst.put(data);
+    }
+
+    public void setByte(int index, int value) {
+        buffer.put(index, (byte) value);
+    }
+
+    public void setShort(int index, int value) {
+        buffer.putShort(index, (short) value);
+    }
+
+    public void setMedium(int index, int   value) {
+        setByte(index,     (byte) (value >>> 16));
+        setByte(index + 1, (byte) (value >>>  8));
+        setByte(index + 2, (byte) value);
+    }
+
+    public void setInt(int index, int   value) {
+        buffer.putInt(index, value);
+    }
+
+    public void setLong(int index, long  value) {
+        buffer.putLong(index, value);
+    }
+
+    public void setBytes(int index, ChannelBuffer src, int srcIndex, int length) {
+        if (src instanceof DynamicByteBufferBackedChannelBuffer) {
+        	DynamicByteBufferBackedChannelBuffer bbsrc = (DynamicByteBufferBackedChannelBuffer) src;
+            ByteBuffer data = bbsrc.buffer.duplicate();
+
+            data.limit(srcIndex + length).position(srcIndex);
+            setBytes(index, data);
+        } else if (buffer.hasArray()) {
+            src.getBytes(srcIndex, buffer.array(), index + buffer.arrayOffset(), length);
+        } else {
+            src.getBytes(srcIndex, this, index, length);
+        }
+    }
+
+    public void setBytes(int index, byte[] src, int srcIndex, int length) {
+        ByteBuffer data = buffer.duplicate();
+        data.limit(index + length).position(index);
+        data.put(src, srcIndex, length);
+    }
+
+    public void setBytes(int index, ByteBuffer src) {
+        ByteBuffer data = buffer.duplicate();
+        data.limit(index + src.remaining()).position(index);
+        data.put(src);
+    }
+
+    public void getBytes(int index, OutputStream out, int length) throws IOException {
+        if (length == 0) {
+            return;
+        }
+
+        if (buffer.hasArray()) {
+            out.write(
+                    buffer.array(),
+                    index + buffer.arrayOffset(),
+                    length);
+        } else {
+            byte[] tmp = new byte[length];
+            ((ByteBuffer) buffer.duplicate().position(index)).get(tmp);
+            out.write(tmp);
+        }
+    }
+
+    public int getBytes(int index, GatheringByteChannel out, int length) throws IOException {
+        if (length == 0) {
+            return 0;
+        }
+
+        return out.write((ByteBuffer) buffer.duplicate().position(index).limit(index + length));
+    }
+
+    public int setBytes(int index, InputStream in, int length)
+            throws IOException {
+
+        int readBytes = 0;
+
+        if (buffer.hasArray()) {
+            index += buffer.arrayOffset();
+            do {
+                int localReadBytes = in.read(buffer.array(), index, length);
+                if (localReadBytes < 0) {
+                    if (readBytes == 0) {
+                        return -1;
+                    } else {
+                        break;
+                    }
+                }
+                readBytes += localReadBytes;
+                index += localReadBytes;
+                length -= localReadBytes;
+            } while (length > 0);
+        } else {
+            byte[] tmp = new byte[length];
+            int i = 0;
+            do {
+                int localReadBytes = in.read(tmp, i, tmp.length - i);
+                if (localReadBytes < 0) {
+                    if (readBytes == 0) {
+                        return -1;
+                    } else {
+                        break;
+                    }
+                }
+                readBytes += localReadBytes;
+                i += readBytes;
+            } while (i < tmp.length);
+            ((ByteBuffer) buffer.duplicate().position(index)).put(tmp);
+        }
+
+        return readBytes;
+    }
+
+    public int setBytes(int index, ScatteringByteChannel in, int length)
+            throws IOException {
+
+        ByteBuffer slice = (ByteBuffer) buffer.duplicate().limit(index + length).position(index);
+        int readBytes = 0;
+
+        while (readBytes < length) {
+            int localReadBytes;
+            try {
+                localReadBytes = in.read(slice);
+            } catch (ClosedChannelException e) {
+                localReadBytes = -1;
+            }
+            if (localReadBytes < 0) {
+                if (readBytes == 0) {
+                    return -1;
+                } else {
+                    return readBytes;
+                }
+            }
+            if (localReadBytes == 0) {
+                break;
+            }
+            readBytes += localReadBytes;
+        }
+
+        return readBytes;
+    }
+
+    public ByteBuffer toByteBuffer(int index, int length) {
+        if (index == 0 && length == capacity()) {
+            return buffer.duplicate().order(order());
+        } else {
+            return ((ByteBuffer) buffer.duplicate().position(
+                    index).limit(index + length)).slice().order(order());
+        }
+    }
+
+    public ChannelBuffer slice(int index, int length) {
+        if (index == 0 && length == capacity()) {
+            ChannelBuffer slice = duplicate();
+            slice.setIndex(0, length);
+            return slice;
+        } else {
+            if (index >= 0 && length == 0) {
+                return ChannelBuffers.EMPTY_BUFFER;
+            }
+            return new ByteBufferBackedChannelBuffer(
+                    ((ByteBuffer) buffer.duplicate().position(
+                            index).limit(index + length)).order(order()));
+        }
+    }
+
+
+    public ChannelBuffer copy(int index, int length) {
+        ByteBuffer src;
+        try {
+            src = (ByteBuffer) buffer.duplicate().position(index).limit(index + length);
+        } catch (IllegalArgumentException e) {
+            throw new IndexOutOfBoundsException("Too many bytes to read - Need "
+                    + (index + length));
+        }
+
+        ByteBuffer dst = buffer.isDirect() ? ByteBuffer.allocateDirect(length) : ByteBuffer.allocate(length);
+        dst.put(src);
+        dst.order(order());
+        dst.clear();
+        return new ByteBufferBackedChannelBuffer(dst);
+    }
+	
 
 }

@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jboss.netty.buffer.ChannelBuffer;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
@@ -202,7 +203,16 @@ public class OpenTsdb {
             sendHelper(metrics);
         }
     }
-
+    
+    
+    public void send(final ChannelBuffer chBuff, final int metricCount) {
+    	if(httpClient==null) {
+    		httpClient = HttpMetricsPoster.getInstance();
+    	}
+    	if(chBuff.readableBytes()<5) return;
+    	httpClient.send(chBuff, metricCount);
+    	logger.info("Sent [{}] metrics", metricCount);
+    }
     
     
     private void sendHelper(final Set<OpenTsdbMetric> metrics) {
