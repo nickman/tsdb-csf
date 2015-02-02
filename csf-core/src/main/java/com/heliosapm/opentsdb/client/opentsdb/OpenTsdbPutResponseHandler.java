@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jboss.netty.buffer.ChannelBuffer;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -63,6 +64,14 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	/** Regex matching a details response from OpenTSDB after posting a put with no errors */
 	public static final Pattern DETAILS_WITH_ERRORS_PATTERN = Pattern.compile("\\{\"errors\":(\\[.+?\\]),\"failed\":(\\d+),\"success\":(\\d+)\\}");
 
+	
+	/** The JSON key for the success count */
+	public static final String SUCCESS_KEY = "success";
+	/** The JSON key for the failed count */
+	public static final String FAILED_KEY = "failed";
+	/** The JSON key for the error array */
+	public static final String ERRORS_KEY = "errors";
+	
 	/** Comma separated valid names */
 	public static final String VALID_NAMES;
 	
@@ -81,10 +90,10 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.PutResponseHandler#process(int, java.lang.StringBuilder)
+	 * @see com.heliosapm.opentsdb.client.opentsdb.PutResponseHandler#process(int, org.jboss.netty.buffer.ChannelBuffer)
 	 */
 	@Override
-	public int[] process(int responseCode, StringBuilder content) {		
+	public int[] process(final int responseCode, final ChannelBuffer content) {		
 		return handler.process(responseCode, content);
 	}
 	
@@ -97,9 +106,10 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.OpenTsdbPutResponseHandler.SummaryResponseHandler</code></p>
 	 */
 	public static class SummaryResponseHandler implements PutResponseHandler {
+		final Logger log = LogManager.getLogger(getClass());
 		@Override
-		public int[] process(final int responseCode, final StringBuilder content) {
-			return doSummaryStats(content);
+		public int[] process(final int responseCode, final ChannelBuffer content) {
+			return doSummaryStats(content, log);
 		}	
 	}
 	
@@ -113,7 +123,7 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	public static class DetailedResponseHandler implements PutResponseHandler {
 		final Logger log = LogManager.getLogger(getClass());
 		@Override
-		public int[] process(final int responseCode, final StringBuilder content) {
+		public int[] process(final int responseCode, final ChannelBuffer content) {
 			return doDetailedStats(responseCode, content, log);
 		}	
 	}
@@ -127,7 +137,7 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	 */
 	public static class NoopResponseHandler implements PutResponseHandler {
 		@Override
-		public int[] process(final int responseCode, final StringBuilder content) {
+		public int[] process(final int responseCode, final ChannelBuffer content) {
 			return EMPTY_COUNTS;
 		}	
 	}
@@ -135,87 +145,60 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 	
 	/**
 	 * Processes the summary stats from the http put response
-	 * @param sb The response content
+	 * @param content The response content
+	 * @param log The logger to log any errors with
 	 * @return an array of result counts (failed:0, success:1)
 	 */
-	public static int[] doSummaryStats(final StringBuilder sb) {
-		int[] counts = null;
-		Matcher m = SUMMARY_PATTERN.matcher(sb);
-		if(m.matches()) {
-			counts = getCountsFromMatcher(m);
+	public static int[] doSummaryStats(final ChannelBuffer content, final Logger log) {
+		final int[] results = new int[]{0,0};
+		try {
+			final JSONObject j = new JSONObject(content.toString(Constants.UTF8));
+			results[0] = j.getInt(FAILED_KEY);
+			results[1] = j.getInt(SUCCESS_KEY);
+		} catch (Exception ex) {
+			log.error("Failed to process response", ex);
 		}
-		return counts==null ? EMPTY_COUNTS : counts;
+		return results;
 	}
 	
 	/**
 	 * Extracts the failiure and success counts and the error json from the passed details response and increments the counters
 	 * @param responseCode The HTTP response code
-	 * @param sb The response stringy which the errs are put into if there are any. Otherwise it is truncated to zero length
+	 * @param content The response buffer 
 	 * @param log The logger to log with
 	 * @return the counts of failed submissions ([0]) and successful submissions ([1]).
 	 */
-	public static int[] doDetailedStats(final int responseCode, final StringBuilder sb, final Logger log) {
-		int[] counts = null;
-		log.debug("RESP:{}", sb);
-		Matcher m = DETAILS_PATTERN.matcher(sb);
-		if(m.matches()) {
-			// means no failures
-			counts = getCountsFromMatcher(m);
-			sb.setLength(0);			
-		} else {
-			m = DETAILS_WITH_ERRORS_PATTERN.matcher(sb);
-			if(m.matches()) {
-				// we got fails, yo				
-				counts = getCountsFromMatcher(m);
-				String s = m.group(1).trim();				
-				try {
-					processErrors(s, log);
-				} catch (Exception ex) {
-					log.error("Failed to parse OpenTSDB put response. Content:\n{}", s, ex);					
-				}
-				// index the bad metric names and filter them
-				// TODO:
-				/*
-				 * Bad metric responses look like this:
-						{
-						  "datapoint": {
-						    "tags": {
-						      "service": "cacheservice",
-						      ",attr": "cache-size"
-						    },
-						    "timestamp": 1421536767,
-						    "metric": "KitchenSink.value",
-						    "value": "572"
-						  },
-						  "error": "Invalid tag name (\",attr\"): illegal character: ,"
-						}
-				 */
-				// build the original [bad] metric name
-				// figure out which registry it's in amd yank it
-				// send jmx notification with simplified message:  BAD METRIC: XXX, ERROR: YYY
-				
-			} else {
-				final String content = sb.toString();
-				final boolean gzipErr = couldBeGzipIssue(responseCode, content);
-				log.error("Failed to pattern match response: Server GZip Error:{} Content:\n{}", gzipErr, content);
-				if(couldBeGzipIssue(responseCode, content)) {
+	public static int[] doDetailedStats(final int responseCode, final ChannelBuffer content, final Logger log) {
+		final int[] results = new int[]{0,0};
+		String contentStr = null;
+		try {
+			contentStr = content.toString(Constants.UTF8);
+			if(responseCode==400) {
+				if(couldBeGzipIssue(responseCode, contentStr)) {
 					log.error("Auto disabled http post gzip");
 					HttpMetricsPoster.getInstance().autoDisableGZip();
 				}
-				// TODO:  This looks like what happens if gzip is not supported
-				// Failed to pattern match response:
-				// {"error":{"code":400,"message":"Unable to parse the given JSON","details":"com.fasterxml.jackson.core.JsonParseException: Unexpected character ('�' (code 65533 / 0xfffd)): expected a valid value (number, String, array, object, 'true', 'false' or 'null')\n at [Source: java.io.StringReader@72688124; line: 1, column: 2]"}}
 			}
-			
+			final JSONObject j = new JSONObject(contentStr);
+			results[0] = j.getInt(FAILED_KEY);
+			results[1] = j.getInt(SUCCESS_KEY);			
+			processErrors(j.optJSONArray(ERRORS_KEY), log);
+		} catch (Exception ex) {
+			log.warn("Failed to process response {}", contentStr, ex);
 		}
-		return counts==null ? EMPTY_COUNTS : counts;
+		return results;
 	}
 	
 	
 	
-	protected static void processErrors(final String content, final Logger log) {
+	/**
+	 * Handles reported errors in the metrics post response
+	 * @param arr The JSON array of errors
+	 * @param log The logger to log the errors with
+	 */
+	protected static void processErrors(final JSONArray arr, final Logger log) {
+		if(arr==null || arr.length()<1) return;
 		try {
-			final JSONArray arr = new JSONArray(content);
 			final int sz = arr.length();
 			for(int i = 0; i < sz; i++) {
 				JSONObject dp = arr.getJSONObject(i).getJSONObject("datapoint");

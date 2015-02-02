@@ -45,6 +45,8 @@ import javax.management.NotificationListener;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.jboss.netty.util.Timeout;
@@ -65,6 +67,8 @@ import com.heliosapm.opentsdb.client.opentsdb.Threading;
  */
 
 public abstract class BaseMBeanObserver implements MetricSet, NotificationListener, NotificationFilter, Runnable {
+	/** Instance logger */
+	protected final Logger log = LogManager.getLogger(getClass());	
 	/** The MBeanServerConnection to the MBeanServer to observe */
 	protected RuntimeMBeanServerConnection mbs = null;
 	/** The metrics created by this observer */
@@ -91,6 +95,7 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	/** The laych to prevent metrics from the same collector to be sampled with different period readings */
 	protected final ResettingCountDownLatch latch;
 	
+	
 	/** The frequency of the observer observations in ms. */
 	private long period = 15000;
 	/** The timeout on observer refreshes in ms. */
@@ -107,15 +112,17 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 		JMXConnector tmpJmxConn = builder.getJmxConnector();
 		mbs = tmpMbs==null ? RuntimeMBeanServerConnection.newInstance(tmpJmxConn) : RuntimeMBeanServerConnection.newInstance(tmpMbs);		
 		this.objectName = builder.getTarget();
+		int objectNameCount = 1;
 		if(this.objectName.isPattern()) {
 			objectNames.addAll(mbs.queryNames(this.objectName, null));
+			objectNameCount = objectNames.size(); 
 		} else {
-			objectNames.add(this.objectName);
+			objectNames.add(this.objectName);			
 		}
 		this.collectionAttrNames = collectionAttrNames;
 		period = TimeUnit.MILLISECONDS.convert(builder.getPeriod(), builder.getUnit());
 		timeout = TimeUnit.MILLISECONDS.convert(builder.getTimeout(), builder.getTimeoutUnit());
-		latch = ResettingCountDownLatch.newInstance(collectionAttrNames.length);
+		latch = ResettingCountDownLatch.newInstance(collectionAttrNames.length); //  * objectNameCount
 		agentNameFinder = builder.getNameFinder();
 		setAgentNameTags();
 		if(period > 0) {

@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.json.JSONArray;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
@@ -210,8 +211,13 @@ public class OpenTsdb {
     		httpClient = HttpMetricsPoster.getInstance();
     	}
     	if(chBuff.readableBytes()<5) return;
+//    	try {
+//    		System.err.println(new JSONArray(chBuff.toString(Constants.UTF8)).toString(1));
+//    	} catch (Exception ex) {
+//    		ex.printStackTrace(System.err);
+//    	}
     	httpClient.send(chBuff, metricCount);
-    	logger.info("Sent [{}] metrics", metricCount);
+    	logger.debug("Sent [{}] metrics", metricCount);
     }
     
     

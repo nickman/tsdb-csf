@@ -59,7 +59,6 @@ import org.apache.logging.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.buffer.DirectChannelBufferFactory;
-import org.jboss.netty.buffer.DynamicChannelBuffer;
 import org.jboss.netty.handler.codec.http.HttpHeaders.Names;
 
 import com.heliosapm.opentsdb.client.name.AgentName;
@@ -67,6 +66,8 @@ import com.heliosapm.opentsdb.client.opentsdb.AnnotationBuilder.TSDBAnnotation;
 import com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.HTTPMethod;
 import com.heliosapm.opentsdb.client.opentsdb.EmptyAsyncHandler.FinalHookAsyncHandler;
 import com.heliosapm.opentsdb.client.registry.IMetricRegistryFactory;
+import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBuffer;
+import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 import com.ning.http.client.AsyncHandler;
 import com.ning.http.client.AsyncHttpClient;
@@ -136,6 +137,10 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	protected String heartbeatMetric = conf(PROP_HEARTBEAT_METRIC, DEFAULT_HEARTBEAT_METRIC);
 
 	
+	/** The collection buffer factory */
+    protected final DynamicByteBufferBackedChannelBufferFactory bufferFactory = new DynamicByteBufferBackedChannelBufferFactory(4096);
+
+	
 	/** The ObjectName this instance is registered with */
 	protected final ObjectName objectName;
 	
@@ -178,8 +183,6 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	/** The http proxy user password */
 	protected String proxyPassword = conf(PROP_CONNECTION_PROXY_PW, DEFAULT_CONNECTION_PROXY_PW);
 	
-	/** The buffer factory for allocating composite buffers to stream reads and writes through offheap space */
-	private static final DirectChannelBufferFactory bufferFactory = new DirectChannelBufferFactory(4096);
 	
 	
 	
@@ -417,7 +420,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 			mbb[0] = fc.map(MapMode.READ_ONLY, 0, fileSize);
 			// if enableCompression is false, we need to decompress.
 			if(!enableCompression) {
-				buff = new DynamicChannelBuffer(ByteOrder.nativeOrder(), fileSize, bufferFactory);
+				buff = bufferFactory.getBuffer(fileSize); 
 				buff.writeBytes(mbb[0]);
 				OffHeapFIFOFile.decompress(buff, null, null);
 				OffHeapFIFOFile.clean(mbb[0]); mbb[0] = null;
@@ -576,36 +579,48 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 						@Override
 						public void close() throws IOException {
-							/* No Op */
+							OffHeapFIFOFile.clean(body);
 						}
 					};
 				}
 			})
 			.execute(new AsyncHandler<String>(){
-				final StringBuilder resp = new StringBuilder();
+				ChannelBuffer resp = null;
 				int responseCode = -1;
+				int contentLength = 0;
+				boolean gzipped = false;
 				@Override
 				public void onThrowable(final Throwable t) {
-					processResponse(null, t, body, metricsToWrite, retries, start);
-					if(hasHandlers) {
-						for(AsyncHandler<Object> h: handlers) {
-							if(h==null) continue;
-							h.onThrowable(t);
+					try {
+						processResponse(null, t, body, metricsToWrite, retries, start);
+						if(hasHandlers) {
+							for(AsyncHandler<Object> h: handlers) {
+								if(h==null) continue;
+								try {
+									h.onThrowable(t);
+								} catch (Exception ex) {
+									log.error("Failed to execute async handler [{}].onThrowable", h, ex);
+								}
+							}
 						}
+					} finally {
+						if(resp!=null) OffHeapFIFOFile.clean(resp);
 					}
 				}
 	
 				@Override
 				public STATE onBodyPartReceived(final HttpResponseBodyPart bodyPart) throws Exception {
-					final byte[] bp = bodyPart.getBodyPartBytes();
-					if(bp!=null && bp.length>0) {
-						final String bps = new String(bp, Charset.defaultCharset());
-						resp.append(bps);
+					if(bodyPart.length()>0) {
+						resp.writeBytes(bodyPart.getBodyByteBuffer());
 					}
 					if(hasHandlers) {
 						for(AsyncHandler<Object> h: handlers) {
 							if(h==null) continue;
-							h.onBodyPartReceived(bodyPart);
+							try {
+								h.onBodyPartReceived(bodyPart);
+							} catch (Exception ex) {
+								log.error("Failed to execute async handler [{}].onBodyPartReceived", h, ex);
+							}
 						}
 					}				
 					return STATE.CONTINUE;
@@ -618,7 +633,11 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 					if(hasHandlers) {
 						for(AsyncHandler<Object> h: handlers) {
 							if(h==null) continue;
-							h.onStatusReceived(responseStatus);
+							try {
+								h.onStatusReceived(responseStatus);
+							} catch (Exception ex) {
+								log.error("Failed to execute async handler [{}].onStatusReceived", h, ex);
+							}
 						}
 					}				
 					return putResponseHandler==OpenTsdbPutResponseHandler.NOTHING ? STATE.ABORT : STATE.CONTINUE;
@@ -626,12 +645,19 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 				@Override
 				public STATE onHeadersReceived(final HttpResponseHeaders headers) throws Exception {
-					headers.getHeaders().getFirstValue(Names.CONTENT_LENGTH);
+					final String contentEncoding = headers.getHeaders().getFirstValue(Names.CONTENT_ENCODING);
+					contentLength = Integer.parseInt(headers.getHeaders().getFirstValue(Names.CONTENT_LENGTH));
+					gzipped = "gzip".equals(contentEncoding);
+					resp = bufferFactory.getBuffer(gzipped ? contentLength*2 : contentLength);
 					log.debug("Response Headers:{}", headers.getHeaders());
 					if(hasHandlers) {
 						for(AsyncHandler<Object> h: handlers) {
 							if(h==null) continue;
-							h.onHeadersReceived(headers);
+							try {
+								h.onHeadersReceived(headers);
+							} catch (Exception ex) {
+								log.error("Failed to execute async handler [{}].onHeadersReceived", h, ex);
+							}
 						}
 					}												
 					return STATE.CONTINUE;
@@ -639,18 +665,27 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 				@Override
 				public String onCompleted() throws Exception {
-					if(hasHandlers) {
-						for(AsyncHandler<Object> h: handlers) {
-							if(h==null) continue;
-							h.onCompleted();
+					try {
+						if(hasHandlers) {
+							for(AsyncHandler<Object> h: handlers) {
+								if(h==null) continue;
+								try {
+									h.onCompleted();
+								} catch (Exception ex) {
+									log.error("Failed to execute async handler [{}].onCompleted", h, ex);
+								}
+							}
 						}
+						if(gzipped) OffHeapFIFOFile.decompress(resp, null, null);
+						int[] counts = putResponseHandler.process(responseCode, resp);
+						if(counts!=null && counts[0] + counts[1] != 0) {
+							failedMetrics.addAndGet(counts[0]);
+							successfulMetrics.addAndGet(counts[1]);						
+						}
+						return null;
+					} finally {
+						if(resp!=null) OffHeapFIFOFile.clean(resp);
 					}
-					int[] counts = putResponseHandler.process(responseCode, resp);
-					if(counts!=null && counts[0] + counts[1] != 0) {
-						failedMetrics.addAndGet(counts[0]);
-						successfulMetrics.addAndGet(counts[1]);						
-					}
-					return null;				
 				}				
 				
 			});
@@ -673,7 +708,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		try {
 //			log.info("Posting to [" + tsdbUrl + "/api/put" + "] : " + size + " bytes"); // + new JSONObject(json).toString(2) + "\n===============");
 			if(metrics==null || metrics.isEmpty()) return;
-			final ChannelBuffer metricsBuffer = new DynamicChannelBuffer(ByteOrder.nativeOrder(), metrics.size() * 40, bufferFactory);
+			final ChannelBuffer metricsBuffer = bufferFactory.getBuffer(metrics.size() * 40);
 			final int metricsToWrite = OpenTsdbMetric.writeToBuffer(metrics, metricsBuffer);
 			send(metricsBuffer, metricsToWrite, 0);
 			
@@ -700,7 +735,24 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	}
 	
 
-
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getBufferMemoryAllocated()
+	 */
+	@Override
+	public long getBufferMemoryAllocated() {		
+		return DynamicByteBufferBackedChannelBuffer.getAllocatedMemory();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getBuffersAllocated()
+	 */
+	@Override
+	public long getBuffersAllocated() {
+		return DynamicByteBufferBackedChannelBuffer.getAllocatedInstances();
+	}
+	
 
 
 	/**

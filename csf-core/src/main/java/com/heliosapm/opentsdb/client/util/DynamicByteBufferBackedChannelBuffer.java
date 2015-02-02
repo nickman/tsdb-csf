@@ -24,14 +24,13 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.jboss.netty.buffer.AbstractChannelBuffer;
 import org.jboss.netty.buffer.ByteBufferBackedChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBufferFactory;
 import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.buffer.DirectChannelBufferFactory;
-import org.jboss.netty.buffer.HeapChannelBufferFactory;
 
 import com.heliosapm.opentsdb.client.opentsdb.OffHeapFIFOFile;
 
@@ -54,6 +53,30 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
     private final AtomicInteger capacity;
     /** The percentage of current capacity to extend by when extending */
     private final float extend;
+    /** The preserved initial size the buffer will reset to */
+    private final int initialSize;
+    /** A counter of allocated instances */
+    private static final AtomicLong allocatedInstances = new AtomicLong();
+    /** A counter of allocated memory */
+    private static final AtomicLong allocatedMemory = new AtomicLong();
+    
+    
+    /**
+     * Returns the total allocated memory in bytes
+     * @return the total allocated memory in bytes
+     */
+    public static long getAllocatedMemory() {
+    	return allocatedMemory.get();
+    }
+    
+    /**
+     * Returns the total number of allocated instances
+     * @return the total number of allocated instances
+     */
+    public static long getAllocatedInstances() {
+    	return allocatedInstances.get();
+    }
+    
     
     /** The default extend percentage */
     public static final float DEFAULT_EXTEND = .5f;
@@ -61,13 +84,22 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
     public static final int DEFAULT_INITIAL = 1024;
     
 
+    /**
+     * Creates a new DynamicByteBufferBackedChannelBuffer
+     * @param order The byte order
+     * @param initialSize The initial size
+     * @param extendSize The extend percentage
+     */
     public DynamicByteBufferBackedChannelBuffer(final ByteOrder order, final int initialSize, final float extendSize) {
+    	this.initialSize = initialSize;
     	this.capacity = new AtomicInteger(0);
     	this.capacity.set(initialSize);
     	this.extend = extendSize;
     	buffer = ByteBuffer.allocateDirect(initialSize);
     	buffer.order(order);
     	this.order = order;
+    	allocatedInstances.incrementAndGet();
+    	allocatedMemory.addAndGet(this.capacity.get());
     }
     
     
@@ -96,21 +128,52 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
             }
             int newCapacity = increment + currentCapacity;
             if(capacity.compareAndSet(currentCapacity, newCapacity)) {
-    	        ByteBuffer newBuffer = ByteBuffer.allocate(newCapacity);
+    	        ByteBuffer newBuffer = ByteBuffer.allocateDirect(newCapacity);
     	        newBuffer.put((ByteBuffer)buffer.duplicate().rewind());
     	        ByteBuffer oldBuffer = buffer; 
     	        buffer = newBuffer;
     	        clean(oldBuffer);
+    	        allocatedMemory.addAndGet(increment);
             }    		
     	}        
     }
     
-    private static void clean(final ByteBuffer buff) {
+    private static void clean(final ByteBuffer buff) {    	
     	OffHeapFIFOFile.clean(buff);
     }
     
+    /**
+     * Deallocates the underlying buffer.
+     * <b>Caution!</b>. Cleaned buffers are toxic.
+     */
     public void clean() {
-    	clean(buffer);
+		final int cap = capacity.getAndSet(-1);
+		if(cap!=-1) {
+			clean(buffer);
+			allocatedInstances.decrementAndGet();
+			allocatedMemory.addAndGet((-1 * cap));
+		}
+    }
+    
+    /**
+     * Resets the buffer back to it's initial size, discarding any held data.
+     */
+    public void reset() {
+    	final int cap = capacity.getAndSet(initialSize)-initialSize;
+    	ByteBuffer oldBuffer = buffer; 
+    	buffer = ByteBuffer.allocateDirect(initialSize);
+    	clean(oldBuffer);
+    	allocatedMemory.addAndGet((-1 * cap));
+    }
+    
+    /**
+     * {@inheritDoc}
+     * @see java.lang.Object#finalize()
+     */
+    @Override
+    protected void finalize() throws Throwable {
+    	clean();
+    	super.finalize();
     }
     
     
@@ -128,11 +191,13 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
       this.buffer = buffer.buffer;
       this.extend = buffer.extend;      
       order = buffer.order;
+      this.initialSize = buffer.initialSize;
       capacity = buffer.capacity;
       setIndex(buffer.readerIndex(), buffer.writerIndex());
   }
     
-    public ChannelBuffer duplicate() {
+    @Override
+	public ChannelBuffer duplicate() {
         return new DynamicByteBufferBackedChannelBuffer(this);
     }
     
@@ -207,61 +272,74 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
     
     
 
-    public ChannelBufferFactory factory() {
-        if (buffer.isDirect()) {
-            return DirectChannelBufferFactory.getInstance(order());
-        } else {
-            return HeapChannelBufferFactory.getInstance(order());
-        }
+    /**
+     * {@inheritDoc}
+     * @see org.jboss.netty.buffer.ChannelBuffer#factory()
+     */
+    @Override
+	public ChannelBufferFactory factory() {
+    	return DynamicByteBufferBackedChannelBufferFactory.getInstance(order());
     }
 
-    public boolean isDirect() {
+    @Override
+	public boolean isDirect() {
         return buffer.isDirect();
     }
 
-    public ByteOrder order() {
+    @Override
+	public ByteOrder order() {
         return order;
     }
 
-    public int capacity() {
+    @Override
+	public int capacity() {
         return capacity.get();
     }
 
-    public boolean hasArray() {
+    @Override
+	public boolean hasArray() {
         return buffer.hasArray();
     }
 
-    public byte[] array() {
+    @Override
+	public byte[] array() {
         return buffer.array();
     }
 
-    public int arrayOffset() {
+    @Override
+	public int arrayOffset() {
         return buffer.arrayOffset();
     }
 
-    public byte getByte(int index) {
+    @Override
+	public byte getByte(int index) {
         return buffer.get(index);
     }
 
-    public short getShort(int index) {
+    @Override
+	public short getShort(int index) {
         return buffer.getShort(index);
     }
 
-    public int getUnsignedMedium(int index) {
+    @Override
+	public int getUnsignedMedium(int index) {
         return  (getByte(index)     & 0xff) << 16 |
                 (getByte(index + 1) & 0xff) <<  8 |
                 getByte(index + 2) & 0xff;
     }
 
-    public int getInt(int index) {
+    @Override
+	public int getInt(int index) {
         return buffer.getInt(index);
     }
 
-    public long getLong(int index) {
+    @Override
+	public long getLong(int index) {
         return buffer.getLong(index);
     }
 
-    public void getBytes(int index, ChannelBuffer dst, int dstIndex, int length) {
+    @Override
+	public void getBytes(int index, ChannelBuffer dst, int dstIndex, int length) {
         if (dst instanceof DynamicByteBufferBackedChannelBuffer) {
         	DynamicByteBufferBackedChannelBuffer bbdst = (DynamicByteBufferBackedChannelBuffer) dst;
             ByteBuffer data = bbdst.buffer.duplicate();
@@ -275,7 +353,8 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         }
     }
 
-    public void getBytes(int index, byte[] dst, int dstIndex, int length) {
+    @Override
+	public void getBytes(int index, byte[] dst, int dstIndex, int length) {
         ByteBuffer data = buffer.duplicate();
         try {
             data.limit(index + length).position(index);
@@ -286,7 +365,8 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         data.get(dst, dstIndex, length);
     }
 
-    public void getBytes(int index, ByteBuffer dst) {
+    @Override
+	public void getBytes(int index, ByteBuffer dst) {
         ByteBuffer data = buffer.duplicate();
         int bytesToCopy = Math.min(capacity() - index, dst.remaining());
         try {
@@ -298,29 +378,35 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         dst.put(data);
     }
 
-    public void setByte(int index, int value) {
+    @Override
+	public void setByte(int index, int value) {
         buffer.put(index, (byte) value);
     }
 
-    public void setShort(int index, int value) {
+    @Override
+	public void setShort(int index, int value) {
         buffer.putShort(index, (short) value);
     }
 
-    public void setMedium(int index, int   value) {
+    @Override
+	public void setMedium(int index, int   value) {
         setByte(index,     (byte) (value >>> 16));
         setByte(index + 1, (byte) (value >>>  8));
         setByte(index + 2, (byte) value);
     }
 
-    public void setInt(int index, int   value) {
+    @Override
+	public void setInt(int index, int   value) {
         buffer.putInt(index, value);
     }
 
-    public void setLong(int index, long  value) {
+    @Override
+	public void setLong(int index, long  value) {
         buffer.putLong(index, value);
     }
 
-    public void setBytes(int index, ChannelBuffer src, int srcIndex, int length) {
+    @Override
+	public void setBytes(int index, ChannelBuffer src, int srcIndex, int length) {
         if (src instanceof DynamicByteBufferBackedChannelBuffer) {
         	DynamicByteBufferBackedChannelBuffer bbsrc = (DynamicByteBufferBackedChannelBuffer) src;
             ByteBuffer data = bbsrc.buffer.duplicate();
@@ -334,19 +420,22 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         }
     }
 
-    public void setBytes(int index, byte[] src, int srcIndex, int length) {
+    @Override
+	public void setBytes(int index, byte[] src, int srcIndex, int length) {
         ByteBuffer data = buffer.duplicate();
         data.limit(index + length).position(index);
         data.put(src, srcIndex, length);
     }
 
-    public void setBytes(int index, ByteBuffer src) {
+    @Override
+	public void setBytes(int index, ByteBuffer src) {
         ByteBuffer data = buffer.duplicate();
         data.limit(index + src.remaining()).position(index);
         data.put(src);
     }
 
-    public void getBytes(int index, OutputStream out, int length) throws IOException {
+    @Override
+	public void getBytes(int index, OutputStream out, int length) throws IOException {
         if (length == 0) {
             return;
         }
@@ -363,7 +452,8 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         }
     }
 
-    public int getBytes(int index, GatheringByteChannel out, int length) throws IOException {
+    @Override
+	public int getBytes(int index, GatheringByteChannel out, int length) throws IOException {
         if (length == 0) {
             return 0;
         }
@@ -371,7 +461,8 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         return out.write((ByteBuffer) buffer.duplicate().position(index).limit(index + length));
     }
 
-    public int setBytes(int index, InputStream in, int length)
+    @Override
+	public int setBytes(int index, InputStream in, int length)
             throws IOException {
 
         int readBytes = 0;
@@ -412,7 +503,8 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         return readBytes;
     }
 
-    public int setBytes(int index, ScatteringByteChannel in, int length)
+    @Override
+	public int setBytes(int index, ScatteringByteChannel in, int length)
             throws IOException {
 
         ByteBuffer slice = (ByteBuffer) buffer.duplicate().limit(index + length).position(index);
@@ -441,7 +533,8 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         return readBytes;
     }
 
-    public ByteBuffer toByteBuffer(int index, int length) {
+    @Override
+	public ByteBuffer toByteBuffer(int index, int length) {
         if (index == 0 && length == capacity()) {
             return buffer.duplicate().order(order());
         } else {
@@ -450,7 +543,8 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
         }
     }
 
-    public ChannelBuffer slice(int index, int length) {
+    @Override
+	public ChannelBuffer slice(int index, int length) {
         if (index == 0 && length == capacity()) {
             ChannelBuffer slice = duplicate();
             slice.setIndex(0, length);
@@ -466,7 +560,8 @@ public class DynamicByteBufferBackedChannelBuffer extends AbstractChannelBuffer 
     }
 
 
-    public ChannelBuffer copy(int index, int length) {
+    @Override
+	public ChannelBuffer copy(int index, int length) {
         ByteBuffer src;
         try {
             src = (ByteBuffer) buffer.duplicate().position(index).limit(index + length);

@@ -40,6 +40,6 @@ public class EpochClock extends UserTimeClock {
 	 */
 	@Override
 	public long getTime() {		
-		return TimeUnit.SECONDS.convert(getTick(), TimeUnit.MILLISECONDS);
+		return TimeUnit.SECONDS.convert(System.currentTimeMillis(), TimeUnit.MILLISECONDS);
 	}
 }

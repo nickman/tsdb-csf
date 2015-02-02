@@ -24,6 +24,8 @@
  */
 package com.heliosapm.opentsdb.client.opentsdb;
 
+import org.jboss.netty.buffer.ChannelBuffer;
+
 /**
  * <p>Title: PutResponseHandler</p>
  * <p>Description: Defines an OpenTSDB http <b><code>/api/put</code></b> response handler</p> 
@@ -38,6 +40,6 @@ public interface PutResponseHandler {
 	 * @param content The content returned
 	 * @return an array of result counts (failed:0, success:1)
 	 */
-	public int[] process(int responseCode, StringBuilder content);
+	public int[] process(int responseCode, ChannelBuffer content);
 }
 

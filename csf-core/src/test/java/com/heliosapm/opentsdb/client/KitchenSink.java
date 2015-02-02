@@ -52,7 +52,7 @@ public class KitchenSink {
 	
 	
 	// Create a new MetricRegistry
-	final MetricRegistry registry = new MetricRegistry();
+	final MetricRegistry registry;
 	// Create a new Gauge Metric
 	final Gauge<Long> cacheSizeGauge = new Gauge<Long>() {
 		@Override
@@ -61,26 +61,38 @@ public class KitchenSink {
 			return new Long(Math.abs(random.nextInt(1000)));
 		}
 	};
-	// Create a new Counter Metric
-	final Counter evictions = 
-			registry.counter(name(getClass().getSimpleName(), 
-					"evictions", 
-					"op=cache-evictions", 
-					"service=cacheservice"));
-	// Create a new Histogram Metric
-	final Histogram resultCounts = registry.histogram(name(getClass().getSimpleName(), "resultCounts", "op=cache-lookup", "service=cacheservice"));
-	// Create a new Meter Metric
-	final Meter lookupRequests = registry.meter(name(getClass().getSimpleName(), "lookupRequests",  "op=cache-lookup", "service=cacheservice"));
-	// Create a new Timer Metric
-	final Timer timer = registry.timer(name(getClass().getSimpleName(), "evictelapsed", "op=cache-evictions", "service=cacheservice"));
+	// Define a new Counter Metric
+	final Counter evictions;
+	// Define a new Histogram Metric
+	final Histogram resultCounts;
+	// Define a new Meter Metric
+	final Meter lookupRequests;
+	// Define a new Timer Metric
+	final Timer timer;
 	
-	
+
 	/**
 	 * Creates a new KitchenSink
 	 */
 	public KitchenSink() {
-		// Register the cacheSizeGauge Gauge
+		this(null);
+	}
+
+	/**
+	 * Creates a new KitchenSink
+	 * @param tsdbReporter An optional OpenTSDBReporter reporter
+	 */
+	public KitchenSink(final OpenTSDBReporter tsdbReporter) {
+		registry = tsdbReporter==null ? new MetricRegistry() : tsdbReporter.getRegistry();
+		// Register metrics
 		registry.register(name(getClass().getSimpleName(), "cache-size", "cmtype=Gauge", "attr=cache-size", "service=cacheservice"), cacheSizeGauge);
+		evictions = registry.counter(name(getClass().getSimpleName(), 
+						"evictions", 
+						"op=cache-evictions", 
+						"service=cacheservice"));
+		resultCounts = registry.histogram(name(getClass().getSimpleName(), "resultCounts", "op=cache-lookup", "service=cacheservice"));
+		lookupRequests = registry.meter(name(getClass().getSimpleName(), "lookupRequests",  "op=cache-lookup", "service=cacheservice"));
+		timer = registry.timer(name(getClass().getSimpleName(), "evictelapsed", "op=cache-evictions", "service=cacheservice"));
 		// We don't need this. The AgentName service will take care of it.
 		/*
 		final Map<String, String> rootTags = new HashMap<String, String>();
@@ -89,10 +101,12 @@ public class KitchenSink {
 		*/		
 		/* Create the reporter */
 		// Define the OpenTsdbReporter. Will create in the ctor
-		final OpenTSDBReporter reporter = OpenTSDBReporter.forRegistry(registry).build();
+		final OpenTSDBReporter reporter = tsdbReporter==null ? OpenTSDBReporter.forRegistry(registry).build() : tsdbReporter;
 		final ConsoleReporter creporter = ConsoleReporter.forRegistry(registry).build();
 		/** Start the reporter with a reporting period of 5 seconds */
-		reporter.start(5, TimeUnit.SECONDS);		
+		if(tsdbReporter==null) {
+			reporter.start(1, TimeUnit.SECONDS);
+		}
 //		creporter.start(5, TimeUnit.SECONDS);
 		/** Start a thread to generate some random data */
 		Threading.getInstance().schedule(new Runnable(){

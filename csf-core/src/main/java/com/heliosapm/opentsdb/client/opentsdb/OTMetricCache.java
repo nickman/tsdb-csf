@@ -20,12 +20,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistryListener;
+import com.codahale.metrics.Timer;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheBuilderSpec;
@@ -41,7 +46,7 @@ import com.heliosapm.opentsdb.client.util.Util;
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.OTMetricCache</code></p>
  */
 
-public class OTMetricCache implements RemovalListener<String, OTMetric> {
+public class OTMetricCache implements RemovalListener<String, OTMetric>, MetricRegistryListener {
 	/** The singleton instance */
 	private static volatile OTMetricCache instance = null;
 	/** The singleton instance ctor lock */
@@ -220,6 +225,66 @@ public class OTMetricCache implements RemovalListener<String, OTMetric> {
 			}
 			otm.clean();
 		}
+		
+	}
+
+	@Override
+	public void onGaugeAdded(final String name, final Gauge<?> gauge) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onGaugeRemoved(final String name) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onCounterAdded(final String name, final Counter counter) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onCounterRemoved(final String name) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onHistogramAdded(final String name, final Histogram histogram) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onHistogramRemoved(final String name) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onMeterAdded(final String name, final Meter meter) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onMeterRemoved(final String name) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onTimerAdded(final String name, final Timer timer) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onTimerRemoved(final String name) {
+		// TODO Auto-generated method stub
 		
 	}
 

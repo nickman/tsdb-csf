@@ -38,6 +38,22 @@ public class DynamicByteBufferBackedChannelBufferFactory implements ChannelBuffe
     /** The default byte order */
     public static final ByteOrder DEFAULT_ORDER = ByteOrder.nativeOrder();
     
+    /** A default native byte order factory */
+    public static final DynamicByteBufferBackedChannelBufferFactory DEFAULT_NATIVE = new DynamicByteBufferBackedChannelBufferFactory(DEFAULT_INITIAL, DEFAULT_EXTEND, DEFAULT_ORDER);
+    /** A default non-native byte order factory */
+    public static final DynamicByteBufferBackedChannelBufferFactory DEFAULT_NOT_NATIVE = new DynamicByteBufferBackedChannelBufferFactory(DEFAULT_INITIAL, DEFAULT_EXTEND, DEFAULT_ORDER.equals(ByteOrder.BIG_ENDIAN) ?  ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+    
+    /**
+     * Returns the default factory instance for the passed order
+     * @param order The order to get a factory for. Returns native if null.
+     * @return the requested order typed factory
+     */
+    public static DynamicByteBufferBackedChannelBufferFactory getInstance(final ByteOrder order) {
+    	if(order==null) return DEFAULT_NATIVE;
+    	return order.equals(DEFAULT_ORDER) ? DEFAULT_NATIVE : DEFAULT_NOT_NATIVE;
+    }
+    
+    
     final int initialCapacity;
     final float extend;
     final ByteOrder byteOrder;
@@ -74,7 +90,6 @@ public class DynamicByteBufferBackedChannelBufferFactory implements ChannelBuffe
 	/**
 	 * Creates a new DynamicByteBufferBackedChannelBufferFactory with the native byte order, default extend
 	 * and default initial capacity.
-	 * @param initialCapacity The initial capacity of the created buffers
 	 */
 	public DynamicByteBufferBackedChannelBufferFactory() {		
 		this(DEFAULT_INITIAL, DEFAULT_EXTEND, DEFAULT_ORDER);
@@ -85,7 +100,7 @@ public class DynamicByteBufferBackedChannelBufferFactory implements ChannelBuffe
 	 * @return a new DynamicByteBufferBackedChannelBuffer
 	 */
 	public DynamicByteBufferBackedChannelBuffer getBuffer() {
-		return new DynamicByteBufferBackedChannelBuffer(byteOrder, initialCapacity, extend);
+		return getBuffer(byteOrder, initialCapacity, extend);
 	}
 
 	/**
@@ -94,7 +109,7 @@ public class DynamicByteBufferBackedChannelBufferFactory implements ChannelBuffe
 	 */
 	@Override
 	public DynamicByteBufferBackedChannelBuffer getBuffer(final int capacity) {
-		return new DynamicByteBufferBackedChannelBuffer(byteOrder, capacity, extend);
+		return getBuffer(byteOrder, capacity, extend);
 	}
 	
 	/**
@@ -104,7 +119,7 @@ public class DynamicByteBufferBackedChannelBufferFactory implements ChannelBuffe
 	 * @return a new DynamicByteBufferBackedChannelBuffer
 	 */
 	public DynamicByteBufferBackedChannelBuffer getBuffer(final int capacity, final float extend) {
-		return new DynamicByteBufferBackedChannelBuffer(byteOrder, capacity, extend);
+		return getBuffer(byteOrder, capacity, extend);
 	}
 	
 	/**

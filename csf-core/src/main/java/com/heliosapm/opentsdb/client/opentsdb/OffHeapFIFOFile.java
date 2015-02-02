@@ -44,8 +44,9 @@ import org.apache.logging.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBufferInputStream;
 import org.jboss.netty.buffer.ChannelBufferOutputStream;
-import org.jboss.netty.buffer.DirectChannelBufferFactory;
-import org.jboss.netty.buffer.DynamicChannelBuffer;
+
+import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBuffer;
+import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 
 /**
  * <p>Title: OffHeapFIFOFile</p>
@@ -61,14 +62,14 @@ public class OffHeapFIFOFile {
 	/** The underlying file */
 	private final File file;
 	/** The off-heap transfer buffer */
-	private final ChannelBuffer ohbuff;
+	private final DynamicByteBufferBackedChannelBuffer ohbuff;
 	/** Temporary compression buffer, allocated when needed */
-	private ChannelBuffer tmpBuffer = null;
+	private DynamicByteBufferBackedChannelBuffer tmpBuffer = null;
 	/** Transfer buffer for compression, allocated when needed */
 	private byte[] transferBuff = null;
 	
 	/** The buffer factory for allocating composite buffers to stream reads and writes through offheap space */
-	private static final DirectChannelBufferFactory bufferFactory = new DirectChannelBufferFactory(4096);
+    protected static final DynamicByteBufferBackedChannelBufferFactory bufferFactory = new DynamicByteBufferBackedChannelBufferFactory(4096);
 	
 	/** Static class logger */
 	private static final Logger log = LogManager.getLogger(OffHeapFIFOFile.class);
@@ -136,7 +137,7 @@ public class OffHeapFIFOFile {
 		if(file.length()==0) {
 			initSize();
 		}
-		ohbuff = new DynamicChannelBuffer(ByteOrder.nativeOrder(), 4096, bufferFactory);
+		ohbuff = bufferFactory.getBuffer();
 	}
 	
 	/**
@@ -151,6 +152,8 @@ public class OffHeapFIFOFile {
 		}
 	}
 	
+	
+	
 	/**
 	 * Deletes this file and removes it from cache
 	 * @return true if successfully deleted, false otherwise
@@ -158,8 +161,25 @@ public class OffHeapFIFOFile {
 	public boolean delete() {
 		final boolean del = file.delete();
 		if(del) FILECACHE.remove(file.getAbsolutePath());
-		return del;
-		
+		ohbuff.clean();
+		if(tmpBuffer!=null) {
+			tmpBuffer.clean();
+			tmpBuffer = null;
+		}
+		transferBuff = null;	
+		return del;		
+	}
+	
+	
+	void slimDown() {
+		ohbuff.reset();
+		DynamicByteBufferBackedChannelBuffer t = tmpBuffer;
+		tmpBuffer = null;
+		if(t!=null) {
+			t.clean();
+			t = null;
+		}
+		transferBuff = null;		
 	}
 	
 	/**
@@ -396,7 +416,7 @@ public class OffHeapFIFOFile {
 		MappedByteBuffer buff = null;
 		RandomAccessFile raf = null;
 		FileChannel fc = null;
-		ChannelBuffer tmp = new DynamicChannelBuffer(ByteOrder.nativeOrder(), 4096, bufferFactory);
+		final ChannelBuffer tmp = bufferFactory.getBuffer();
 		int byteSize = -1;
 		byte[] bytes = null;
 		try {
@@ -422,6 +442,7 @@ public class OffHeapFIFOFile {
 			throw new RuntimeException("Failed to dump file [" + fileName + "]", ex);
 		} finally {
 			clean(buff);
+			clean(tmp);
 			if(raf!=null) try { raf.close(); } catch (Exception x) {/* No Op */}
 			if(fc!=null) try { fc.close(); } catch (Exception x) {/* No Op */}
 		}
@@ -655,7 +676,7 @@ public class OffHeapFIFOFile {
 	 */
 	private void initXpressionBuffers() {
 		if(tmpBuffer==null) {
-			tmpBuffer = new DynamicChannelBuffer(ByteOrder.nativeOrder(), 4096, bufferFactory);
+			tmpBuffer = bufferFactory.getBuffer();
 		}
 		tmpBuffer.clear();
 		if(transferBuff == null) {
@@ -758,7 +779,8 @@ public class OffHeapFIFOFile {
 	public static void decompress(final ChannelBuffer buffer, ChannelBuffer tmpBuffer, byte[] transferBuff) {
 		if(buffer==null || buffer.readableBytes()==0) return;		
 		if(transferBuff==null) transferBuff = new byte[XFER_BUFF_SIZE];
-		if(tmpBuffer==null) tmpBuffer = new DynamicChannelBuffer(ByteOrder.nativeOrder(), 4096, bufferFactory);
+		final boolean cleanTmpBuff = tmpBuffer==null; 
+		if(cleanTmpBuff) tmpBuffer = bufferFactory.getBuffer();
 		ChannelBufferOutputStream cbos = new ChannelBufferOutputStream(tmpBuffer);
 		ChannelBufferInputStream cbis = new ChannelBufferInputStream(buffer);		
 		GZIPInputStream gos = null; 
@@ -774,6 +796,7 @@ public class OffHeapFIFOFile {
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 		} finally {
+			if(cleanTmpBuff) clean(tmpBuffer);
 			try { cbos.close(); } catch (Exception x) {/* No Op */}
 			try { cbis.close(); } catch (Exception x) {/* No Op */}
 			if(gos!=null) try { gos.close(); } catch (Exception x) {/* No Op */}
@@ -790,7 +813,8 @@ public class OffHeapFIFOFile {
 	public static int compress(final ChannelBuffer buffer, ChannelBuffer tmpBuffer, byte[] transferBuff) {
 		if(buffer==null || buffer.readableBytes()==0) return -1;
 		if(transferBuff==null) transferBuff = new byte[XFER_BUFF_SIZE];
-		if(tmpBuffer==null) tmpBuffer = new DynamicChannelBuffer(ByteOrder.nativeOrder(), 4096, bufferFactory);
+		final boolean cleanTmpBuff = tmpBuffer==null; 
+		if(cleanTmpBuff) tmpBuffer = bufferFactory.getBuffer();
 		ChannelBufferOutputStream cbos = new ChannelBufferOutputStream(tmpBuffer);
 		ChannelBufferInputStream cbis = new ChannelBufferInputStream(buffer);		
 		GZIPOutputStream gos = null; 
@@ -809,6 +833,7 @@ public class OffHeapFIFOFile {
 		} catch (Exception ex) {
 			return -1;
 		} finally {
+			if(cleanTmpBuff) clean(tmpBuffer);
 			try { cbos.close(); } catch (Exception x) {/* No Op */}
 			try { cbis.close(); } catch (Exception x) {/* No Op */}
 			if(gos!=null) try { gos.close(); } catch (Exception x) {/* No Op */}			
@@ -823,6 +848,22 @@ public class OffHeapFIFOFile {
 		return isGzipped(file);
 	}
 
+	
+	/**
+	 * Cleans an array of ChannelBuffers if they are instances of {@link DynamicByteBufferBackedChannelBuffer}
+	 * @param buffs The array of buffers to clean
+	 */
+	public static void clean(final ChannelBuffer...buffs) {
+		if(buffs!=null) {
+			for(ChannelBuffer buff: buffs) {
+				if(buff==null) continue;
+				if(buff instanceof DynamicByteBufferBackedChannelBuffer) {
+					((DynamicByteBufferBackedChannelBuffer)buff).clean();
+				}
+			}
+		}
+		
+	}
 	
 	
 	/**

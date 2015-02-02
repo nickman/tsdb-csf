@@ -32,17 +32,22 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.TreeSet;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jboss.netty.buffer.ChannelBuffer;
 
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -314,6 +319,16 @@ public class MetricPersistence implements FilenameFilter  {
 		}
 	}
 	
+	private final ThreadFactory threadFactory = new ThreadFactory() {
+		final AtomicLong serial = new AtomicLong(0L);
+		@Override
+		public Thread newThread(final Runnable r) {
+			final Thread t = new Thread(r, "FlushToServerThread#" + serial.incrementAndGet());
+			t.setDaemon(true);
+			return t;
+		}
+	};
+	
 	
 	/**
 	 * Attempts to flush all buffered metrics to the TSDB server
@@ -321,55 +336,81 @@ public class MetricPersistence implements FilenameFilter  {
 	 * TODO: delete file when down to zero entries and <header-size> file size
 	 */
 	public synchronized void flushToServer(final HttpMetricsPoster poster) {
+		final long start = System.currentTimeMillis();
 		final OffHeapFIFOFile  current = rollOfflineFile();
-		final int maxConcurrent = poster.getMaxConcurrentFlushes();		
-		final Semaphore limit = new Semaphore(maxConcurrent, false);
+		final int maxConcurrent = poster.getMaxConcurrentFlushes();
+		final int entries = getOfflineEntryCount();
+		if(entries==0) return;
+		final ArrayBlockingQueue<Runnable> workQueue = new ArrayBlockingQueue<Runnable>(entries);
+		final ThreadPoolExecutor tpe = new ThreadPoolExecutor(maxConcurrent, maxConcurrent, 5, TimeUnit.SECONDS, workQueue, threadFactory, new ThreadPoolExecutor.AbortPolicy());
+		tpe.prestartAllCoreThreads();
+		log.warn("Max concurrent flushes: {}", maxConcurrent);
 		final long limitTimeoutMs = (poster.getConnectionTimeout() + poster.getRequestTimeout()) * maxConcurrent;
 		outerloop:
-		for(File f: persistDir.listFiles(this)) {				
+		for(final File f: persistDir.listFiles(this)) {
+			OffHeapFIFOFile ff = null;
 			try {
-				OffHeapFIFOFile ff = OffHeapFIFOFile.get(f);
+				ff = OffHeapFIFOFile.get(f);
 				if(current.equals(ff)) continue;
 				while(ff.getEntrySize()>0) {
 					if(poster.isHardDown()) break outerloop;
 					final File[] tmpFile = ff.extract(1);
 					if(tmpFile.length==1) {
 						try {
-							if(!limit.tryAcquire(limitTimeoutMs, TimeUnit.MILLISECONDS)) {
-								log.warn("Timed out waiting to acquire flush semaphore in [{}]. Cancelling flush.", limitTimeoutMs);
-								break outerloop;								
-							}
-						} catch (InterruptedException iex) {
-							log.warn("Thread interrupted while waiting on flush semaphore. Cancelling flush.");
-							break outerloop;
+							tpe.execute(new Runnable(){
+								@Override
+								public void run() {									
+									try {
+										log.debug("[{}] Sending: {}", Thread.currentThread(), tmpFile[0].getName());
+										final CountDownLatch latch = new CountDownLatch(1);
+										poster.send(tmpFile[0], new  CompletionCallback<Integer>(){
+											final AtomicBoolean callbackCalled = new AtomicBoolean(false);
+											@Override
+											public void onComplete(final Integer completionValue) {
+												if(callbackCalled.compareAndSet(false, true)) {
+													if(completionValue!=null) {
+														if(completionValue==1) flushFailedCounter.incrementAndGet();
+														else if(completionValue==2) flushBadContentCounter.incrementAndGet();
+														else if(completionValue==3) flushSuccessCounter.incrementAndGet();
+													}		
+													latch.countDown();
+												}
+											}							
+										});
+										try {
+											if(!latch.await(limitTimeoutMs, TimeUnit.MILLISECONDS)) {
+												log.error("Timed out waiting for file flush");
+											} 
+										} catch (InterruptedException iex) {
+											log.error("Thread interrupted while waiting on file flush", iex);
+										}
+									} finally {
+										log.warn("[{}] Sent: {}", Thread.currentThread(), tmpFile[0].getName());
+									}
+								}
+							});
+						} catch (Exception ex) {
+							log.error("Inner Loop Exception", ex);
 						}
-						log.debug("Sending {}, gzip:{}", tmpFile[0].getName(), OffHeapFIFOFile.isGzipped(tmpFile[0]));
-						poster.send(tmpFile[0], new  CompletionCallback<Integer>(){
-							@Override
-							public void onComplete(final Integer completionValue) {
-								limit.release();
-								log.info("Completed send on tmp file [{}]", tmpFile[0].getName());
-								if(completionValue!=null) {
-									if(completionValue==1) flushFailedCounter.incrementAndGet();
-									else if(completionValue==2) flushBadContentCounter.incrementAndGet();
-									else if(completionValue==3) flushSuccessCounter.incrementAndGet();
-								}		
-							}							
-						});
 					}
 				}
-//				log.log(Level.FINE, "Extracting {0}", ff);
-//				File[] tmpFiles = ff.extract(entries);
-//				log.log(Level.INFO, "Extracted {0} from {1}", new Object[]{tmpFiles.length, ff});
-//				log.info("Extracted [" + tmpFiles.length + "] from " + ff);
-//				for(File tmpFile : tmpFiles) {
-//					log.log(Level.INFO, "Sending {0}, gzip:{1}", new Object[]{tmpFile.getName(), OffHeapFIFOFile.isGzipped(tmpFile) });
-//					poster.send(tmpFile, this);
-//				}
-				ff.delete();
 			} catch (Exception ex) {
-				ex.printStackTrace(System.err);
+				log.error("Outer Loop Exception", ex);
+			} finally {
+				ff.delete();
 			}
+		}
+		tpe.shutdown();
+		try {
+			if(!tpe.awaitTermination(30, TimeUnit.SECONDS)) {
+				log.error("Timed out waiting for flush completion");
+			} else {
+				log.info("\n\n\t==============================================================\n\tOffline Flush Complete\n\tElapsed: {} ms.\n\tEntries: {}\n\t==============================================================\n", System.currentTimeMillis() - start, entries);
+			}
+		} catch (InterruptedException iex) {
+			log.error("Thread interrupted while waiting on flush completion", iex);
+		} finally {
+			try { tpe.shutdownNow(); } catch (Exception x) {/* No Op */}
 		}
 	}
 	
@@ -389,7 +430,8 @@ public class MetricPersistence implements FilenameFilter  {
 	protected OffHeapFIFOFile rollOfflineFile() {
 		synchronized(currentOfflineFile) {
 			OffHeapFIFOFile offlineFile = OffHeapFIFOFile.get(persistDir, String.format(FILE_NAME_TEMPLATE, fileNameIndex.incrementAndGet()));
-			currentOfflineFile.set(offlineFile);
+			final OffHeapFIFOFile priorFile = currentOfflineFile.getAndSet(offlineFile);
+			if(priorFile!=null) priorFile.slimDown();
 			return offlineFile;
 		}
 	}

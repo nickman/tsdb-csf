@@ -30,7 +30,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.util.Timeout;
-import org.json.JSONArray;
 
 import com.codahale.metrics.Clock;
 import com.codahale.metrics.Counter;
@@ -54,13 +53,6 @@ import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFa
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter</code></p>
  */
 
-/**
- * <p>Title: OpenTSDBReporter</p>
- * <p>Description: </p> 
- * <p>Company: Helios Development Group LLC</p>
- * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter</code></p>
- */
 public class OpenTSDBReporter implements Reporter, Closeable {
 	/** Instance logger */
 	protected final Logger log = LogManager.getLogger(getClass());
@@ -116,6 +108,7 @@ public class OpenTSDBReporter implements Reporter, Closeable {
 	 * @param rateUnit The rate conversion unit
 	 * @param durationUnit The duration conversion unit
 	 * @param filter An optional metric filter to be selective about which metrics are reported
+	 * @param extraTags Optional extra tags to all submissions made from this reporter
 	 */
 	public OpenTSDBReporter(final MetricRegistry registry, final String prefix, final TimeUnit rateUnit, final TimeUnit durationUnit, final MetricFilter filter, final Map<String, String> extraTags) {
         this.tags = extraTags;
@@ -173,6 +166,9 @@ public class OpenTSDBReporter implements Reporter, Closeable {
     }
 	
 	
+	/**
+	 * Gathers and submits all metrics for the underlying metric registry
+	 */
 	public void report() {
         synchronized (this) {
             report(registry.getGauges(metricFilter),
@@ -226,13 +222,12 @@ public class OpenTSDBReporter implements Reporter, Closeable {
         	buffer.writerIndex(buffer.writerIndex()-1);
         	buffer.writeBytes(ARR_CLOSER);
         	
-       	try {
-    		JSONArray j = new JSONArray(buffer.toString(UTF8));
-    		System.out.println(j.toString(2));
-    		
-    	} catch (Exception ex) {
-    		System.out.println(buffer.toString(UTF8));
-    	}
+//       	try {
+//    		JSONArray j = new JSONArray(buffer.toString(UTF8));
+//    		System.out.println(j.toString(2));    		
+//    	} catch (Exception ex) {
+//    		System.out.println(buffer.toString(UTF8));
+//    	}
         	
         	
         	opentsdb.send(buffer, metricCount);
@@ -399,6 +394,18 @@ public class OpenTSDBReporter implements Reporter, Closeable {
                     tags);
         }
     }
+
+
+
+
+
+	/**
+	 * Returns the 
+	 * @return the registry
+	 */
+	public MetricRegistry getRegistry() {
+		return registry;
+	}
 	
 
 }

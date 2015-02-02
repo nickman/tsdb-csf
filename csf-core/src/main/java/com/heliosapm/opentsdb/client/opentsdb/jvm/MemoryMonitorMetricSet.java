@@ -37,6 +37,8 @@ import com.heliosapm.opentsdb.client.util.Util;
 
 public class MemoryMonitorMetricSet extends BaseMBeanObserver {
 	
+	/**  */
+	private static final long serialVersionUID = 5412548386735483672L;
 	/** The memory mxbean jmx ObjectName */
 	static final ObjectName OBJECT_NAME = Util.objectName(ManagementFactory.MEMORY_MXBEAN_NAME);
 	/** The attribute name for pending final count */
@@ -51,8 +53,7 @@ public class MemoryMonitorMetricSet extends BaseMBeanObserver {
 	/** The attribute names of the composite memory types */
 	static final String[] SUB_ATTR_NAMES = {"init", "used", "committed", "max", "percentUsage", "percentCapacity"};
 	
-	
-	
+	/** A map of memory values */
 	protected final Map<String, long[]> poolAttrValues;
 
 	/**

@@ -15,8 +15,11 @@
  */
 package com.heliosapm.opentsdb.client.opentsdb;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBuffer;
 
 
 /**
@@ -312,5 +315,16 @@ public interface HttpMetricsPosterMXBean {
 	 */
 	public void setPutResponseHandlerName(final String handler);
 	
+	/**
+	 * Returns the number of {@link DynamicByteBufferBackedChannelBuffer} instances active 
+	 * @return the number of {@link DynamicByteBufferBackedChannelBuffer} instances active
+	 */
+	public long getBuffersAllocated();
+	
+	/**
+	 * Returns the total amount of memory allocated by {@link DynamicByteBufferBackedChannelBuffer} active instances 
+	 * @return the total amount of memory allocated by {@link DynamicByteBufferBackedChannelBuffer} active instances
+	 */
+	public long getBufferMemoryAllocated();
 	
 }
