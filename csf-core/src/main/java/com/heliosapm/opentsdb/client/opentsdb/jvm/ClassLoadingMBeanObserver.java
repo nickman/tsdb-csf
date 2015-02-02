@@ -66,21 +66,21 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 		loadedClassCountGauge = new Gauge<Integer>() {
 			@Override
 			public Integer getValue() {
-				latch.countDown();
+				actionCounter.incr();
 				return loadedClassCount;
 			}
 		};
 		totalLoadedClassCountGauge = new Gauge<Long>() {
 			@Override
 			public Long getValue() {
-				latch.countDown();
+				actionCounter.incr();
 				return totalLoadedClassCount;
 			}
 		};
 		unloadedClassCountGauge = new Gauge<Long>() {
 			@Override
 			public Long getValue() {
-				latch.countDown();
+				actionCounter.incr();
 				return unloadedClassCount;
 			}
 		};

@@ -197,10 +197,8 @@ public class OpenTSDBReporter implements Reporter, Closeable {
         final long timestamp = clock.getTime();
         int metricCount = 0;
         for (Map.Entry<String, Gauge> g : gauges.entrySet()) {
-            if(g.getValue().getValue() instanceof Collection && ((Collection<?>)g.getValue().getValue()).isEmpty()) {
-                continue;
-            }
-            metricCount += build(g.getKey(), g.getValue(), timestamp, buffer);
+        	final Object value = g.getValue().getValue(); 
+            metricCount += build(g.getKey(), value, timestamp, buffer);
         }
         
         for (Map.Entry<String, Counter> entry : counters.entrySet()) {
@@ -234,9 +232,10 @@ public class OpenTSDBReporter implements Reporter, Closeable {
         }
     }
     
-    protected int build(final String name, final Gauge<?> gauge, final long timestamp, final ChannelBuffer chBuff) {    	
+    protected int build(final String name, final Object gaugeValue, final long timestamp, final ChannelBuffer chBuff) {
+    	final String value = gaugeValue.toString();
     	otMetricCache.getOTMetric(name, prefix, null, tags)
-    		.toJSON(timestamp, gauge.getValue(), chBuff, true);
+    		.toJSON(timestamp, value, chBuff, true);
     	return 1;
     }
     

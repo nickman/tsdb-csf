@@ -82,7 +82,7 @@ public class BufferPoolMetricSet extends BaseMBeanObserver {
     		metrics.put("java.lang.bufferpools.MemoryUsed:" + on.getCanonicalKeyPropertyListString() + "," + getAgentNameTags(), new Gauge<Long>() {    			
     			@Override
     			public Long getValue() {
-    				latch.countDown();
+    				actionCounter.incr();
     				long[] vals = poolAttrValues.get(on);
     				return vals[0];
     				//return poolAttrValues.get(on)[0];
@@ -91,7 +91,7 @@ public class BufferPoolMetricSet extends BaseMBeanObserver {
     		metrics.put("java.lang.bufferpools.TotalCapacity:" + on.getCanonicalKeyPropertyListString() + "," + getAgentNameTags(), new Gauge<Long>() {
     			@Override
     			public Long getValue() {
-    				latch.countDown();
+    				actionCounter.incr();
     				return poolAttrValues.get(on)[1];
     			}
     		});

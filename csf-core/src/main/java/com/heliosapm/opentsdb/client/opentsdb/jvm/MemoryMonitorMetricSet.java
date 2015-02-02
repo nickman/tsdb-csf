@@ -68,7 +68,7 @@ public class MemoryMonitorMetricSet extends BaseMBeanObserver {
 				metrics.put("java.lang.mem.finalCount:" + OBJECT_NAME.getCanonicalKeyPropertyListString() + "," + getAgentNameTags(), new Gauge<Long>() {    			
 					@Override
 					public Long getValue() {
-						latch.countDown();
+						actionCounter.incr();
 						return poolAttrValues.get(recorderKey(OBJECT_NAME, OPFC))[0];
 					}
 				});				
@@ -82,7 +82,7 @@ public class MemoryMonitorMetricSet extends BaseMBeanObserver {
 					metrics.put(metricName, new Gauge<Long>(){
 						@Override
 						public Long getValue() {
-							latch.countDown();
+							actionCounter.incr();
 							return poolAttrValues.get(key)[index];
 						}
 					});

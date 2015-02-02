@@ -171,39 +171,39 @@ public class OpenTsdb {
 	
 	
 
-    /**
-     * Send a metric to opentsdb
-     *
-     * @param metric the metric to send
-     */
-    public void send(final OpenTsdbMetric metric) {
-        send(Collections.singleton(metric));
-    }
+//    /**
+//     * Send a metric to opentsdb
+//     *
+//     * @param metric the metric to send
+//     */
+//    public void send(final OpenTsdbMetric metric) {
+//        send(Collections.singleton(metric));
+//    }
 
-    /**
-     * send a set of metrics to opentsdb
-     *
-     * @param metrics the metric set to send
-     */
-    public void send(final Set<OpenTsdbMetric> metrics) {
-        // we set the patch size because of existing issue in opentsdb where large batch of metrics failed
-        // see at https://groups.google.com/forum/#!topic/opentsdb/U-0ak_v8qu0
-        // we recommend batch size of 5 - 10 will be safer
-        // alternatively you can enable chunked request
-        if (batchSize > 0 && metrics.size() > batchSize) {
-            final Set<OpenTsdbMetric> smallMetrics = new HashSet<OpenTsdbMetric>();
-            for (final OpenTsdbMetric metric: metrics) {
-                smallMetrics.add(metric);
-                if (smallMetrics.size() >= batchSize) {
-                    sendHelper(smallMetrics);
-                    smallMetrics.clear();
-                }
-            }
-            sendHelper(smallMetrics);
-        } else {
-            sendHelper(metrics);
-        }
-    }
+//    /**
+//     * send a set of metrics to opentsdb
+//     *
+//     * @param metrics the metric set to send
+//     */
+//    public void send(final Set<OpenTsdbMetric> metrics) {
+//        // we set the patch size because of existing issue in opentsdb where large batch of metrics failed
+//        // see at https://groups.google.com/forum/#!topic/opentsdb/U-0ak_v8qu0
+//        // we recommend batch size of 5 - 10 will be safer
+//        // alternatively you can enable chunked request
+//        if (batchSize > 0 && metrics.size() > batchSize) {
+//            final Set<OpenTsdbMetric> smallMetrics = new HashSet<OpenTsdbMetric>();
+//            for (final OpenTsdbMetric metric: metrics) {
+//                smallMetrics.add(metric);
+//                if (smallMetrics.size() >= batchSize) {
+//                    sendHelper(smallMetrics);
+//                    smallMetrics.clear();
+//                }
+//            }
+//            sendHelper(smallMetrics);
+//        } else {
+//            sendHelper(metrics);
+//        }
+//    }
     
     
     public void send(final ChannelBuffer chBuff, final int metricCount) {
@@ -221,25 +221,25 @@ public class OpenTsdb {
     }
     
     
-    private void sendHelper(final Set<OpenTsdbMetric> metrics) {
-        /*
-         * might want to bind to a specific version of the API.
-         * according to: http://opentsdb.net/docs/build/html/api_http/index.html#api-versioning
-         * "if you do not supply an explicit version, ... the latest version will be used."
-         * circle back on this if it's a problem.
-         */
-    	if(httpClient==null) {
-    		httpClient = HttpMetricsPoster.getInstance();
-    	}
-        if (!metrics.isEmpty()) {
-        	httpClient.postMetrics(metrics);
-//        	StringBuilder b = new StringBuilder();
-//        	for(OpenTsdbMetric m: metrics) {
-//        		b.append("\n").append(m.getMetric()).append(" : ").append(m.getTags().toString().replace("{", "").replace("}", ""));
-//        	}
-//        	System.out.println(b.toString());
-        }
-    }
+//    private void sendHelper(final Set<OpenTsdbMetric> metrics) {
+//        /*
+//         * might want to bind to a specific version of the API.
+//         * according to: http://opentsdb.net/docs/build/html/api_http/index.html#api-versioning
+//         * "if you do not supply an explicit version, ... the latest version will be used."
+//         * circle back on this if it's a problem.
+//         */
+//    	if(httpClient==null) {
+//    		httpClient = HttpMetricsPoster.getInstance();
+//    	}
+//        if (!metrics.isEmpty()) {
+//        	httpClient.postMetrics(metrics);
+////        	StringBuilder b = new StringBuilder();
+////        	for(OpenTsdbMetric m: metrics) {
+////        		b.append("\n").append(m.getMetric()).append(" : ").append(m.getTags().toString().replace("{", "").replace("}", ""));
+////        	}
+////        	System.out.println(b.toString());
+//        }
+//    }
     
     public static final Pattern CM_TYPE_PATTERN = Pattern.compile("\\.?cmtype=.*");
 

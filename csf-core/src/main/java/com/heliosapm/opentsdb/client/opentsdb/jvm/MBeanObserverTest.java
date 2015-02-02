@@ -45,7 +45,6 @@ public class MBeanObserverTest {
 		final BaseMBeanObserver gc = MBeanObserverBuilder.newBuilder(server, Util.objectName(ManagementFactory.GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",*"), GCMonitorMetricSet.class).build();
 		
 		
-		//GCMonitorMetricSet
 		
 		MetricRegistry reg = new MetricRegistry();
 		reg.registerAll(compileTime);
@@ -55,7 +54,7 @@ public class MBeanObserverTest {
 		reg.registerAll(gc);
 //		ConsoleReporter creporter = ConsoleReporter.forRegistry(reg).outputTo(System.out).build();
 		OpenTSDBReporter reporter = OpenTSDBReporter.forRegistry(reg).build();
-		reporter.start(15, TimeUnit.SECONDS);
+		reporter.start(5, TimeUnit.SECONDS);
 //		creporter.start(5, TimeUnit.SECONDS);
 //		KitchenSink ks = new KitchenSink(reporter);
 		final Random r = new Random(System.currentTimeMillis());

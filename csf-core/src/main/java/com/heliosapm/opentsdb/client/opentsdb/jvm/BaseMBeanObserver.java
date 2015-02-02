@@ -57,6 +57,7 @@ import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
 import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
+import com.heliosapm.opentsdb.client.util.CircularActionCounter;
 
 /**
  * <p>Title: BaseMBeanObserver</p>
@@ -92,8 +93,8 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	/** The refresh task scheduler handle */
 	protected Timeout timerHandle = null;
 	
-	/** The laych to prevent metrics from the same collector to be sampled with different period readings */
-	protected final ResettingCountDownLatch latch;
+	/** The refresh triggering action counter */
+	protected final CircularActionCounter actionCounter;
 	
 	
 	/** The frequency of the observer observations in ms. */
@@ -122,11 +123,15 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 		this.collectionAttrNames = collectionAttrNames;
 		period = TimeUnit.MILLISECONDS.convert(builder.getPeriod(), builder.getUnit());
 		timeout = TimeUnit.MILLISECONDS.convert(builder.getTimeout(), builder.getTimeoutUnit());
-		latch = ResettingCountDownLatch.newInstance(collectionAttrNames.length); //  * objectNameCount
+		actionCounter = new CircularActionCounter(collectionAttrNames.length * objectNameCount, new Runnable(){
+			public void run() {
+				Threading.getInstance().async(BaseMBeanObserver.this);				
+			}
+		});  
 		agentNameFinder = builder.getNameFinder();
 		setAgentNameTags();
 		if(period > 0) {
-			timerHandle = Threading.getInstance().schedule(this, period);
+			//timerHandle = Threading.getInstance().schedule(this, period);
 			Threading.getInstance().async(this);
 		}
 		
@@ -172,13 +177,7 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 		for(ObjectName on: objectNames) {
 			attrMaps.put(on, getAttributes(on, mbs, collectionAttrNames));
 		}
-		try {
-			latch.await(500, TimeUnit.MILLISECONDS);
-			acceptData(attrMaps);
-		} catch (Exception ex) {
-			// what to do here ?
-			ex.printStackTrace(System.err);
-		}
+		acceptData(attrMaps);
 	}
 	
 
@@ -212,10 +211,26 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	 * @return the computed delta which could be null
 	 */
 	protected Long delta(final String name, final long sample, final Long defaultValue) {
-		long[] state = longDeltas.putIfAbsent(name, new long[]{sample});
-		if(state==null) return defaultValue;
-		return sample - state[0];
+		final long[] samp = new long[]{sample};
+		long[] state = longDeltas.putIfAbsent(name, samp);
+		if(state==null) {
+			log.info("Initialized Delta [{}]: {}", name, sample);
+			return defaultValue;
+		}
+		state = longDeltas.replace(name, samp);
+		long delta = sample - state[0];
+		if(delta!=0) {
+			log.info("Calc Delta [{}]: state:{}, sample:{}, delta:{}", name, state[0], sample, delta);
+		}
+		return delta;
 	}
+	
+//	protected Long delta(final String name, final long sample, final Long defaultValue) {
+//		final long[] samp = new long[]{sample};
+//		long[] state = longDeltas.putIfAbsent(name, samp);
+//		if(state==null) return defaultValue;
+//		return sample - longDeltas.replace(name, samp)[0];
+//	}
 	
 	/**
 	 * Computes a delta between the named passed sample and the prior sample for the same name.
@@ -226,6 +241,26 @@ public abstract class BaseMBeanObserver implements MetricSet, NotificationListen
 	protected Long delta(final String name, final long sample) {
 		return delta(name, sample, null);
 	}
+	
+	/**
+	 * Returns the elapsed time for the passed delta key since the last call
+	 * @param name The delta key
+	 * @param unit The unit of elapsed time to report in
+	 * @return the elapsed time or <b><code>-1L</code></b> if this was the first call.
+	 */
+	protected long elapsed(final String name, final TimeUnit unit) {
+		return  delta(name, unit.convert(System.nanoTime(), TimeUnit.NANOSECONDS), -1L);
+	}
+	
+	/**
+	 * Returns the elapsed time in ms for the passed delta key since the last call
+	 * @param name The delta key
+	 * @return the elapsed time or <b><code>-1L</code></b> if this was the first call.
+	 */
+	protected long elapsed(final String name) {
+		return  delta(name, System.currentTimeMillis(), -1L);
+	}
+	
 
 	/**
 	 * Creates an MXBean proxy for the delegate

@@ -17,10 +17,8 @@
 package com.heliosapm.opentsdb.client.opentsdb.jvm;
 
 import java.lang.management.ManagementFactory;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 
 import javax.management.ObjectName;
 
@@ -40,6 +38,7 @@ public class GCMonitorMetricSet extends BaseMBeanObserver {
 	static final String COLLCOUNT = "CollectionCount";
 	/** The attribute name for the GC collection time */
 	static final String COLLTIME = "CollectionTime";
+	
 	/** The attribute name for the last GC info composite data set */
 	static final String GCINFO = "LastGcInfo";
 	
@@ -47,6 +46,9 @@ public class GCMonitorMetricSet extends BaseMBeanObserver {
 	
 	/** The attribute names to bulk retrieve */
 	static final String[] ATTR_NAMES = {COLLTIME, COLLCOUNT};
+	
+	/** The number of cores in the target JVM */
+	final int cores;
 	
 	
 	/** A map of GC values */
@@ -58,21 +60,23 @@ public class GCMonitorMetricSet extends BaseMBeanObserver {
 	 */
 	public GCMonitorMetricSet(final MBeanObserverBuilder builder) {
 		super(builder, ATTR_NAMES);
+		cores = (Integer)mbs.getAttribute(Util.objectName(ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME), "AvailableProcessors");
 		for(final ObjectName on: objectNames) {
 			gcAttrValues.put(on.toString(), new long[]{0,0});
-			for(int i = 0; i < ATTR_NAMES.length; i++) {
+			for(int i = 0; i < ATTR_NAMES.length-1; i++) {
 				final int index = i;
 				final String metricName = String.format("java.lang.gc.%s:%s,%s", ATTR_NAMES[index], on.getCanonicalKeyPropertyListString(),getAgentNameTags());
 				final String key = recorderKey(on);
 				metrics.put(metricName, new Gauge<Long>(){
 					@Override
 					public Long getValue() {
-						latch.countDown();
-//						log.info("Call for [{}] -- {}  [{}]", key + ATTR_NAMES[index], gcAttrValues.get(key)[index], metricName);
-						return delta(key + ATTR_NAMES[index], gcAttrValues.get(key)[index], 0L);									
+						actionCounter.incr();
+						final String attrKey = key + ATTR_NAMES[index]; 
+						final long d = delta(attrKey, gcAttrValues.get(key)[index], 0L);
+						return d;
 					}
 				});					
-			}
+			}			
 		}
 		log.info("Registered [{}] metrics:\n{}", metrics.size(), metrics.keySet());
 	}
@@ -87,6 +91,7 @@ public class GCMonitorMetricSet extends BaseMBeanObserver {
 		for(ObjectName on: objectNames) {
 			Map<String, Object> attrValues = attrMaps.get(on);
 			if(attrValues==null) continue;
+			log.info("----- [{}]  Accepted Data {}", recorderKey(on), attrValues);
 			gcAttrValues.put(recorderKey(on), new long[]{
 				(Long)attrValues.get(ATTR_NAMES[0]), (Long)attrValues.get(ATTR_NAMES[1])
 			});

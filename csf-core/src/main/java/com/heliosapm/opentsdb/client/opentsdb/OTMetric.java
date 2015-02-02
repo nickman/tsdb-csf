@@ -508,48 +508,29 @@ public class OTMetric implements Serializable {
     	}
     }
     
-    /**
-     * Renders the passed set of metrics
-     * @param metrics The metrics to render
-     * @return A buffer containing the metrics JSON rendering
-     */
-    public static StringBuilder setToJSON(final Set<OpenTsdbMetric> metrics) {
-    	if(metrics==null || metrics.isEmpty()) return new StringBuilder("[]");
-    	StringBuilder b = new StringBuilder(1024).append("[");
-    	final int last = metrics.size()-1;
-    	int index = 0;
-    	for(OpenTsdbMetric m: metrics) {
-    		m.toJSON(b);
-    		if(index != last) {
-    			b.append(",");
-    		}
-    		index++;
-    	}
-    	return b.append("]");
-    }
+  
     
-    
-    /**
-     * Writes the passed set of metrics into the passed buffer
-     * @param metrics The metrics to render
-     * @param buffer The buffer to write to
-     * @return The number of metrics written
-     */
-    public static int writeToBuffer(final Set<OTMetric> metrics, final ChannelBuffer buffer) {
-    	if(metrics==null || metrics.isEmpty()) return 0;
-    	buffer.writeBytes(JSON_OPEN_ARR);
-    	final int last = metrics.size()-1;
-    	int index = 0;
-    	for(OTMetric m: metrics) {
-//    		buffer.writeBytes(m.toJSON().toString().getBytes(UTF8));
-    		if(index != last) {
-    			buffer.writeBytes(JSON_COMMA);
-    		}
-    		index++;
-    	}
-    	buffer.writeBytes(JSON_CLOSE_ARR);
-    	return index;
-    }
+//    /**
+//     * Writes the passed set of metrics into the passed buffer
+//     * @param metrics The metrics to render
+//     * @param buffer The buffer to write to
+//     * @return The number of metrics written
+//     */
+//    public static int writeToBuffer(final Set<OTMetric> metrics, final ChannelBuffer buffer) {
+//    	if(metrics==null || metrics.isEmpty()) return 0;
+//    	buffer.writeBytes(JSON_OPEN_ARR);
+//    	final int last = metrics.size()-1;
+//    	int index = 0;
+//    	for(OTMetric m: metrics) {
+////    		buffer.writeBytes(m.toJSON().toString().getBytes(UTF8));
+//    		if(index != last) {
+//    			buffer.writeBytes(JSON_COMMA);
+//    		}
+//    		index++;
+//    	}
+//    	buffer.writeBytes(JSON_CLOSE_ARR);
+//    	return index;
+//    }
 
 	/**
 	 * {@inheritDoc}
