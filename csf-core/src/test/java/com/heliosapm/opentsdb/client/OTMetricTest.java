@@ -16,8 +16,15 @@
 
 package com.heliosapm.opentsdb.client;
 
+import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
+
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
 
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
@@ -30,7 +37,7 @@ import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.OTMetricTest</code></p>
  */
-
+@RunWith(JUnit4.class)
 public class OTMetricTest extends BaseTest {
 
 	/**
@@ -43,6 +50,33 @@ public class OTMetricTest extends BaseTest {
 		OTMetric otm2  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").ext("ext").tag("op", "cache-lookup").tag("service", "cache-service"), 
 				"KitchenSink.resultCounts.ext{op=cache-lookup, service=cache-service}");
 		compare(otm1, otm2);
+		// ==============================
+		otm1  = testBuild(MetricBuilder.metric("KitchenSink.resultCounts.op=cache-lookup.service=cache-service"), 
+				"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
+		otm2  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").tag("op", "cache-lookup").tag("service", "cache-service"), 
+				"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
+		compare(otm1, otm2);
+		
+		
+//		log("Creating OTM for [" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME + "] (" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME.getBytes(UTF8).length + ")");
+//		OTMetric otm = new OTMetric(ManagementFactory.CLASS_LOADING_MXBEAN_NAME);
+//		printDetails(otm);
+//		for(GarbageCollectorMXBean gc: ManagementFactory.getGarbageCollectorMXBeans()) {
+//			otm = new OTMetric(gc.getObjectName().toString());
+//			printDetails(otm);
+//		}
+//		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice");
+//		printDetails(otm);
+//		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice", null, "p75");
+//		printDetails(otm);
+//		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA");
+//		printDetails(otm);
+//		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,app=XX");
+//		printDetails(otm);
+//		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX");
+//		printDetails(otm);
+//		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX", null, "p75");
+//		printDetails(otm);
 		
 		
 	}
@@ -62,7 +96,15 @@ public class OTMetricTest extends BaseTest {
 		return otm;
 	}
 	
+	/**
+	 * Compares two OTMetrics that should have the same longHashCode, same fully qualified name
+	 * and therefore be the same instance.
+	 * @param otm1 The first OTMetric
+	 * @param otm2 The second OTMetric
+	 */
 	protected void compare(final OTMetric otm1, final OTMetric otm2) {
+		Assert.assertNotNull("OTM1 was null", otm1);
+		Assert.assertNotNull("OTM2 was null", otm2);
 		Assert.assertEquals("The names are not the same", otm1.toString(), otm2.toString());
 		Assert.assertEquals("The long hash codes are not the same", otm1.longHashCode(), otm2.longHashCode());
 		Assert.assertEquals("The java hash codes are not the same", otm1.hashCode(), otm2.hashCode());

@@ -1,15 +1,11 @@
 package com.heliosapm.opentsdb.client.opentsdb.jvm;
 
 import java.lang.management.ManagementFactory;
-import java.nio.ByteBuffer;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
 
 import com.codahale.metrics.MetricRegistry;
-import com.heliosapm.opentsdb.client.KitchenSink;
-import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -57,7 +53,6 @@ public class MBeanObserverTest {
 		reporter.start(5, TimeUnit.SECONDS);
 //		creporter.start(5, TimeUnit.SECONDS);
 //		KitchenSink ks = new KitchenSink(reporter);
-		final Random r = new Random(System.currentTimeMillis());
 		while(true) {
 //			ByteBuffer.allocateDirect(Math.abs(r.nextInt(100))+1);
 			try { Thread.currentThread().join(3000); } catch (Exception x) {}

@@ -215,12 +215,11 @@ public class OTMetric implements Serializable {
 //					}					
 				}				
 				final byte[] prefix =
-						(isext && !wasPseudo) ?
-														// + "." + fext
-								(fname.substring(0, cindex) ).getBytes(UTF8)
-								
-							:
-								(cindex==-1 ? fname : fname.substring(0, cindex)).getBytes(UTF8);
+					(
+						(!wasPseudo) ? (fname.substring(0, cindex) ) : (cindex==-1 ? fname : fname.substring(0, cindex))
+						+ 
+						(isext ? ("." + fext) : "")
+					).getBytes(UTF8);
 				final String[] tags = COMMA_SPLITTER.split(fname.substring(cindex+1));
 				
 				
