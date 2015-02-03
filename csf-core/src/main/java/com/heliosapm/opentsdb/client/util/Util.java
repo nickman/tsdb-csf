@@ -240,7 +240,7 @@ public class Util {
 		if(index!=-1) {
 			s = s.substring(index+1);
 		}
-		return s.replace(" ", "_");
+		return s.replace(" ", "");
 	}
 
 	

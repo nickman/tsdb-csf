@@ -30,15 +30,13 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
+import com.heliosapm.opentsdb.client.opentsdb.Threading;
 //import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 //import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 //import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 //import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 //import com.codahale.metrics.jvm.ThreadDeadlockDetector;
 //import com.codahale.metrics.jvm.ThreadStatesGaugeSet;
-import com.heliosapm.opentsdb.client.opentsdb.OpenTsdb;
-import com.heliosapm.opentsdb.client.opentsdb.OpenTsdbReporter;
-import com.heliosapm.opentsdb.client.opentsdb.Threading;
 
 /**
  * <p>Title: KitchenSink</p>

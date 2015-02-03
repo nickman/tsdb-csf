@@ -264,7 +264,8 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		if(enableCompression) {
 			httpHeaders.put(Names.CONTENT_ENCODING, Collections.singleton("x-gzip"));
 		}
-		heartbeat = new Heartbeat(this, heartbeatMetric, heartbeatPeriod).start();
+		// FIXME: move all this to OpenTsdb
+		heartbeat = new Heartbeat(heartbeatMetric, heartbeatPeriod).start();
 		log.info("AsyncHttpClient Created");
 		objectName = registerMBean();
 		if(checker.syncCheck(true)) {
@@ -700,39 +701,39 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	
 	
-	/**
-	 * Sends the passed metrics to the OpenTSDB endpoint
-	 * @param metrics The metrics to send
-	 */
-	public void postMetrics(final Set<OpenTsdbMetric> metrics) {
-		try {
-//			log.info("Posting to [" + tsdbUrl + "/api/put" + "] : " + size + " bytes"); // + new JSONObject(json).toString(2) + "\n===============");
-			if(metrics==null || metrics.isEmpty()) return;
-			final ChannelBuffer metricsBuffer = bufferFactory.getBuffer(metrics.size() * 40);
-			final int metricsToWrite = OpenTsdbMetric.writeToBuffer(metrics, metricsBuffer);
-			send(metricsBuffer, metricsToWrite, 0);
-			
-		} catch (Exception ex) {
-			ex.printStackTrace();  // FIXME:  We don't want to throw anything here, but track errors, and write to pers. file
-		}		
-	}
-	
-	/**
-	 * Sends an array of metrics
-	 * @param metrics the metrics to send
-	 */
-	public void send(final OpenTsdbMetric...metrics) {
-		if(metrics!=null && metrics.length > 0) {
-			Set<OpenTsdbMetric> ms = new HashSet<OpenTsdbMetric>(metrics.length);
-			for(OpenTsdbMetric metric: metrics) {
-				if(metric==null) continue;
-				ms.add(metric);
-			}
-			if(!ms.isEmpty()) {
-				postMetrics(ms);
-			}
-		}
-	}
+//	/**
+//	 * Sends the passed metrics to the OpenTSDB endpoint
+//	 * @param metrics The metrics to send
+//	 */
+//	public void postMetrics(final Set<OpenTsdbMetric> metrics) {
+//		try {
+////			log.info("Posting to [" + tsdbUrl + "/api/put" + "] : " + size + " bytes"); // + new JSONObject(json).toString(2) + "\n===============");
+//			if(metrics==null || metrics.isEmpty()) return;
+//			final ChannelBuffer metricsBuffer = bufferFactory.getBuffer(metrics.size() * 40);
+//			final int metricsToWrite = OpenTsdbMetric.writeToBuffer(metrics, metricsBuffer);
+//			send(metricsBuffer, metricsToWrite, 0);
+//			
+//		} catch (Exception ex) {
+//			ex.printStackTrace();  // FIXME:  We don't want to throw anything here, but track errors, and write to pers. file
+//		}		
+//	}
+//	
+//	/**
+//	 * Sends an array of metrics
+//	 * @param metrics the metrics to send
+//	 */
+//	public void send(final OpenTsdbMetric...metrics) {
+//		if(metrics!=null && metrics.length > 0) {
+//			Set<OpenTsdbMetric> ms = new HashSet<OpenTsdbMetric>(metrics.length);
+//			for(OpenTsdbMetric metric: metrics) {
+//				if(metric==null) continue;
+//				ms.add(metric);
+//			}
+//			if(!ms.isEmpty()) {
+//				postMetrics(ms);
+//			}
+//		}
+//	}
 	
 
 	/**

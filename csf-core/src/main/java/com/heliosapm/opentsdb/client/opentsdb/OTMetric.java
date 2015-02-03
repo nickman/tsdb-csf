@@ -28,13 +28,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 
+import com.google.common.hash.Funnel;
+import com.google.common.hash.HashCode;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
+import com.google.common.hash.PrimitiveSink;
 import com.heliosapm.opentsdb.client.name.AgentName;
-import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBuffer;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -51,7 +54,9 @@ public class OTMetric implements Serializable {
 	/** The buffer containing the OTMetric details */
 	final ByteBuffer nameBuffer;
 	/** The calculated hash code */
-	final int hashCode;
+	final HashCode hashCode;
+	
+	// TODO:  put the hashCode int and long hash codes in the nameBuffer
 	
 	static final short HAS_APP_TAG = 0;							// 1 byte
 	static final short HAS_HOST_TAG = HAS_APP_TAG + 1;			// 1 byte
@@ -75,15 +80,42 @@ public class OTMetric implements Serializable {
 	/** Empty tag map const */
 	static final Map<String, String> EMPTY_TAG_MAP = Collections.unmodifiableMap(new HashMap<String, String>(0));
 	
+	/** UTF8 bytes for the App tag key */
 	static final byte[] APP_TAG_BYTES = Constants.APP_TAG.getBytes(UTF8);
+	/** UTF8 bytes for the Host tag key */
 	static final byte[] HOST_TAG_BYTES = Constants.HOST_TAG.getBytes(UTF8);
+	/** UTF8 bytes for the JSON array opener */
     static final byte[] JSON_OPEN_ARR = "[".getBytes(UTF8);
+    /** UTF8 bytes for the JSON array closer */
     static final byte[] JSON_CLOSE_ARR = "]".getBytes(UTF8);
+    /** UTF8 bytes for a comma */
     static final byte[] JSON_COMMA = ",".getBytes(UTF8);
 	
 	
+	/** Comma splitting pattern */
 	static final Pattern COMMA_SPLITTER = Pattern.compile(",");
+	/** Dot splitting pattern */
 	static final Pattern DOT_SPLITTER = Pattern.compile("\\.");
+	
+	/** The hashing function to compute hashes for OTMetrics */
+	public static final HashFunction OTMETRIC_HASH = Hashing.murmur3_128();
+	
+
+	/** The hashing funnel for OTMetrics */
+	public static final Funnel<OTMetric> OTMETRIC_FUNNEL = new Funnel<OTMetric>() {
+	     /**  */
+		private static final long serialVersionUID = -3637425354414746924L;
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.google.common.hash.Funnel#funnel(java.lang.Object, com.google.common.hash.PrimitiveSink)
+		 */
+		@Override
+		public void funnel(final OTMetric metric, final PrimitiveSink into) {
+	    	 into.putString(metric.getMetricName(), UTF8)
+	    	 	.putString(metric.getTags().toString(), UTF8);	    	 
+	     }		
+	};
 	
 	/**
 	 * Creates a new OTMetric
@@ -128,7 +160,8 @@ public class OTMetric implements Serializable {
 		final String fext = extension==null ? null : extension.trim(); 
 		final boolean isext = fext!=null && !fext.isEmpty();
 		int eindex = fname.indexOf('=');		
-		if(eindex==-1) {
+		final boolean hasTags = (extraTags!=null && !extraTags.isEmpty());
+		if(eindex==-1 && !hasTags) {
 			if(isext) {
 				fname = fname + "." + fext; 
 			}			
@@ -143,15 +176,14 @@ public class OTMetric implements Serializable {
 					.putInt(ZERO_BYTE)					// Zero tags
 					.put(name)
 					.asReadOnlyBuffer()
-					.flip();
-			hashCode = fname.hashCode();
+					.flip();			
 		} else {
 			ByteBuffer buff = null;
 			try {
-				buff = ByteBuffer.allocateDirect(fname.getBytes(UTF8).length*2);
+				buff = ByteBuffer.allocateDirect((fname.getBytes(UTF8).length + (hasTags ? extraTags.toString().length() : 0))*2);
 				int cindex = fname.indexOf(':');
 				final boolean wasPseudo = cindex==-1;				
-				if(cindex==-1) {
+				if(cindex==-1 && !hasTags) {
 					
 					// pseudo flat metric, e.g. [KitchenSink.resultCounts.op=cache-lookup.service=cacheservice]
 					final String[] prefixes = DOT_SPLITTER.split(fname.substring(0, eindex));
@@ -170,17 +202,28 @@ public class OTMetric implements Serializable {
 					for(String tag: tags) {
 						b.append(tag).append(",");
 					}
-					fname = b.deleteCharAt(b.length()-1).toString();	
+					b.deleteCharAt(b.length()-1);
+//					if(isext) {
+//						b.append(".").append(fext);
+//					}
+					fname = b.toString();
 					cindex = fname.indexOf(':');
 					eindex = fname.indexOf('=');
-				}
+				} else {
+//					if(isext) {
+//						fname = fname + "." + fext;
+//					}					
+				}				
 				final byte[] prefix =
 						(isext && !wasPseudo) ?
-								(fname.substring(0, cindex) + "." + fext).getBytes(UTF8)
+														// + "." + fext
+								(fname.substring(0, cindex) ).getBytes(UTF8)
 								
 							:
-								fname.substring(0, cindex).getBytes(UTF8);
+								(cindex==-1 ? fname : fname.substring(0, cindex)).getBytes(UTF8);
 				final String[] tags = COMMA_SPLITTER.split(fname.substring(cindex+1));
+				
+				
 				buff					
 					.put(ZERO_BYTE)			// App Tag, Zero for now
 					.put(ZERO_BYTE)			// Host Tag, Zero for now
@@ -236,13 +279,15 @@ public class OTMetric implements Serializable {
 				buff.putInt(actualTagCount);					
 				buff.limit(pos);
 				buff.position(0);				
-				nameBuffer = ByteBuffer.allocateDirect(buff.limit()).put(buff).asReadOnlyBuffer();
-				hashCode = toString().hashCode();
+				nameBuffer = ByteBuffer.allocateDirect(buff.limit()).put(buff).asReadOnlyBuffer();				
 			} finally {
 				OffHeapFIFOFile.clean(buff);
 			}
 		}
+		hashCode = OTMETRIC_HASH.hashObject(this, OTMETRIC_FUNNEL);
 	}
+	
+	
 	
 	
 	
@@ -257,7 +302,7 @@ public class OTMetric implements Serializable {
 		}
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice");
 		printDetails(otm);
-		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice", "p75");
+		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice", null, "p75");
 		printDetails(otm);
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA");
 		printDetails(otm);
@@ -265,7 +310,7 @@ public class OTMetric implements Serializable {
 		printDetails(otm);
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX");
 		printDetails(otm);
-		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX", "p75");
+		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX", null, "p75");
 		printDetails(otm);
 		
 		
@@ -287,6 +332,7 @@ public class OTMetric implements Serializable {
 		b.append("\n\tTagCount:").append(otm.getTagCount());
 		b.append("\n\tTags:").append(otm.getTags());
 		b.append("\n\thashCode:").append(otm.hashCode());
+		b.append("\n\tlongHashCode:").append(otm.longHashCode());
 		b.append("\n\tJSON:").append(otm.toJSON(System.currentTimeMillis(), 0));
 		log(b);
 	}
@@ -394,14 +440,8 @@ public class OTMetric implements Serializable {
 		int prefixLength = buff.getInt();
 		int tagCount = buff.getInt();
 		StringBuilder b = new StringBuilder(totalLength + tagCount + 1);
-		b.append(readString(buff, prefixLength)).append(":");
-		
-		for(int i = 0; i < tagCount; i++) {
-			b.append(readString(buff, buff.getInt())).append(",");
-		}
-		if(tagCount>0) {
-			b.deleteCharAt(b.length()-1);
-		}
+		b.append(readString(buff, prefixLength));
+		b.append(getTags().toString());
 		return b;
 	}
 	
@@ -538,7 +578,15 @@ public class OTMetric implements Serializable {
 	 */
 	@Override
 	public int hashCode() {
-		return hashCode;
+		return hashCode.hashCode();
+	}
+	
+	/**
+	 * Returns the 64 bit hash code for the OTMetric name
+	 * @return the 64 bit hash code for the OTMetric name
+	 */
+	public long longHashCode() {
+		return hashCode.padToLong();
 	}
 	
 	/**
@@ -561,6 +609,9 @@ public class OTMetric implements Serializable {
 			return false;
 		return true;
 	}
+	
+
+	
 	
 
 }

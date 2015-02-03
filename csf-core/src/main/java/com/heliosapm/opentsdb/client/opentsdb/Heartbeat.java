@@ -45,39 +45,35 @@ import com.heliosapm.opentsdb.client.name.AgentNameChangeListener;
  */
 
 public class Heartbeat implements Closeable, Runnable, AgentNameChangeListener {
-	/** The poster to send the metric with */
-	protected final HttpMetricsPoster poster;
 	/** The metric name for the submission */
-	protected final String metricNamePrefix;
+	protected final String metricName;
 	/** The period for the submission */
 	protected int period;	
 	/** The schedule handle */
 	protected Timeout timeout = null;
 	/** The agent name tags */
 	protected final Map<String, String> tags = new TreeMap<String, String>();
-	/** Indicates if we're reporting time in seconds or milliseconds */
-	protected final boolean timeInSecs;
 	/** The value to send in heartbeat metrics */
 	protected int value;
-
+	/** The current OTMetric */
+	protected OTMetric otMetric = null;
+	
 	
 	
 	
 	/**
 	 * Creates a new Heartbeat
-	 * @param poster The poster to send the metric with
-	 * @param metricNamePrefix The metric name for the submission
+	 * @param metricName The metric name for the submission
 	 * @param period The period for the submission
 	 */
-	public Heartbeat(final HttpMetricsPoster poster, final String metricNamePrefix, final int period) {
-		this.poster = poster;
-		this.metricNamePrefix = metricNamePrefix;
+	public Heartbeat(final String metricName, final int period) {
+		this.metricName = metricName;
 		this.period = period;
 		AgentName.getInstance().addAgentNameChangeListener(this);
 		tags.put(Constants.APP_TAG, AgentName.getInstance().getAppName());
 		tags.put(Constants.HOST_TAG, AgentName.getInstance().getHostName());
-		timeInSecs = ConfigurationReader.confBool(Constants.PROP_TIME_IN_SEC, Constants.DEFAULT_TIME_IN_SEC);
 		value = ConfigurationReader.confInt(Constants.PROP_HEARTBEAT_VALUE, Constants.DEFAULT_HEARTBEAT_VALUE);
+		otMetric = OTMetricCache.getInstance().getOTMetric(metricName, null, null, tags);
 	}
 	
 	/**
@@ -137,16 +133,9 @@ public class Heartbeat implements Closeable, Runnable, AgentNameChangeListener {
 				tags.put(Constants.HOST_TAG, AgentName.getInstance().getHostName());
 			}
 		}
+		otMetric = OTMetricCache.getInstance().getOTMetric(metricName, null, null, tags);
 	}
 	
-	/**
-	 * Returns the current time in seconds or milliseconds
-	 * @return the he current time
-	 */
-	private long time() {
-		long now = System.currentTimeMillis();
-		return timeInSecs ? TimeUnit.SECONDS.convert(now, TimeUnit.MILLISECONDS) : now; 
-	}
 
 	/**
 	 * {@inheritDoc}
@@ -154,13 +143,7 @@ public class Heartbeat implements Closeable, Runnable, AgentNameChangeListener {
 	 */
 	@Override
 	public void run() {
-		poster.send(
-				OpenTSDBMetric.named(metricNamePrefix)
-				.withTags(tags)
-				.withTimestamp(time())
-				.withValue(value)
-				.build()
-		);		
+		MetricBuilder.trace(otMetric, value);
 	}
 
 }

@@ -474,17 +474,17 @@ public class OffHeapFIFOFile {
 	}
 	
 	
-	/**
-	 * Appends the passed metrics to the end of the file
-	 * @param metrics The metric set to write
-	 * @return The new size of the file in bytes, once the write is complete, or -1 if the resulting file will exceed {@link Integer#MAX_VALUE} bytes.
-	 */
-	public synchronized long write(final Set<OpenTsdbMetric> metrics) {
-		if(metrics==null || metrics.isEmpty()) return file.length();
-		ohbuff.clear();
-		final int metricsWritten = OpenTsdbMetric.writeToBuffer(metrics, ohbuff);
-		return write();
-	}	
+//	/**
+//	 * Appends the passed metrics to the end of the file
+//	 * @param metrics The metric set to write
+//	 * @return The new size of the file in bytes, once the write is complete, or -1 if the resulting file will exceed {@link Integer#MAX_VALUE} bytes.
+//	 */
+//	public synchronized long write(final Set<OpenTsdbMetric> metrics) {
+//		if(metrics==null || metrics.isEmpty()) return file.length();
+//		ohbuff.clear();
+//		final int metricsWritten = OpenTsdbMetric.writeToBuffer(metrics, ohbuff);
+//		return write();
+//	}	
 	
 	/**
 	 * Writes the FIFO's buffer to the end of the file
