@@ -31,6 +31,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import com.codahale.metrics.Clock;
 import com.google.common.hash.Funnel;
 import com.google.common.hash.PrimitiveSink;
+import com.heliosapm.opentsdb.client.opentsdb.OTMetric.SplitFlatName;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -254,7 +255,12 @@ public class MetricBuilder {
 	 * @param name The base metric name
 	 */
 	private MetricBuilder(final String name) {
-		this.name = Util.clean(name);
+		final SplitFlatName sfn = OTMetric.splitFlatName(name);
+		this.name = sfn.getMetricName();
+		if(!sfn.getTags().isEmpty()) {
+			if(tags==null) tags = new LinkedHashMap<String, String>(3);
+			this.tags.putAll(sfn.getTags());
+		}		
 	}
 	
 	/**

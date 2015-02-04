@@ -80,12 +80,13 @@ public class OTMetricTest extends BaseTest {
 				"KitchenSink.resultCounts.ext{op=cache-lookup, service=cache-service}");
 		compare(otm1, otm2);
 		// ==============================
-		//  BROKEN.  BLD:[KitchenSink.resultCounts.op=cache-lookup.service=cache-service]
 		otm1  = testBuild(MetricBuilder.metric("KitchenSink.resultCounts.op=cache-lookup.service=cache-service"), 
 				"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
 		otm2  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").tag("op", "cache-lookup").tag("service", "cache-service"), 
 				"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
 		compare(otm1, otm2);
+		
+
 		
 		
 //		log("Creating OTM for [" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME + "] (" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME.getBytes(UTF8).length + ")");
