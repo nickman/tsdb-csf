@@ -18,6 +18,7 @@ package com.heliosapm.opentsdb.client.opentsdb;
 
 import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -58,6 +59,10 @@ public class MetricBuilder {
     /** The clock for generating timestamps */
     private static Clock clock = null;
     
+	/** UTF8 bytes for a dot */
+    static final byte[] DOT = ".".getBytes(UTF8);
+
+    
 	/** The hashing funnel to get an {@link OTMetric#longHashCode()} from a MetricBuilder */
 	public static final Funnel<MetricBuilder> OTMETRIC_BUILDER_FUNNEL = new Funnel<MetricBuilder>() {
 		private static final long serialVersionUID = -216399666276403583L;
@@ -67,13 +72,154 @@ public class MetricBuilder {
 		 * @see com.google.common.hash.Funnel#funnel(java.lang.Object, com.google.common.hash.PrimitiveSink)
 		 */
 		@Override
-		public void funnel(final MetricBuilder builder, final PrimitiveSink into) {
-			if(builder.prefix!=null) into.putString(builder.prefix, CHARSET).putString(".", CHARSET);
-			into.putString(builder.name, CHARSET);
-			if(builder.extension!=null) into.putString(".", CHARSET).putString(builder.extension, CHARSET);
-			if(builder.tags!=null && !builder.tags.isEmpty()) into.putString(builder.tags.toString(), CHARSET);
+		public void funnel(final MetricBuilder builder, final PrimitiveSink sink) {
+			PrimitiveSink into = new CapturingPrimitiveSink(sink);
+			if(builder.prefix!=null) {
+				into.putBytes(builder.prefix.getBytes(UTF8));
+				into.putBytes(DOT);
+			}
+			into.putBytes(builder.name.getBytes(UTF8));
+			if(builder.extension!=null) {
+				into.putBytes(DOT);
+				into.putBytes(builder.extension.getBytes(UTF8));
+			}
+			if(builder.tags!=null && !builder.tags.isEmpty()) {
+				for(Map.Entry<String, String> entry: builder.tags.entrySet()) {
+					into.putBytes(entry.getKey().getBytes(UTF8));
+					into.putBytes(entry.getValue().getBytes(UTF8));
+				}
+			} 
+			System.err.println("BLD:[" + into.toString() + "]");
 	     }		
 	};
+	
+	static class CapturingPrimitiveSink implements PrimitiveSink {
+		final PrimitiveSink delegate;
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		public CapturingPrimitiveSink(PrimitiveSink delegate) {
+			super();
+			this.delegate = delegate;
+		}
+		
+		public String toString() {
+			try { baos.flush(); } catch (Exception ex) { throw new RuntimeException(ex); }			
+			return new String(baos.toByteArray(), UTF8);
+		}
+
+		/**
+		 * @param b
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putByte(byte)
+		 */
+		public PrimitiveSink putByte(byte b) {
+			return delegate.putByte(b);
+		}
+
+		/**
+		 * @param bytes
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putBytes(byte[])
+		 */
+		public PrimitiveSink putBytes(byte[] bytes) {
+			try { baos.write(bytes); } catch (Exception ex) { throw new RuntimeException(ex); }
+			return delegate.putBytes(bytes);
+		}
+
+		/**
+		 * @param bytes
+		 * @param off
+		 * @param len
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putBytes(byte[], int, int)
+		 */
+		public PrimitiveSink putBytes(byte[] bytes, int off, int len) {
+			return delegate.putBytes(bytes, off, len);
+		}
+
+		/**
+		 * @param s
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putShort(short)
+		 */
+		public PrimitiveSink putShort(short s) {
+			return delegate.putShort(s);
+		}
+
+		/**
+		 * @param i
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putInt(int)
+		 */
+		public PrimitiveSink putInt(int i) {
+			return delegate.putInt(i);
+		}
+
+		/**
+		 * @param l
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putLong(long)
+		 */
+		public PrimitiveSink putLong(long l) {
+			return delegate.putLong(l);
+		}
+
+		/**
+		 * @param f
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putFloat(float)
+		 */
+		public PrimitiveSink putFloat(float f) {
+			return delegate.putFloat(f);
+		}
+
+		/**
+		 * @param d
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putDouble(double)
+		 */
+		public PrimitiveSink putDouble(double d) {
+			return delegate.putDouble(d);
+		}
+
+		/**
+		 * @param b
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putBoolean(boolean)
+		 */
+		public PrimitiveSink putBoolean(boolean b) {
+			return delegate.putBoolean(b);
+		}
+
+		/**
+		 * @param c
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putChar(char)
+		 */
+		public PrimitiveSink putChar(char c) {
+			return delegate.putChar(c);
+		}
+
+		/**
+		 * @param charSequence
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putUnencodedChars(java.lang.CharSequence)
+		 */
+		public PrimitiveSink putUnencodedChars(CharSequence charSequence) {
+			return delegate.putUnencodedChars(charSequence);
+		}
+
+		/**
+		 * @param charSequence
+		 * @param charset
+		 * @return
+		 * @see com.google.common.hash.PrimitiveSink#putString(java.lang.CharSequence, java.nio.charset.Charset)
+		 */
+		public PrimitiveSink putString(CharSequence charSequence,
+				Charset charset) {
+			return delegate.putString(charSequence, charset);
+		}
+		
+	}
     
     
 	

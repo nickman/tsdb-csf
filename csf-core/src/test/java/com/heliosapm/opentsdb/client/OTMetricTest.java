@@ -16,10 +16,9 @@
 
 package com.heliosapm.opentsdb.client;
 
-import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
-
-import java.lang.management.GarbageCollectorMXBean;
-import java.lang.management.ManagementFactory;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -40,6 +39,36 @@ import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 @RunWith(JUnit4.class)
 public class OTMetricTest extends BaseTest {
 
+	static final Set<String[]> flatNameTests = new LinkedHashSet<String[]>(Arrays.asList(
+			new String[][] {
+					// All flat, dot separated
+					new String[]{"KitchenSink.resultCounts.op=cache-lookup.service=cacheservice.host=AA.app=XX", 
+							     "KitchenSink.resultCounts{op=cache-lookup, service=cacheservice, host=AA, app=XX}"},
+				    // All flat, quoted dot tag value
+					new String[]{"KitchenSink.resultCounts.op=cache-lookup.service=cacheservice.host='AA.com'.app=XX", 
+				     "KitchenSink.resultCounts{op=cache-lookup, service=cacheservice, host=AA.com, app=XX}"},
+				     // Add in some random spaces
+						new String[]{"KitchenSink. resultCounts.op=cache-l ookup.service= cacheservice.host= 'AA.com'.app=XX", 
+				     "KitchenSink.resultCounts{op=cache-lookup, service=cacheservice, host=AA.com, app=XX}"},
+				     // just a dot name
+						new String[]{"KitchenSink.resultCounts", "KitchenSink.resultCounts"}, 
+
+			}
+			//new String[]{}
+	)); 
+	
+	/**
+	 * Basic flat name tests
+	 */
+	@Test
+	public void testFlatNames() {
+		for(String[] flatNameTest: flatNameTests) {
+			log("\n\tFlatNameTest:\n\t============\n\t" + flatNameTest[1] + "\n\t" + OTMetric.splitFlatName(flatNameTest[0]).toString() + "\n\t==========");
+			Assert.assertEquals("Flat name does not match", flatNameTest[1], OTMetric.splitFlatName(flatNameTest[0]).toString());
+		}
+	}
+	
+	
 	/**
 	 * Tests some basic builder ops
 	 */
@@ -51,6 +80,7 @@ public class OTMetricTest extends BaseTest {
 				"KitchenSink.resultCounts.ext{op=cache-lookup, service=cache-service}");
 		compare(otm1, otm2);
 		// ==============================
+		//  BROKEN.  BLD:[KitchenSink.resultCounts.op=cache-lookup.service=cache-service]
 		otm1  = testBuild(MetricBuilder.metric("KitchenSink.resultCounts.op=cache-lookup.service=cache-service"), 
 				"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
 		otm2  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").tag("op", "cache-lookup").tag("service", "cache-service"), 

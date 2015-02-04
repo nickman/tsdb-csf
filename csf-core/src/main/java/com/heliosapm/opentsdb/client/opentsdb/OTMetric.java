@@ -23,7 +23,6 @@ import java.io.Serializable;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -35,9 +34,11 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import com.google.common.hash.Funnel;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import com.google.common.hash.PrimitiveSink;
 import com.heliosapm.opentsdb.client.name.AgentName;
+import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder.CapturingPrimitiveSink;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -53,12 +54,10 @@ import com.heliosapm.opentsdb.client.util.Util;
 public class OTMetric implements Serializable {
 	/** The buffer containing the OTMetric details */
 	final ByteBuffer nameBuffer;
-	/** The calculated hash code */
-	final HashCode hashCode;
 	
-	// TODO:  put the hashCode int and long hash codes in the nameBuffer
-	
-	static final short HAS_APP_TAG = 0;							// 1 byte
+	static final short LONG_HASH_CODE = 0;						// 8 bytes
+	static final short HASH_CODE = LONG_HASH_CODE + 8;			// 4 bytes
+	static final short HAS_APP_TAG = HASH_CODE + 4;				// 1 byte
 	static final short HAS_HOST_TAG = HAS_APP_TAG + 1;			// 1 byte
 	static final short IS_EXT_TAG = HAS_HOST_TAG + 1;			// 1 byte
 	static final short TOTAL_SIZE_OFFSET = IS_EXT_TAG + 1;  	// 4 bytes
@@ -145,6 +144,10 @@ public class OTMetric implements Serializable {
 		this(flatName, prefix, extension, null);
 	}
 	
+	/** UTF8 bytes for a dot */
+    static final byte[] DOT = ".".getBytes(UTF8);
+
+
 	/**
 	 * Creates a new OTMetric
 	 * @param flatName The plain flat name from the Metric name
@@ -154,143 +157,365 @@ public class OTMetric implements Serializable {
 	 */
 	OTMetric(final String flatName, final String nprefix, final String extension, final Map<String, String> extraTags) {
 		if(flatName==null) throw new IllegalArgumentException("The passed flat name was null");
-		final String fprefix = nprefix==null ? null : nprefix.trim();
-		String fname = (fprefix==null ? "" : (fprefix + ".")) + flatName.replace(" ", "");
-		if(fname.isEmpty()) throw new IllegalArgumentException("The passed flat name was empty");
-		final String fext = extension==null ? null : extension.trim(); 
-		final boolean isext = fext!=null && !fext.isEmpty();
-		int eindex = fname.indexOf('=');		
-		final boolean hasTags = (extraTags!=null && !extraTags.isEmpty());
-		if(eindex==-1 && !hasTags) {
-			if(isext) {
-				fname = fname + "." + fext; 
-			}			
-			// totally flat metric.
-			final byte[] name = fname.getBytes(UTF8);
-			nameBuffer = (ByteBuffer)ByteBuffer.allocateDirect(name.length + TOTAL_SIZE)
-					.put(ZERO_BYTE)						// No app tag
-					.put(ZERO_BYTE)						// No host tag
-					.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
-					.putInt(name.length)				// Length of the full name
-					.putInt(name.length)				// Length of the prefix
-					.putInt(ZERO_BYTE)					// Zero tags
-					.put(name)
-					.asReadOnlyBuffer()
-					.flip();			
-		} else {
-			ByteBuffer buff = null;
-			try {
-				buff = ByteBuffer.allocateDirect((fname.getBytes(UTF8).length + (hasTags ? extraTags.toString().length() : 0))*2);
-				int cindex = fname.indexOf(':');
-				final boolean wasPseudo = cindex==-1;				
-				if(cindex==-1 && !hasTags) {
-					
-					// pseudo flat metric, e.g. [KitchenSink.resultCounts.op=cache-lookup.service=cacheservice]
-					final String[] prefixes = DOT_SPLITTER.split(fname.substring(0, eindex));
-					
-					if(prefixes.length<2) {/* FIXME: */} // INVALID. We're either starting with a "=" or there is no prefix, only tags.
-					
-					StringBuilder b = new StringBuilder(prefixes[0]);
-					for(int i = 1; i < prefixes.length-1; i++) {
-						b.append(".").append(prefixes[i]);
-					}
-					if(isext) {
-						b.append(".").append(fext);
-					}
-					b.append(":");
-					final String[] tags = COMMA_SPLITTER.split((prefixes[prefixes.length-1] + "=" + fname.substring(eindex+1)).replace('.', ','));
-					for(String tag: tags) {
-						b.append(tag).append(",");
-					}
-					b.deleteCharAt(b.length()-1);
+		final SplitFlatName sfn = OTMetric.splitFlatName(flatName);
+		sfn.addTags(extraTags);
+		final String fprefix = pref(nprefix);
+		final String fext = suff(extension);
+		final boolean isext = !"".equals(fext);
+		final byte[] metricName = (fprefix + sfn.getMetricName() + fext).getBytes(UTF8);
+		final Hasher hasherx = OTMETRIC_HASH.newHasher();
+		PrimitiveSink hasher = new CapturingPrimitiveSink(hasherx);
+		if(!"".equals(fprefix)) {
+			hasher.putBytes(fprefix.getBytes(UTF8));
+//			hasher.putBytes(DOT);
+		}
+		hasher.putBytes(sfn.getMetricName().getBytes(UTF8));
+		if(isext) {
+//			hasher.putBytes(DOT);
+			hasher.putBytes(fext.getBytes(UTF8));
+		}
+		//hasher.putBytes(metricName);
+		ByteBuffer buff = null;
+		try {
+			buff = ByteBuffer.allocateDirect((metricName.length + sfn.estimateSize())*2);
+			buff	
+			.putLong(0)							// the long hash code, Zero for now
+			.putInt(0)							// the java hash code, Zero for now
+			.put(sfn.hasAppTag() ? ONE_BYTE : ZERO_BYTE)						// App Tag
+			.put(sfn.hasHostTag() ? ONE_BYTE : ZERO_BYTE)						// Host Tag
+			.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
+			.putInt(0)							// Total Length, Zero for now
+			.putInt(metricName.length)			// Length of the prefix
+			.putInt(sfn.getTags().size())		// Tag count
+			.put(metricName);					// The metric name bytes
+			
+			int totalLength = metricName.length;
+			if(!sfn.getTags().isEmpty()) {
+				for(Map.Entry<String, String> entry: sfn.getTags().entrySet()) {
+					final byte[] key = entry.getKey().getBytes(UTF8);
+					final byte[] value = entry.getValue().getBytes(UTF8);				
+					int tagLength = key.length + value.length + TAG_OVERHEAD;
+					hasher.putBytes(key);
+					hasher.putBytes(value);
+					buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);				
+					totalLength += tagLength;
+				}
+			}
+			
+			final int pos = buff.position();
+			// Set LONG_HASH_CODE, HASH_CODE, TOTAL_SIZE_OFFSET
+			final HashCode hashCode = hasherx.hash();
+			System.err.println("OTM:[" + hasher.toString() + "]");
+			buff.putLong(LONG_HASH_CODE, hashCode.padToLong());
+			buff.putInt(HASH_CODE, hashCode.hashCode());			
+			buff.putInt(TOTAL_SIZE_OFFSET, totalLength);
+			buff.limit(pos);
+			buff.position(0);				
+			nameBuffer = ByteBuffer.allocateDirect(buff.limit()).put(buff).asReadOnlyBuffer();
+		} finally {
+			OffHeapFIFOFile.clean(buff);
+		}		
+	}
+	
+	private static String suff(final String value) {
+		if(value==null) return "";
+		String v = value.replace(" ", "");
+		if(v.isEmpty()) return "";
+		return "." + v;
+	}
+	
+	private static String pref(final String value) {
+		if(value==null) return "";
+		String v = value.replace(" ", "");
+		if(v.isEmpty()) return "";
+		return v + ".";
+	}
+	
+
+	
+//	/**
+//	 * Creates a new OTMetric
+//	 * @param flatName The plain flat name from the Metric name
+//	 * @param nprefix The optional prefix which is prefixed to the flat name
+//	 * @param extension The optional extension which is appended to the TSDB metric name
+//	 * @param extraTags The optional extra tags to add
+//	 */
+//	OTMetric(final String flatName, final String nprefix, final String extension, final Map<String, String> extraTags) {
+//		if(flatName==null) throw new IllegalArgumentException("The passed flat name was null");
+//		final String fprefix = nprefix==null ? null : nprefix.trim();
+//		String fname = (fprefix==null ? "" : (fprefix + ".")) + flatName.replace(" ", "");
+//		if(fname.isEmpty()) throw new IllegalArgumentException("The passed flat name was empty");
+//		final String fext = extension==null ? null : extension.trim(); 
+//		final boolean isext = fext!=null && !fext.isEmpty();
+//		int eindex = fname.indexOf('=');		
+//		final boolean hasTags = (extraTags!=null && !extraTags.isEmpty());
+//		if(eindex==-1 && !hasTags) {
+//			if(isext) {
+//				fname = fname + "." + fext; 
+//			}			
+//			// totally flat metric.
+//			final byte[] name = fname.getBytes(UTF8);
+//			nameBuffer = (ByteBuffer)ByteBuffer.allocateDirect(name.length + TOTAL_SIZE)
+//					.put(ZERO_BYTE)						// No app tag
+//					.put(ZERO_BYTE)						// No host tag
+//					.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
+//					.putInt(name.length)				// Length of the full name
+//					.putInt(name.length)				// Length of the prefix
+//					.putInt(ZERO_BYTE)					// Zero tags
+//					.put(name)
+//					.asReadOnlyBuffer()
+//					.flip();			
+//		} else {
+//			ByteBuffer buff = null;
+//			try {
+//				buff = ByteBuffer.allocateDirect((fname.getBytes(UTF8).length + (hasTags ? extraTags.toString().length() : 0))*2);
+//				int cindex = fname.indexOf(':');
+//				final boolean wasPseudo = cindex==-1;				
+//				if(cindex==-1 && !hasTags) {
+//					
+//					// pseudo flat metric, e.g. [KitchenSink.resultCounts.op=cache-lookup.service=cacheservice]
+//					final String[] prefixes = DOT_SPLITTER.split(fname.substring(0, eindex));
+//					
+//					if(prefixes.length<2) {/* FIXME: */} // INVALID. We're either starting with a "=" or there is no prefix, only tags.
+//					
+//					StringBuilder b = new StringBuilder(prefixes[0]);
+//					for(int i = 1; i < prefixes.length-1; i++) {
+//						b.append(".").append(prefixes[i]);
+//					}
 //					if(isext) {
 //						b.append(".").append(fext);
 //					}
-					fname = b.toString();
-					cindex = fname.indexOf(':');
-					eindex = fname.indexOf('=');
-				} else {
-//					if(isext) {
-//						fname = fname + "." + fext;
-//					}					
-				}				
-				final byte[] prefix =
-					(
-						(!wasPseudo) ? (fname.substring(0, cindex) ) : (cindex==-1 ? fname : fname.substring(0, cindex))
-						+ 
-						(isext ? ("." + fext) : "")
-					).getBytes(UTF8);
-				final String[] tags = COMMA_SPLITTER.split(fname.substring(cindex+1));
-				
-				
-				buff					
-					.put(ZERO_BYTE)			// App Tag, Zero for now
-					.put(ZERO_BYTE)			// Host Tag, Zero for now
-					.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
-					.putInt(0)				// Total Length, Zero for now
-					.putInt(prefix.length)	// Length of the prefix
-					.putInt(tags.length)	// Tag count for now
-					.put(prefix);			// The prefix bytes
-				
-				int actualTagCount = 0;
-				int totalLength = prefix.length;
-				byte hasAppTag = ZERO_BYTE, hasHostTag = ZERO_BYTE;
-				for(String tag: tags) {
-					final int eind = tag.indexOf('=');
-					if(eind==-1) continue;
-					final byte[] key = Util.clean(tag.substring(0, eind)).getBytes(UTF8);
-					if(key.length==0) continue;
-					final byte[] value = Util.clean(tag.substring(eind+1)).getBytes(UTF8);
-					if(value.length==0) continue;
-					if(Arrays.equals(APP_TAG_BYTES, key)) {
-						hasAppTag = ONE_BYTE;
-					} else if(Arrays.equals(HOST_TAG_BYTES, key)) {
-						hasHostTag = ONE_BYTE;
+//					b.append(":");
+//					final String[] tags = COMMA_SPLITTER.split((prefixes[prefixes.length-1] + "=" + fname.substring(eindex+1)).replace('.', ','));
+//					for(String tag: tags) {
+//						b.append(tag).append(",");
+//					}
+//					b.deleteCharAt(b.length()-1);
+////					if(isext) {
+////						b.append(".").append(fext);
+////					}
+//					fname = b.toString();
+//					cindex = fname.indexOf(':');
+//					eindex = fname.indexOf('=');
+//				} else {
+////					if(isext) {
+////						fname = fname + "." + fext;
+////					}					
+//				}				
+//				final byte[] prefix =
+//					(
+//						(!wasPseudo) ? (fname.substring(0, cindex) ) : (cindex==-1 ? fname : fname.substring(0, cindex))
+//						+ 
+//						(isext ? ("." + fext) : "")
+//					).getBytes(UTF8);
+//				final String[] tags = COMMA_SPLITTER.split(fname.substring(cindex+1));
+//				
+//				
+//				buff					
+//					.put(ZERO_BYTE)			// App Tag, Zero for now
+//					.put(ZERO_BYTE)			// Host Tag, Zero for now
+//					.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
+//					.putInt(0)				// Total Length, Zero for now
+//					.putInt(prefix.length)	// Length of the prefix
+//					.putInt(tags.length)	// Tag count for now
+//					.put(prefix);			// The prefix bytes
+//				
+//				int actualTagCount = 0;
+//				int totalLength = prefix.length;
+//				byte hasAppTag = ZERO_BYTE, hasHostTag = ZERO_BYTE;
+//				for(String tag: tags) {
+//					final int eind = tag.indexOf('=');
+//					if(eind==-1) continue;
+//					final byte[] key = Util.clean(tag.substring(0, eind)).getBytes(UTF8);
+//					if(key.length==0) continue;
+//					final byte[] value = Util.clean(tag.substring(eind+1)).getBytes(UTF8);
+//					if(value.length==0) continue;
+//					if(Arrays.equals(APP_TAG_BYTES, key)) {
+//						hasAppTag = ONE_BYTE;
+//					} else if(Arrays.equals(HOST_TAG_BYTES, key)) {
+//						hasHostTag = ONE_BYTE;
+//					}
+//					int tagLength = key.length + value.length + TAG_OVERHEAD; 
+//					buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);
+//					actualTagCount++;						
+//					totalLength += tagLength;
+//				}
+//				if(extraTags!=null && !extraTags.isEmpty()) {
+//					for(Map.Entry<String, String> entry: extraTags.entrySet()) {
+//						final byte[] key = Util.clean(entry.getKey()).getBytes(UTF8);
+//						final byte[] value = Util.clean(entry.getValue()).getBytes(UTF8);
+//						if(key.length==0 || value.length==0) continue;
+//						if(hasAppTag!=ONE_BYTE && Arrays.equals(APP_TAG_BYTES, key)) {
+//							hasAppTag = ONE_BYTE;
+//						} else if(hasHostTag!=ONE_BYTE && Arrays.equals(HOST_TAG_BYTES, key)) {
+//							hasHostTag = ONE_BYTE;
+//						}
+//						int tagLength = key.length + value.length + TAG_OVERHEAD;
+//						buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);
+//						actualTagCount++;						
+//						totalLength += tagLength;
+//					}
+//				}
+//				final int pos = buff.position();
+//				buff.rewind();
+//				buff.put(hasAppTag);
+//				buff.put(hasHostTag);
+//				buff.put(isext ? ONE_BYTE : ZERO_BYTE);
+//				buff.putInt(totalLength);
+//				buff.putInt(prefix.length);
+//				buff.putInt(actualTagCount);					
+//				buff.limit(pos);
+//				buff.position(0);				
+//				nameBuffer = ByteBuffer.allocateDirect(buff.limit()).put(buff).asReadOnlyBuffer();				
+//			} finally {
+//				OffHeapFIFOFile.clean(buff);
+//			}
+//		}
+//		
+//	}
+	
+	
+	/**
+	 * <p>Title: SplitFlatName</p>
+	 * <p>Description: A container to hold the results of a split flat name</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.OTMetric.SplitFlatName</code></p>
+	 */
+	public static class SplitFlatName {
+		/** The parsed tags */
+		protected final Map<String, String> tags = new LinkedHashMap<String, String>(3);
+		/** The parsed metric name */
+		protected final String metricName;
+		
+		/**
+		 * Creates a new SplitFlatName
+		 * @param metricName The metric name
+		 */
+		SplitFlatName(final String metricName) {
+			this.metricName = metricName;
+		}
+		
+		/**
+		 * Adds a tag of pre-cleaned key values
+		 * @param key The tag key
+		 * @param value The tag value
+		 * @return this SplitFlatName
+		 */
+		SplitFlatName addTag(final String key, final String value) {
+			tags.put(key, value);			
+			return this;
+		}
+		
+		/**
+		 * Adds a map of tags which will be cleaned
+		 * @param tags The map of tags to add
+		 * @return this SplitFileName
+		 */
+		SplitFlatName addTags(final Map<String, String> tags) {
+			if(tags!=null && !tags.isEmpty()) {
+				for(Map.Entry<String, String> entry: tags.entrySet()) {
+					String key = Util.clean(entry.getKey()).replace("'", "").replace('.', '_');
+					String value = Util.clean(entry.getValue()).replace("'", "");
+					if(!key.isEmpty() && !value.isEmpty()) {
+						this.tags.put(key, value);
 					}
-					int tagLength = key.length + value.length + TAG_OVERHEAD; 
-					buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);
-					actualTagCount++;						
-					totalLength += tagLength;
 				}
-				if(extraTags!=null && !extraTags.isEmpty()) {
-					for(Map.Entry<String, String> entry: extraTags.entrySet()) {
-						final byte[] key = Util.clean(entry.getKey()).getBytes(UTF8);
-						final byte[] value = Util.clean(entry.getValue()).getBytes(UTF8);
-						if(key.length==0 || value.length==0) continue;
-						if(hasAppTag!=ONE_BYTE && Arrays.equals(APP_TAG_BYTES, key)) {
-							hasAppTag = ONE_BYTE;
-						} else if(hasHostTag!=ONE_BYTE && Arrays.equals(HOST_TAG_BYTES, key)) {
-							hasHostTag = ONE_BYTE;
-						}
-						int tagLength = key.length + value.length + TAG_OVERHEAD;
-						buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);
-						actualTagCount++;						
-						totalLength += tagLength;
-					}
-				}
-				final int pos = buff.position();
-				buff.rewind();
-				buff.put(hasAppTag);
-				buff.put(hasHostTag);
-				buff.put(isext ? ONE_BYTE : ZERO_BYTE);
-				buff.putInt(totalLength);
-				buff.putInt(prefix.length);
-				buff.putInt(actualTagCount);					
-				buff.limit(pos);
-				buff.position(0);				
-				nameBuffer = ByteBuffer.allocateDirect(buff.limit()).put(buff).asReadOnlyBuffer();				
-			} finally {
-				OffHeapFIFOFile.clean(buff);
+			}
+			return this;
+		}
+		
+		/**
+		 * Indicates if the tags contain an app tag
+		 * @return true if the tags contain an app tag, false otherwise
+		 */
+		public boolean hasAppTag() {
+			return tags.containsKey(Constants.APP_TAG);
+		}
+		
+		/**
+		 * Indicates if the tags contain a host tag
+		 * @return true if the tags contain a host tag, false otherwise
+		 */
+		public boolean hasHostTag() {
+			return tags.containsKey(Constants.HOST_TAG);
+		}
+		
+		
+		/**
+		 * Returns the parsed tags
+		 * @return the parsed tags
+		 */
+		public Map<String, String> getTags() {
+			return tags;
+		}
+		
+		/**
+		 * Returns the parsed metric name
+		 * @return the parsed metric name
+		 */
+		public String getMetricName() {
+			return metricName;
+		}		
+		
+		/**
+		 * Returns an estimate of the size in bytes of the metric name and tags herein
+		 * @return an estimate of the size in bytes 
+		 */
+		public int estimateSize() {
+			return tags.toString().getBytes(UTF8).length + metricName.getBytes(UTF8).length;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#toString()
+		 */
+		@Override
+		public String toString() {
+			return metricName + (tags.isEmpty() ? "" : tags.toString());
+		}
+	}
+	
+	private static final SplitFlatName EMPTY_FLAT_NAME = new SplitFlatName("");
+	public static final Pattern DOT_NQ_SPLITTER = Pattern.compile("[\\.|:|,](?=([^']*'[^']*')*[^']*$)");
+	public static final Pattern MAP_FORMAT_SPLITTER = Pattern.compile("(.*?)\\{(.*?)\\}\\$");
+	
+	/**
+	 * Parses a flat name into a metric name and tags
+	 * @param flatName The flat name
+	 * @return the parsed SplitFlatName containing the metric name and tags
+	 */
+	public static SplitFlatName splitFlatName(final String flatName) {
+		if(flatName==null || flatName.trim().isEmpty()) return EMPTY_FLAT_NAME;
+		final String[] frags = DOT_NQ_SPLITTER.split(flatName.replace(" ", ""));
+		if(frags.length==1) return new SplitFlatName(frags[0]);
+		final StringBuilder b = new StringBuilder();
+		final Map<String, String> tags = new LinkedHashMap<String, String>(3);
+		
+		for(String s: frags) {
+			if(s==null || s.isEmpty()) continue;
+			final int eindex = s.indexOf('=');
+			if(eindex!=-1) {
+				// ====== tag
+				tags.put(Util.clean(s.substring(0, eindex).replace("'", "").replace('.', '_')), Util.clean(s.substring(eindex+1).replace("'", "")));
+			} else {
+				// ====== metric name fragment
+				b.append(Util.clean(s)).append(".");
 			}
 		}
-		hashCode = OTMETRIC_HASH.hashObject(this, OTMETRIC_FUNNEL);
+		final int len = b.length();
+		if(len>0) {
+			b.deleteCharAt(len -1);
+		}
+		return new SplitFlatName(b.toString()).addTags(tags);
 	}
 	
 	
 	
-	
-	
 	public static void main(String[] args) {
+		log("OTMetric FlatName Test");
+		log(splitFlatName("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX"));
+		
 		log("OTMetric Test");
 		log("Creating OTM for [" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME + "] (" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME.getBytes(UTF8).length + ")");
 		OTMetric otm = new OTMetric(ManagementFactory.CLASS_LOADING_MXBEAN_NAME);
@@ -311,7 +536,7 @@ public class OTMetric implements Serializable {
 		printDetails(otm);
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX", null, "p75");
 		printDetails(otm);
-		
+//		
 		
 
 
@@ -434,7 +659,7 @@ public class OTMetric implements Serializable {
 	 */
 	public StringBuilder toStringBuilder() {
 		final ByteBuffer buff = nameBuffer.duplicate();		
-		buff.position(3);
+		buff.position(TOTAL_SIZE_OFFSET); 
 		int totalLength = buff.getInt();
 		int prefixLength = buff.getInt();
 		int tagCount = buff.getInt();
@@ -533,9 +758,11 @@ public class OTMetric implements Serializable {
     }
     
     /**
-     * @param target
-     * @param source
-     * @param bytes
+     * Transfers the specified number of bytes from the source byte buffer to the target channel buffer,
+     * starting at the current position.
+     * @param target The target channel buffer
+     * @param source The source byte buffer
+     * @param bytes The number of bytes to copy
      */
     protected void transfer(final ChannelBuffer target, final ByteBuffer source, final int bytes) {
     	final int limit = source.limit();
@@ -577,7 +804,7 @@ public class OTMetric implements Serializable {
 	 */
 	@Override
 	public int hashCode() {
-		return hashCode.hashCode();
+		return nameBuffer.getInt(HASH_CODE);
 	}
 	
 	/**
@@ -585,7 +812,7 @@ public class OTMetric implements Serializable {
 	 * @return the 64 bit hash code for the OTMetric name
 	 */
 	public long longHashCode() {
-		return hashCode.padToLong();
+		return nameBuffer.getLong(LONG_HASH_CODE);
 	}
 	
 	/**
