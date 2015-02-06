@@ -41,7 +41,7 @@
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -50,7 +50,7 @@
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -59,7 +59,7 @@
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -68,12 +68,22 @@
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
 			return bitMask;
 		}		
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (bitMask & mask)==mask;
+		}
+
 	}
 
 

@@ -27,7 +27,7 @@ import java.util.List;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider</code></p>
  */
-public interface AttributeProvider {
+public interface AttributeProvider<I, O> {
 	public static final List<Integer> POW2 = Collections.unmodifiableList(Arrays.asList(
 			new Integer[] {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576, 2097152, 4194304, 8388608, 16777216, 33554432, 67108864, 134217728, 268435456, 536870912, 1073741824}
 	));
@@ -52,4 +52,18 @@ public interface AttributeProvider {
 	 * @return the attribute mask
 	 */
 	public int getMask();
+	
+	/**
+	 * Determines if this attribute is enabled for the passed mask
+	 * @param mask The mask to filter on
+	 * @return true if this attribute is enabled for the passed mask, false otherwise
+	 */
+	public boolean isEnabledFor(int mask);
+	
+	/**
+	 * Extracts the target data form the input data
+	 * @param input the input data
+	 * @return the extracted data
+	 */
+	public O extractDataFrom(I input);
 }

@@ -34,10 +34,17 @@ import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.lang.management.ThreadMXBean;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
+import javax.management.MBeanAttributeInfo;
 import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
 
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Metric;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -45,20 +52,20 @@ import com.heliosapm.opentsdb.client.util.Util;
  * <p>Description: A collection of enums defining the values we might retrieve from MBeans and the Metric types to accept them.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeans</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MBeanObservers</code></p>
  */
 
-public enum MXBean implements MXBeanManager {
+public enum MBeanObservers implements MXBeanManager {
 	/** The class loading MXBean */
 	CLASSLOADING_MXBEAN(ClassLoadingMXBean.class, Util.objectName(CLASS_LOADING_MXBEAN_NAME), ClassLoadingAttribute.class),	
 	/** The compilation MXBean */
 	COMPILATION_MXBEAN(CompilationMXBean.class, Util.objectName(COMPILATION_MXBEAN_NAME), CompilationAttribute.class),
 	/** The compilation MXBean */
-	GARBAGE_COLLECTOR_MXBEAN(GarbageCollectorMXBean.class, Util.objectName(GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE), GarbageCollectorAttribute.class),
+	GARBAGE_COLLECTOR_MXBEAN(GarbageCollectorMXBean.class, Util.objectName(GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",*"), GarbageCollectorAttribute.class),
 	/** The memory MXBean */
 	MEMORY_MXBEAN(MemoryMXBean.class, Util.objectName(MEMORY_MXBEAN_NAME), MemoryAttribute.class),
 	/** The memory pool MXBean */
-	MEMORY_POOL_MXBEAN(MemoryPoolMXBean.class, Util.objectName(MEMORY_POOL_MXBEAN_DOMAIN_TYPE), MemoryPoolAttribute.class),
+	MEMORY_POOL_MXBEAN(MemoryPoolMXBean.class, Util.objectName(MEMORY_POOL_MXBEAN_DOMAIN_TYPE + ",*"), MemoryPoolAttribute.class),
 	/** The OS MXBean */
 	OPERATING_SYSTEM_MXBEAN(OperatingSystemMXBean.class, Util.objectName(OPERATING_SYSTEM_MXBEAN_NAME), OperatingSystemAttribute.class),
 	/** The runtime MXBean */
@@ -68,10 +75,14 @@ public enum MXBean implements MXBeanManager {
 	
 
 	public static void main(String[] args) {
-		System.out.println("Attrs:" + Arrays.toString(CLASSLOADING_MXBEAN.getAttributeProviders()));
+		for(MBeanObservers mx: MBeanObservers.values()) {
+			System.out.println(mx.name() + "  Providers:" + Arrays.toString(mx.getAttributeProviders()));
+			System.out.println(mx.name() + "  Attrs:" + Arrays.toString(mx.getAttributeNames()));
+		}
+		
 	}
 	
-	private MXBean(final Class<?> type, final ObjectName objectName, final Class<? extends AttributeManager<?>> attributeManager) {
+	private MBeanObservers(final Class<?> type, final ObjectName objectName, final Class<? extends AttributeManager<?>> attributeManager) {
 		this.type = type;
 		this.objectName = objectName;
 		this.am = attributeManager;
@@ -86,6 +97,7 @@ public enum MXBean implements MXBeanManager {
 	
 	/**
 	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getAttributeNames()
 	 */
 	@Override
 	public String[] getAttributeNames() {
@@ -94,10 +106,58 @@ public enum MXBean implements MXBeanManager {
 	
 	/**
 	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getAttributeProviders()
 	 */
+	@Override
 	@SuppressWarnings("unchecked")
 	public <T extends Enum<T> & AttributeProvider> T[] getAttributeProviders() {
 		return (T[]) am.getEnumConstants();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getNameMasks()
+	 */
+	@Override
+	public <T extends Enum<T> & AttributeProvider> Map<String, Integer> getNameMasks() {
+		final T[] providers = getAttributeProviders();
+		final Map<String, Integer> map = new LinkedHashMap<String, Integer>(providers.length);
+		for(T provider: providers) {
+			map.put(provider.getAttributeName(), provider.getMask());
+		}
+		return map;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getMaskFor(MBeanAttributeInfo...)
+	 */
+	@Override
+	public int getMaskFor(final MBeanAttributeInfo...infos) {
+		int mask = 0;
+		final Map<String, Integer> attrMaskMap = getNameMasks();
+		for(MBeanAttributeInfo info: infos) {
+			Integer bmask = attrMaskMap.get(info.getName());
+			if(bmask==null) continue;
+			mask = mask | bmask.intValue();
+		}
+		return mask;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getAttributeNames(int)
+	 */
+	@Override
+	public <T extends Enum<T> & AttributeProvider> String[] getAttributeNames(final int mask) {
+		final T[] providers = getAttributeProviders();
+		Set<String> names = new LinkedHashSet<String>(providers.length);
+		for(T provider: providers) {
+			if(provider.isEnabledFor(mask)) {
+				names.add(provider.getAttributeName());
+			}
+		}
+		return names.toArray(new String[names.size()]);
 	}
 	
 	
@@ -108,13 +168,11 @@ public enum MXBean implements MXBeanManager {
 	 */
 	public static <T extends AttributeManager<?>> String[] getAttributeNames(Class<T> type) {
 		final T[] ecs = type.getEnumConstants();
-		final String[] names = new String[ecs.length];
-		int cnt = 0;
+		final Set<String> names = new LinkedHashSet<String>(ecs.length);
 		for(T ec: ecs) {
-			names[cnt] = ec.getAttributeName();
-			cnt++;
+			names.add(ec.getAttributeName());
 		}
-		return names;
+		return names.toArray(new String[names.size()]);
 	}
 	
 	
@@ -158,7 +216,7 @@ public enum MXBean implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -167,7 +225,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -176,7 +234,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -185,12 +243,30 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
 			return bitMask;
-		}		
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (bitMask & mask)==mask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
 	}
 	
 	/**
@@ -229,7 +305,7 @@ public enum MXBean implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -238,7 +314,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -247,7 +323,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -256,12 +332,32 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
 			return bitMask;
 		}		
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (bitMask & mask)==mask;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
+		
+		
 	}
 
 	/**
@@ -273,24 +369,41 @@ public enum MXBean implements MXBeanManager {
 	 */	
 	public static enum GarbageCollectorAttribute implements AttributeManager<GarbageCollectorAttribute> {
 		/**  */
-		LAST_GC_INFO("LastGcInfo", CompositeData.class),
+		LAST_GC_INFO_COMMITTED("LastGcInfo", "committed", CompositeData.class, long.class),
+		/**  */
+		LAST_GC_INFO_INIT("LastGcInfo", "init", CompositeData.class, long.class),
+		/**  */
+		LAST_GC_INFO_MAX("LastGcInfo", "max", CompositeData.class, long.class),
+		/**  */
+		LAST_GC_INFO_USED("LastGcInfo", "used", CompositeData.class, long.class),		
 		/**  */
 		COLLECTION_COUNT("CollectionCount", long.class);
 
 		
-		private GarbageCollectorAttribute(final String attributeName, final Class<?> type) {
+		private GarbageCollectorAttribute(final String attributeName, final String subAttributeName, final Class<?> type, final Class<?> transformedType) {
 			this.attributeName = attributeName;
 			this.type = type;
 			primitive = type.isPrimitive();
+			this.subAttributeName = subAttributeName==null ? "": subAttributeName;
+			this.transformedType = transformedType==null ? this.type: transformedType;
 		}
+		
+		private GarbageCollectorAttribute(final String attributeName, final Class<?> type) {
+			this(attributeName, null, type, null);
+		}
+		
 		
 		/** The bitmask */
 		public final int bitMask = POW2.get(ordinal());
-		/** The currently loaded class count */
+		/** The attribute name */
 		public final String attributeName;
-		/** The total loaded class count */
+		/** The sub-attribute name */
+		public final String subAttributeName;		
+		/** The type of the attribute */
 		public final Class<?> type;
-		/** The unloaded class count */
+		/** The tranformed type which is returned to metrics */
+		public final Class<?> transformedType;		
+		/** Indicates if the type is primitive */
 		public final boolean primitive;
 		
 		/**
@@ -303,7 +416,7 @@ public enum MXBean implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -312,7 +425,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -321,7 +434,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -330,12 +443,34 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
 			return bitMask;
-		}		
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (bitMask & mask)==mask;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			if(primitive) {
+				return input;
+			}
+			final CompositeData cd = (CompositeData)input;
+			return cd==null ? 0L : cd.get(subAttributeName);			
+		}
 	}
 
 	/**
@@ -347,26 +482,49 @@ public enum MXBean implements MXBeanManager {
 	 */	
 	public static enum MemoryAttribute implements AttributeManager<MemoryAttribute> {
 		/**  */
-		HEAP_MEMORY_USAGE("HeapMemoryUsage", CompositeData.class),
+		HEAP_MEMORY_USAGE_COMMITTED("HeapMemoryUsage", "committed", CompositeData.class, long.class),
 		/**  */
-		NON_HEAP_MEMORY_USAGE("NonHeapMemoryUsage", CompositeData.class),
+		HEAP_MEMORY_USAGE_INIT("HeapMemoryUsage", "init", CompositeData.class, long.class),
+		/**  */
+		HEAP_MEMORY_USAGE_MAX("HeapMemoryUsage", "max", CompositeData.class, long.class),
+		/**  */
+		HEAP_MEMORY_USAGE_USED("HeapMemoryUsage", "used", CompositeData.class, long.class),
+		/**  */
+		NON_HEAP_MEMORY_USAGE_COMMITTED("NonHeapMemoryUsage", "committed", CompositeData.class, long.class),
+		/**  */
+		NON_HEAP_MEMORY_USAGE_INIT("NonHeapMemoryUsage", "init", CompositeData.class, long.class),
+		/**  */
+		NON_HEAP_MEMORY_USAGE_MAX("NonHeapMemoryUsage", "max", CompositeData.class, long.class),
+		/**  */
+		NON_HEAP_MEMORY_USAGE_USED("NonHeapMemoryUsage", "used", CompositeData.class, long.class),
 		/**  */
 		OBJECT_PENDING_FINALIZATION_COUNT("ObjectPendingFinalizationCount", int.class);
 
 		
-		private MemoryAttribute(final String attributeName, final Class<?> type) {
+		private MemoryAttribute(final String attributeName, final String subAttributeName, final Class<?> type, final Class<?> transformedType) {
 			this.attributeName = attributeName;
 			this.type = type;
 			primitive = type.isPrimitive();
+			this.subAttributeName = subAttributeName==null ? "": subAttributeName;
+			this.transformedType = transformedType==null ? this.type: transformedType;
 		}
+		
+		private MemoryAttribute(final String attributeName, final Class<?> type) {
+			this(attributeName, null, type, null);
+		}
+		
 		
 		/** The bitmask */
 		public final int bitMask = POW2.get(ordinal());
-		/** The currently loaded class count */
+		/** The attribute name */
 		public final String attributeName;
-		/** The total loaded class count */
+		/** The sub-attribute name */
+		public final String subAttributeName;		
+		/** The type of the attribute */
 		public final Class<?> type;
-		/** The unloaded class count */
+		/** The tranformed type which is returned to metrics */
+		public final Class<?> transformedType;		
+		/** Indicates if the type is primitive */
 		public final boolean primitive;
 		
 		/**
@@ -379,7 +537,7 @@ public enum MXBean implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -388,7 +546,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -397,7 +555,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -406,12 +564,35 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
 			return bitMask;
 		}		
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (bitMask & mask)==mask;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			if(primitive) {
+				return input;
+			}
+			final CompositeData cd = (CompositeData)input;
+			return cd==null ? 0L : cd.get(subAttributeName);			
+		}
+		
 	}
 
 	/**
@@ -422,32 +603,60 @@ public enum MXBean implements MXBeanManager {
 	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.MemoryPoolAttribute</code></p>
 	 */	
 	public static enum MemoryPoolAttribute implements AttributeManager<MemoryPoolAttribute> {
-		
 		/**  */
-		COLLECTION_USAGE("CollectionUsage", CompositeData.class),
+		COLLECTION_USAGE_COMMITTED("CollectionUsage", "committed", CompositeData.class, long.class),
+		/**  */
+		COLLECTION_USAGE_INIT("CollectionUsage", "init", CompositeData.class, long.class),
+		/**  */
+		COLLECTION_USAGE_MAX("CollectionUsage", "max", CompositeData.class, long.class),
+		/**  */
+		COLLECTION_USAGE_USED("CollectionUsage", "used", CompositeData.class, long.class),
 		/**  */
 		COLLECTION_USAGE_THRESHOLD_COUNT("CollectionUsageThresholdCount", long.class),
 		/**  */
-		PEAK_USAGE("PeakUsage", CompositeData.class),
+		PEAK_USAGE_COMMITTED("PeakUsage", "committed", CompositeData.class, long.class),
+		/**  */
+		PEAK_USAGE_INIT("PeakUsage", "init", CompositeData.class, long.class),
+		/**  */
+		PEAK_USAGE_MAX("PeakUsage", "max", CompositeData.class, long.class),
+		/**  */
+		PEAK_USAGE_USED("PeakUsage", "used", CompositeData.class, long.class),		
 		/**  */
 		USAGE_THRESHOLD_COUNT("UsageThresholdCount", long.class),
 		/**  */
-		USAGE("Usage", CompositeData.class);
+		USAGE_COMMITTED("Usage", "committed", CompositeData.class, long.class),
+		/**  */
+		USAGE_INIT("Usage", "init", CompositeData.class, long.class),
+		/**  */
+		USAGE_MAX("Usage", "max", CompositeData.class, long.class),
+		/**  */
+		USAGE_USED("Usage", "used", CompositeData.class, long.class);
 
 		
-		private MemoryPoolAttribute(final String attributeName, final Class<?> type) {
+		private MemoryPoolAttribute(final String attributeName, final String subAttributeName, final Class<?> type, final Class<?> transformedType) {
 			this.attributeName = attributeName;
 			this.type = type;
 			primitive = type.isPrimitive();
+			this.subAttributeName = subAttributeName==null ? "": subAttributeName;
+			this.transformedType = transformedType==null ? this.type: transformedType;
 		}
+		
+		private MemoryPoolAttribute(final String attributeName, final Class<?> type) {
+			this(attributeName, null, type, null);
+		}
+		
 		
 		/** The bitmask */
 		public final int bitMask = POW2.get(ordinal());
-		/** The currently loaded class count */
+		/** The attribute name */
 		public final String attributeName;
-		/** The total loaded class count */
+		/** The sub-attribute name */
+		public final String subAttributeName;		
+		/** The type of the attribute */
 		public final Class<?> type;
-		/** The unloaded class count */
+		/** The tranformed type which is returned to metrics */
+		public final Class<?> transformedType;		
+		/** Indicates if the type is primitive */
 		public final boolean primitive;
 		
 		/**
@@ -460,7 +669,7 @@ public enum MXBean implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -469,7 +678,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -478,7 +687,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -487,12 +696,35 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
 			return bitMask;
 		}		
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (bitMask & mask)==mask;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			if(primitive) {
+				return input;
+			}
+			final CompositeData cd = (CompositeData)input;
+			return cd==null ? 0L : cd.get(subAttributeName);			
+		}
+		
 	}
 
 	/**
@@ -551,7 +783,7 @@ public enum MXBean implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -560,7 +792,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -569,7 +801,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -578,12 +810,31 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
 			return bitMask;
 		}		
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (bitMask & mask)==mask;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
+		
 	}
 
 	/**
@@ -623,7 +874,7 @@ public enum MXBean implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -632,7 +883,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -641,7 +892,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -650,12 +901,31 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
 			return bitMask;
 		}		
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (bitMask & mask)==mask;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
+		
 	}
 
 	/**
@@ -701,7 +971,7 @@ public enum MXBean implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -710,7 +980,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -719,7 +989,7 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -728,15 +998,94 @@ public enum MXBean implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
 			return bitMask;
-		}		
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (bitMask & mask)==mask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
+		
+		
 	}
 
 	
+	/**
+	 * <p>Title: DataAcceptor</p>
+	 * <p>Description: Defines a {@link Metric} extension that accepts the data it will provide</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.DataAcceptor</code></p>
+	 * @param <I> The expected type of the data to be accepted
+	 */
+	public interface DataAcceptor<I> extends Metric {
+		/**
+		 * Accepts the data to be transformed and served
+		 * @param dataMap The data map containing the data to be accepted, keyed by the attribute name
+		 */
+		public void accept(Map<String, I> dataMap);
+	}
 	
-	
+	/**
+	 * <p>Title: DataAcceptorGauge</p>
+	 * <p>Description: A data accepting {@link Gauge} implementation</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.DataAcceptorGauge</code></p>
+	 * @param <I> The expected type of the accepted data
+	 * @param <O> The expected type of the gauge
+	 */
+	public class DataAcceptorGauge<I, O> implements Gauge<O>, DataAcceptor<I> {
+		/** The attribute provider for this gauge */
+		protected final AttributeProvider attributeProvider;
+		/** The data to be accepted */
+		protected I data = null;
+		
+		
+		/**
+		 * Creates a new DataAcceptorGauge
+		 * @param attributeProvider The attribute provider that specifies the data key and transform
+		 */
+		public DataAcceptorGauge(final AttributeProvider attributeProvider) {
+			this.attributeProvider = attributeProvider;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.codahale.metrics.Gauge#getValue()
+		 */
+		@SuppressWarnings("unchecked")
+		@Override
+		public O getValue() {
+			return (O) attributeProvider.extractDataFrom(data);
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MBeanObservers.DataAcceptor#accept(java.util.Map)
+		 */
+		@Override
+		public void accept(final Map<String, I> dataMap) {
+			if(dataMap==null) throw new IllegalArgumentException("The passed data map was null");
+			I acceptedData = dataMap.get(attributeProvider.getAttributeName());
+			if(acceptedData==null) throw new RuntimeException("No data found in data map for attribute [" + attributeProvider.getAttributeName() + "]");			
+		}
+	}
 }

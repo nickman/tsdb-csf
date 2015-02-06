@@ -16,6 +16,10 @@
 
 package com.heliosapm.opentsdb.client.opentsdb.jvm;
 
+import java.util.Map;
+
+import javax.management.MBeanAttributeInfo;
+
 /**
  * <p>Title: MXBeanManager</p>
  * <p>Description: Provides MXBean polling assistance with respect to available attributes and their names/types.</p> 
@@ -29,7 +33,36 @@ public interface MXBeanManager {
 	 * Returns the attribute names  
 	 * @return An array of attribute names
 	 */
-	public String[] getAttributeNames(); 
+	public String[] getAttributeNames();
 	
+	/**
+	 * Returns the attribute names enabled for the passed mask
+	 * @param mask The mask to match
+	 * @return An array of attribute names enabled for the passed mask
+	 */
+	public <T extends Enum<T> & AttributeProvider> String[] getAttributeNames(final int mask); 
+
+	
+	/**
+	 * Returns all the attribute providers
+	 * @return an array of all the attribute providers
+	 */
 	public <T extends Enum<T> & AttributeProvider> T[] getAttributeProviders();
+	
+	/**
+	 * Returns a map of provider masks keyed by the attribute name
+	 * @return a map of provider masks keyed by the attribute name
+	 */
+	public <T extends Enum<T> & AttributeProvider> Map<String, Integer> getNameMasks();
+	
+	/**
+	 * Returns the bit mask of the enabled attribute names
+	 * @param infos The MBeanServer provided attribute infos
+	 * @return the enabled bit mask
+	 */
+	public int getMaskFor(MBeanAttributeInfo...infos);
+	
+	
+	
+	
 }
