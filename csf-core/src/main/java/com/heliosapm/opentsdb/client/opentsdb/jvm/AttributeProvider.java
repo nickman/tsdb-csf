@@ -66,4 +66,10 @@ public interface AttributeProvider<I, O> {
 	 * @return the extracted data
 	 */
 	public O extractDataFrom(I input);
+	
+	/**
+	 * Returns the metric naming key for this provider
+	 * @return the metric naming key for this provider
+	 */
+	public String getKey();
 }

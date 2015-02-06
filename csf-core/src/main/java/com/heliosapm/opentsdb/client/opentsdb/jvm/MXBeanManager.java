@@ -50,6 +50,13 @@ public interface MXBeanManager {
 	public <T extends Enum<T> & AttributeProvider> T[] getAttributeProviders();
 	
 	/**
+	 * Returns all the attribute providers enabled in the passed mask
+	 * @param mask The mask to filter
+	 * @return an array of all the attribute providers enabled in the passed mask
+	 */
+	public <T extends Enum<T> & AttributeProvider> T[] getAttributeProviders(int mask); 
+	
+	/**
 	 * Returns a map of provider masks keyed by the attribute name
 	 * @return a map of provider masks keyed by the attribute name
 	 */

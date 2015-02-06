@@ -52,7 +52,7 @@ import com.heliosapm.opentsdb.client.util.Util;
 
 /**
  * <p>Title: MBeanObserverBuilder</p>
- * <p>Description: Fluent style builder for building MBeanObservers</p> 
+ * <p>Description: Fluent style builder for building MBeanObserver</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MBeanObserverBuilder</code></p>

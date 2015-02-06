@@ -61,7 +61,7 @@ import com.heliosapm.opentsdb.client.util.CircularActionCounter;
 
 /**
  * <p>Title: BaseMBeanObserver</p>
- * <p>Description: Base abstract class for MBeanObservers.</p> 
+ * <p>Description: Base abstract class for MBeanObserver.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.BaseMBeanObserver</code></p>
