@@ -27,6 +27,7 @@ package com.heliosapm.opentsdb.client.opentsdb.jvm;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -475,6 +476,22 @@ public class RuntimeMBeanServerConnection implements MBeanServerConnection, Noti
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
 		}
+	}
+	
+	/**
+	 * Returns the named attributes from the MBean registered under the passed ObjectName
+	 * as a map of values keyed by the attribute name
+	 * @param name The ObjectName of the target MBean
+	 * @param attributes The attribute names to retrieve
+	 * @return a map of attribute values
+	 */
+	public Map<String, Object> getAttributeMap(final ObjectName name, final String[] attributes) {
+		final AttributeList attrList = getAttributes(name, attributes);
+		final Map<String, Object> map = new HashMap<String, Object>(attrList.size());
+		for(Attribute attr: attrList.asList()) {
+			map.put(attr.getName(), attr.getValue());
+		}
+		return map;
 	}
 
 	/**

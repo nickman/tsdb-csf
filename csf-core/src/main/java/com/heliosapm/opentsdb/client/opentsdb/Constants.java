@@ -154,8 +154,17 @@ public interface Constants {
 	 * looks for a system prop. 
 	 */ 
 	public static final String SYSPROP_APP_NAME = "tsdb.id.app.prop";
+	/** The system property config name for reading a remote app name  */
+	public static final String REMOTE_PROP_APP_NAME = "remote.tsdb.id.app";
+	/** The system property config name for reading a remote host name  */
+	public static final String REMOTE_PROP_HOST_NAME = "remote.tsdb.id.host";
+	
 	/** The system property config name for a prop where the value is a JS script that will compute the app name */ 
 	public static final String JS_APP_NAME = "tsdb.id.app.js";
+	/** The system property config name for a prop where the value is a JS script that will compute remote app name */ 
+	public static final String REMOTE_JS_APP_NAME = "remote.tsdb.id.app.js";
+	/** The system property config name for a prop where the value is a JS script that will compute remote host name */ 
+	public static final String REMOTE_JS_HOST_NAME = "remote.tsdb.id.host.js";
 	
 	/** The name of the file used to lock the metric persistence directory */
 	public static final String LOCK_FILE_NAME = ".tsdb.lock";

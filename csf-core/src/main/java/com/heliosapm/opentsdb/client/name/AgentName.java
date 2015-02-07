@@ -28,6 +28,7 @@ import static com.heliosapm.opentsdb.client.opentsdb.Constants.APP_TAG;
 import static com.heliosapm.opentsdb.client.opentsdb.Constants.HOST_TAG;
 
 import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +41,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 
+import javax.management.JMX;
+import javax.management.MBeanServerConnection;
 import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
@@ -55,6 +58,7 @@ import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.OffHeapFIFOFile;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
+import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -395,6 +399,55 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 		return Constants.SPID;
 	}
 	
+	/**
+	 * Attempts to find the remote app name
+	 * @param remote An MBeanServer connection to the remote app
+	 * @return the remote app name
+	 */
+	public static String remoteAppName(final RuntimeMBeanServerConnection remote) {
+		final ObjectName runtimeMXBean = Util.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME);
+		try {
+			RuntimeMXBean rt = JMX.newMXBeanProxy(remote, runtimeMXBean, RuntimeMXBean.class, false);
+			final Map<String, String> sysProps = rt.getSystemProperties();
+			String appName = sysProps.get(Constants.PROP_APP_NAME).trim();
+			if(appName!=null && !appName.isEmpty()) return appName;
+			appName = sysProps.get(Constants.REMOTE_PROP_APP_NAME).trim();
+			if(appName!=null && !appName.isEmpty()) return appName;			
+			appName = getRemoteJSAppName(remote);
+			if(appName!=null && !appName.isEmpty()) return appName;
+			appName = sysProps.get("sun.java.command").trim();
+			if(appName!=null && !appName.isEmpty()) {
+				return cleanAppName(appName);
+			}
+			return rt.getName().split("@")[0];
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to get any app name", ex);
+		}		
+	}
+	
+	/**
+	 * Attempts to find the remote host name
+	 * @param remote An MBeanServer connection to the remote app
+	 * @return the remote host name
+	 */
+	public static String remoteHostName(final RuntimeMBeanServerConnection remote) {
+		final ObjectName runtimeMXBean = Util.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME);
+		try {
+			RuntimeMXBean rt = JMX.newMXBeanProxy(remote, runtimeMXBean, RuntimeMXBean.class, false);
+			final Map<String, String> sysProps = rt.getSystemProperties();
+			String appName = sysProps.get(Constants.PROP_HOST_NAME).trim();
+			if(appName!=null && !appName.isEmpty()) return appName;
+			appName = sysProps.get(Constants.REMOTE_PROP_HOST_NAME).trim();
+			if(appName!=null && !appName.isEmpty()) return appName;			
+			appName = getRemoteJSHostName(remote);
+			if(appName!=null && !appName.isEmpty()) return appName;
+			return rt.getName().split("@")[1];
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to get any host name", ex);
+		}		
+	}
+	
+	
 	
 	/**
 	 * Attempts to determine the app name by looking up the value of the 
@@ -448,6 +501,60 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 			return null;
 		}
 	}
+	
+	/**
+	 * Attempts to determine a remote app name by looking up the value of the 
+	 * system property {@link Constants#REMOTE_JS_APP_NAME}, and compiling its value
+	 * as a JS script, then returning the value of the evaluation of the script.
+	 * The following binds are passed to the script: <ul>
+	 *  <li><b>mbs</b>: The remote MBeanServerConnection</li>
+	 * </ul>
+	 * @param remote The remote MBeanServer connection
+	 * @return The app name or null if {@link Constants#REMOTE_JS_APP_NAME} was not defined
+	 * or did not compile, or did not return a valid app name
+	 */
+	public static String getRemoteJSAppName(final MBeanServerConnection remote) {
+		String js = System.getProperty(Constants.REMOTE_JS_APP_NAME, "").trim();
+		if(js==null || js.isEmpty()) return null;
+		try {
+			ScriptEngine se = new ScriptEngineManager().getEngineByExtension("js");
+			Bindings b = new SimpleBindings();
+			b.put("mbs", remote);
+			Object value = se.eval(js, b);
+			if(value!=null && !value.toString().trim().isEmpty()) return value.toString().trim();
+			return null;
+		} catch (Exception ex) {
+			return null;
+		}
+	}
+	
+	/**
+	 * Attempts to determine a remote host name by looking up the value of the 
+	 * system property {@link Constants#REMOTE_JS_HOST_NAME}, and compiling its value
+	 * as a JS script, then returning the value of the evaluation of the script.
+	 * The following binds are passed to the script: <ul>
+	 *  <li><b>mbs</b>: The remote MBeanServerConnection</li>
+	 * </ul>
+	 * @param remote The remote MBeanServer connection
+	 * @return The host name or null if {@link Constants#REMOTE_JS_HOST_NAME} was not defined
+	 * or did not compile, or did not return a valid app name
+	 */
+	public static String getRemoteJSHostName(final MBeanServerConnection remote) {
+		String js = System.getProperty(Constants.REMOTE_JS_HOST_NAME, "").trim();
+		if(js==null || js.isEmpty()) return null;
+		try {
+			ScriptEngine se = new ScriptEngineManager().getEngineByExtension("js");
+			Bindings b = new SimpleBindings();
+			b.put("mbs", remote);
+			Object value = se.eval(js, b);
+			if(value!=null && !value.toString().trim().isEmpty()) return value.toString().trim();
+			return null;
+		} catch (Exception ex) {
+			return null;
+		}
+	}
+	
+	
 	
 	
 	/**

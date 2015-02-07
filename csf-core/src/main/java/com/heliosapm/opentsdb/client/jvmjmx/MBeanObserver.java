@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.opentsdb.jvm;
+package com.heliosapm.opentsdb.client.jvmjmx;
 
 import static java.lang.management.ManagementFactory.CLASS_LOADING_MXBEAN_NAME;
 import static java.lang.management.ManagementFactory.COMPILATION_MXBEAN_NAME;
@@ -28,46 +28,33 @@ import static java.lang.management.ManagementFactory.THREAD_MXBEAN_NAME;
 import java.lang.management.ClassLoadingMXBean;
 import java.lang.management.CompilationMXBean;
 import java.lang.management.GarbageCollectorMXBean;
-import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Array;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanAttributeInfo;
 import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
 
-import com.codahale.metrics.ConsoleReporter;
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.MetricSet;
-import com.codahale.metrics.Timer;
-import com.codahale.metrics.Timer.Context;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
- * <p>Title: MXBeans</p>
- * <p>Description: A collection of enums defining the values we might retrieve from MBeans and the Metric types to accept them.</p> 
+ * <p>Title: MBeanObserver</p>
+ * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MBeanObserver</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver</code></p>
  */
 
-public enum MBeanObserver implements MXBeanManager {
+public enum MBeanObserver implements MXBeanDescriptor {
 	/** The class loading MXBean */
 	CLASSLOADING_MXBEAN(ClassLoadingMXBean.class, Util.objectName(CLASS_LOADING_MXBEAN_NAME), ClassLoadingAttribute.class),	
 	/** The compilation MXBean */
@@ -84,43 +71,7 @@ public enum MBeanObserver implements MXBeanManager {
 	RUNTIME_MXBEAN(RuntimeMXBean.class, Util.objectName(RUNTIME_MXBEAN_NAME), RuntimeAttribute.class),
 	/** The runtime MXBean */
 	THREAD_MXBEAN(ThreadMXBean.class, Util.objectName(THREAD_MXBEAN_NAME), ThreadingAttribute.class);
-	
-	public static void log(Object msg) {
-		System.out.println(msg);
-	}
 
-	public static void main(String[] args) {
-//		for(MBeanObserver mx: MBeanObserver.values()) {
-//			System.out.println(mx.name() + "  Providers:" + Arrays.toString(mx.getAttributeProviders()));
-//			System.out.println(mx.name() + "  Attrs:" + Arrays.toString(mx.getAttributeNames()));
-//		}
-		final RuntimeMBeanServerConnection mbs = RuntimeMBeanServerConnection.newInstance(ManagementFactory.getPlatformMBeanServer());
-		final Set<DataAcceptorGaugeSet> metrics = buildObservers(mbs);
-		log("Inited [" + metrics.size() + "] metrics");
-		MetricRegistry reg = new MetricRegistry();
-		for(DataAcceptorGaugeSet dag: metrics) {
-			reg.registerAll(dag);
-		}
-		log("Registered [" + reg.getGauges().size() + "] gauges");
-		ConsoleReporter cr = ConsoleReporter.forRegistry(reg).build();
-		cr.start(5, TimeUnit.SECONDS);
-		Thread t = new Thread("Refresher") {
-			public void run() {
-				while(true) {
-					for(DataAcceptorGaugeSet dag: metrics) {
-						dag.refresh();
-					}
-					try { Thread.currentThread().join(2000); } catch (Exception ex) {}
-				}								
-			}
-		};
-		t.setDaemon(true);
-		t.start();
-		
-		try { Thread.currentThread().join(); } catch (Exception ex) {}
-		
-	}
-	
 	private MBeanObserver(final Class<?> type, final ObjectName objectName, final Class<? extends AttributeManager<?>> attributeManager) {
 		this.type = type;
 		this.objectName = objectName;
@@ -133,89 +84,6 @@ public enum MBeanObserver implements MXBeanManager {
 	public final ObjectName objectName;
 	/** the attribute names */
 	private final Class<? extends AttributeManager<?>> am;
-	
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getAttributeNames()
-	 */
-	@Override
-	public String[] getAttributeNames() {
-		return getAttributeNames(am);
-	}
-	
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getAttributeProviders()
-	 */
-	@SuppressWarnings("rawtypes")
-	@Override	
-	public <T extends Enum<T> & AttributeProvider> T[] getAttributeProviders() {
-		return (T[]) am.getEnumConstants();
-	}
-	
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getNameMasks()
-	 */
-	@Override
-	public <T extends Enum<T> & AttributeProvider> Map<String, Integer> getNameMasks() {
-		final T[] providers = getAttributeProviders();
-		final Map<String, Integer> map = new LinkedHashMap<String, Integer>(providers.length);
-		for(T provider: providers) {
-			map.put(provider.getAttributeName(), provider.getMask());
-		}
-		return map;
-	}
-	
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getMaskFor(MBeanAttributeInfo...)
-	 */
-	@Override
-	public int getMaskFor(final MBeanAttributeInfo...infos) {
-		int mask = 0;
-		final Map<String, Integer> attrMaskMap = getNameMasks();
-		for(MBeanAttributeInfo info: infos) {
-			Integer bmask = attrMaskMap.get(info.getName());
-			if(bmask==null) continue;
-			mask = mask | bmask.intValue();
-		}
-		return mask;
-	}
-	
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getAttributeNames(int)
-	 */
-	@SuppressWarnings("rawtypes")
-	@Override
-	public <T extends Enum<T> & AttributeProvider> String[] getAttributeNames(final int mask) {
-		final T[] providers = getAttributeProviders(mask);
-		Set<String> names = new LinkedHashSet<String>(providers.length);
-		for(T provider: providers) {
-			names.add(provider.getAttributeName());
-		}
-		return names.toArray(new String[names.size()]);
-	}
-	
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MXBeanManager#getAttributeProviders(int)
-	 */
-	@Override
-	@SuppressWarnings("rawtypes")
-	public <T extends Enum<T> & AttributeProvider> T[] getAttributeProviders(int mask) {
-		final T[] providers = getAttributeProviders();
-		Class<T> enumType = providers[0].getDeclaringClass();
-		EnumSet<T> filtered = EnumSet.noneOf(enumType);
-		for(T provider: providers) {
-			if(provider.isEnabledFor(mask)) {
-				filtered.add(provider);
-			}
-		}
-		return filtered.toArray((T[]) Array.newInstance(enumType, filtered.size()));		
-	}
-	
 	
 	/**
 	 * Returns the attribute names for the passed enum 
@@ -231,13 +99,65 @@ public enum MBeanObserver implements MXBeanManager {
 		return names.toArray(new String[names.size()]);
 	}
 	
+	public String[] getAttributeNames() {
+		return getAttributeNames(am);
+	}
+	
+	public <T extends Enum<T> & AttributeProvider> T[] getAttributeProviders() {
+		return (T[]) am.getEnumConstants();
+	}
+	
+	public <T extends Enum<T> & AttributeProvider> Map<String, Integer> getNameMasks() {
+		final T[] providers = getAttributeProviders();
+		final Map<String, Integer> map = new LinkedHashMap<String, Integer>(providers.length);
+		for(T provider: providers) {
+			map.put(provider.getAttributeName(), provider.getMask());
+		}
+		return map;
+	}
+	
+	public int getMaskFor(final MBeanAttributeInfo...infos) {
+		int mask = 0;
+		final Map<String, Integer> attrMaskMap = getNameMasks();
+		for(MBeanAttributeInfo info: infos) {
+			Integer bmask = attrMaskMap.get(info.getName());
+			if(bmask==null) continue;
+			mask = mask | bmask.intValue();
+		}
+		return mask;
+	}
+	
+	public <T extends Enum<T> & AttributeProvider> String[] getAttributeNames(final int mask) {
+		final T[] providers = getAttributeProviders(mask);
+		Set<String> names = new LinkedHashSet<String>(providers.length);
+		for(T provider: providers) {
+			names.add(provider.getAttributeName());
+		}
+		return names.toArray(new String[names.size()]);
+	}
+	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@Override
+	public <T extends Enum<T> & AttributeProvider> T[] getAttributeProviders(int mask) {
+		final T[] providers = getAttributeProviders();
+		Class<T> enumType = providers[0].getDeclaringClass();
+		EnumSet<T> filtered = EnumSet.noneOf(enumType);
+		for(T provider: providers) {
+			if(provider.isEnabledFor(mask)) {
+				filtered.add(provider);
+			}
+		}
+		return filtered.toArray((T[]) Array.newInstance(enumType, filtered.size()));		
+	}
+	
+	
 	
 	/**
 	 * <p>Title: ClassLoadingAttribute</p>
-	 * <p>Description: Attribute manager for </p> 
+	 * <p>Description: Attribute manager for the ClassLoading MXBean</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.ClassLoadingAttribute</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.ClassLoadingAttribute</code></p>
 	 */
 	public static enum ClassLoadingAttribute implements AttributeManager<ClassLoadingAttribute> {
 		/** The currently loaded class count */
@@ -272,7 +192,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -281,7 +201,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -290,7 +210,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -299,7 +219,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
@@ -308,7 +228,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
@@ -317,7 +237,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
 		 */
 		@Override
 		public Object extractDataFrom(final Object input) {
@@ -326,7 +246,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getKey()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
 		 */
 		@Override
 		public String getKey() {
@@ -340,7 +260,7 @@ public enum MBeanObserver implements MXBeanManager {
 	 * <p>Description: Attribute manager for the Compilation MXBean</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.CompilationAttribute</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.CompilationAttribute</code></p>
 	 */	
 	public static enum CompilationAttribute implements AttributeManager<CompilationAttribute> {
 		/**  */
@@ -371,7 +291,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -380,7 +300,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -389,7 +309,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -398,7 +318,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
@@ -407,7 +327,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
@@ -416,7 +336,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
 		 */
 		@Override
 		public Object extractDataFrom(final Object input) {
@@ -425,7 +345,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getKey()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
 		 */
 		@Override
 		public String getKey() {
@@ -441,7 +361,7 @@ public enum MBeanObserver implements MXBeanManager {
 	 * <p>Description: Attribute manager for the GarbageCollector MXBean</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.GarbageCollectorAttribute</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.GarbageCollectorAttribute</code></p>
 	 */	
 	public static enum GarbageCollectorAttribute implements AttributeManager<GarbageCollectorAttribute> {
 		/**  */
@@ -492,7 +412,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -501,7 +421,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -510,7 +430,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -519,7 +439,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
@@ -528,7 +448,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
@@ -537,7 +457,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
 		 */
 		@Override
 		public Object extractDataFrom(final Object input) {
@@ -550,7 +470,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getKey()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
 		 */
 		@Override
 		public String getKey() {
@@ -564,7 +484,7 @@ public enum MBeanObserver implements MXBeanManager {
 	 * <p>Description: Attribute manager for the Memory MXBean</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.MemoryAttribute</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.MemoryAttribute</code></p>
 	 */	
 	public static enum MemoryAttribute implements AttributeManager<MemoryAttribute> {
 		/**  */
@@ -623,7 +543,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -632,7 +552,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -641,7 +561,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -650,7 +570,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
@@ -659,7 +579,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
@@ -668,7 +588,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
 		 */
 		@Override
 		public Object extractDataFrom(final Object input) {
@@ -681,7 +601,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getKey()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
 		 */
 		@Override
 		public String getKey() {
@@ -696,7 +616,7 @@ public enum MBeanObserver implements MXBeanManager {
 	 * <p>Description: Attribute manager for the MemoryPool MXBean</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.MemoryPoolAttribute</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.MemoryPoolAttribute</code></p>
 	 */	
 	public static enum MemoryPoolAttribute implements AttributeManager<MemoryPoolAttribute> {
 		/**  */
@@ -764,7 +684,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -773,7 +693,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -782,7 +702,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -791,7 +711,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
@@ -800,7 +720,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
@@ -809,7 +729,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
 		 */
 		@Override
 		public Object extractDataFrom(final Object input) {
@@ -822,7 +742,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getKey()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
 		 */
 		@Override
 		public String getKey() {
@@ -837,7 +757,7 @@ public enum MBeanObserver implements MXBeanManager {
 	 * <p>Description: Attribute manager for the OperatingSystem MXBean</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.OperatingSystemAttribute</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.OperatingSystemAttribute</code></p>
 	 */	
 	public static enum OperatingSystemAttribute implements AttributeManager<OperatingSystemAttribute> {
 		/**  */
@@ -888,7 +808,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -897,7 +817,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -906,7 +826,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -915,7 +835,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
@@ -924,7 +844,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
@@ -933,7 +853,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
 		 */
 		@Override
 		public Object extractDataFrom(final Object input) {
@@ -942,7 +862,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getKey()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
 		 */
 		@Override
 		public String getKey() {
@@ -957,7 +877,7 @@ public enum MBeanObserver implements MXBeanManager {
 	 * <p>Description: Attribute manager for the Runtime MXBean</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.RuntimeAttribute</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.RuntimeAttribute</code></p>
 	 */	
 	public static enum RuntimeAttribute implements AttributeManager<RuntimeAttribute> {
 		/**  */
@@ -989,7 +909,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -998,7 +918,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -1007,7 +927,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -1016,7 +936,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
@@ -1025,7 +945,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
@@ -1034,7 +954,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
 		 */
 		@Override
 		public Object extractDataFrom(final Object input) {
@@ -1043,7 +963,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getKey()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
 		 */
 		@Override
 		public String getKey() {
@@ -1058,7 +978,7 @@ public enum MBeanObserver implements MXBeanManager {
 	 * <p>Description: Attribute manager for the Threading MXBean</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.ThreadingAttribute</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.ThreadingAttribute</code></p>
 	 */	
 	public static enum ThreadingAttribute implements AttributeManager<ThreadingAttribute> {
 		/**  */
@@ -1096,7 +1016,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getAttributeName()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
 		 */
 		@Override
 		public String getAttributeName() {
@@ -1105,7 +1025,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getType()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
 		 */
 		@Override
 		public Class<?> getType() {
@@ -1114,7 +1034,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isPrimitive()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
 		 */
 		@Override
 		public boolean isPrimitive() {
@@ -1123,7 +1043,7 @@ public enum MBeanObserver implements MXBeanManager {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getMask()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
 		 */
 		@Override
 		public int getMask() {
@@ -1132,7 +1052,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#isEnabledFor(int)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
@@ -1141,7 +1061,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#extractDataFrom(java.lang.Object)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
 		 */
 		@Override
 		public Object extractDataFrom(final Object input) {
@@ -1150,7 +1070,7 @@ public enum MBeanObserver implements MXBeanManager {
 		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeProvider#getKey()
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
 		 */
 		@Override
 		public String getKey() {
@@ -1161,138 +1081,4 @@ public enum MBeanObserver implements MXBeanManager {
 	}
 
 	
-	/**
-	 * <p>Title: DataAcceptor</p>
-	 * <p>Description: Defines a {@link Metric} extension that accepts the data it will provide</p> 
-	 * <p>Company: Helios Development Group LLC</p>
-	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.DataAcceptor</code></p>
-	 * @param <I> The expected type of the data to be accepted
-	 */
-	public interface DataAcceptor<I> extends Metric {
-		/**
-		 * Accepts the data to be transformed and served
-		 * @param dataMap The data map containing the data to be accepted, keyed by the attribute name
-		 */
-		public void accept(Map<String, I> dataMap);
-	}
-	
-	/**
-	 * <p>Title: DataAcceptorGauge</p>
-	 * <p>Description: A data accepting {@link Gauge} implementation</p> 
-	 * <p>Company: Helios Development Group LLC</p>
-	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.MXBean.DataAcceptorGauge</code></p>
-	 * @param <I> The expected type of the accepted data
-	 * @param <O> The expected type of the gauge
-	 */
-	@SuppressWarnings("rawtypes")
-	public static class DataAcceptorGauge<I, O> implements Gauge<O>, DataAcceptor<I> {
-		/** The attribute provider for this gauge */
-		protected final AttributeProvider attributeProvider;
-		/** The data to be accepted */
-		protected I data = null;
-		
-		
-		/**
-		 * Creates a new DataAcceptorGauge
-		 * @param attributeProvider The attribute provider that specifies the data key and transform
-		 */		
-		public DataAcceptorGauge(final AttributeProvider attributeProvider) {
-			this.attributeProvider = attributeProvider;
-		}
-		
-		/**
-		 * {@inheritDoc}
-		 * @see com.codahale.metrics.Gauge#getValue()
-		 */
-		@Override
-		public O getValue() {
-			return (O) attributeProvider.extractDataFrom(data);
-		}
-		
-		/**
-		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.jvm.MBeanObserver.DataAcceptor#accept(java.util.Map)
-		 */
-		@Override
-		public void accept(final Map<String, I> dataMap) {
-			if(dataMap==null) throw new IllegalArgumentException("The passed data map was null");
-			data = dataMap.get(attributeProvider.getAttributeName());
-			if(data==null) throw new RuntimeException("No data found in data map for attribute [" + attributeProvider.getAttributeName() + "]");			
-		}
-	}
-	
-	public static Set<DataAcceptorGaugeSet> buildObservers(final RuntimeMBeanServerConnection mbs) {
-		Set<DataAcceptorGaugeSet> set = new HashSet<DataAcceptorGaugeSet>();
-		for(MBeanObserver observer: MBeanObserver.values()) {
-			Collections.addAll(set, buildObservers(observer, mbs));
-		}
-		return set;
-	}
-	
-	public static DataAcceptorGaugeSet[] buildObservers(final MBeanObserver type, final RuntimeMBeanServerConnection mbs) {
-		final Set<ObjectName> objectNames = mbs.queryNames(type.objectName, null);
-		final DataAcceptorGaugeSet[] gaugeSets = new DataAcceptorGaugeSet[objectNames.size()];
-		int index = 0;
-		for(ObjectName on: objectNames) {
-			gaugeSets[index] = new DataAcceptorGaugeSet(on, type, mbs);
-			index++;
-		}
-		return gaugeSets;
-	}
-	
-	public static class DataAcceptorGaugeSet<T, I, O> implements MetricSet {
-		protected final Map<String, DataAcceptorGauge<I, O>> gauges = new HashMap<String, DataAcceptorGauge<I, O>>();
-		protected final MBeanObserver observer;
-		protected final ObjectName objectName;
-		protected final RuntimeMBeanServerConnection mbs;
-		protected int mask = -1;
-		protected String[] attributeNames = null;
-		protected AttributeProvider[] providers = null;
-		protected Timer timer = new Timer();
-//		<T extends Enum<T> & AttributeProvider>
-		
-		/**
-		 * Creates a new DataAcceptorGaugeSet
-		 * @param objectName The absolute object name of the target MBean
-		 * @param observer The observer defining what is to be collected
-		 * @param mbs The MBeanServerConnection to the target MBeanServer
-		 */
-		public DataAcceptorGaugeSet(final ObjectName objectName, final MBeanObserver observer, final RuntimeMBeanServerConnection mbs) {
-			this.observer = observer;
-			this.objectName = objectName;
-			this.mbs = mbs;		
-			mask = this.observer.getMaskFor(mbs.getMBeanInfo(objectName).getAttributes());
-			Object[] _providers = this.observer.getAttributeProviders(mask);
-			providers = new AttributeProvider[_providers.length];
-			for(int i = 0; i < _providers.length; i++) {
-				providers[i] = (AttributeProvider) _providers[i];
-			}
-			attributeNames = this.observer.getAttributeNames(mask);
-			for(AttributeProvider ap: providers) {
-				String name = objectName.getDomain() + "." + objectName.getKeyProperty("type") + "." + ap.getKey();
-				log("DAG Name: [" + name + "]");
-				gauges.put(name, new DataAcceptorGauge(ap));				
-			}
-		}
-		
-		public void refresh() {
-			final Context ctx = timer.time();			
-			Map<String, Object> map = mbs.getAttributeMap(objectName, observer.getAttributeNames(mask));
-			for(DataAcceptorGauge dag: gauges.values()) {				
-				dag.accept(map);
-			}
-			timer.update(ctx.stop(), TimeUnit.NANOSECONDS);
-		}
-
-		/**
-		 * {@inheritDoc}
-		 * @see com.codahale.metrics.MetricSet#getMetrics()
-		 */
-		@Override
-		public Map<String, Metric> getMetrics() {
-			return new TreeMap<String, Metric>(gauges);
-		}
-	}
 }
