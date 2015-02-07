@@ -373,8 +373,9 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		/**  */
 		LAST_GC_INFO_USED("LastGcInfo", "used", CompositeData.class, long.class),		
 		/**  */
-		COLLECTION_COUNT("CollectionCount", long.class);
-
+		COLLECTION_COUNT("CollectionCount", long.class),
+		/**  */
+		COLLECTION_TIME("CollectionTime", long.class);
 		
 		private GarbageCollectorAttribute(final String attributeName, final String subAttributeName, final Class<?> type, final Class<?> transformedType) {
 			this.attributeName = attributeName;

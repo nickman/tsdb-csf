@@ -19,6 +19,7 @@ package com.heliosapm.opentsdb.client.jvmjmx;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -81,6 +82,14 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 	protected int attributeMask = -1;
 	/** The attribute names we're collecting */
 	protected String[] attributeNames = null;
+	
+	
+	
+	public static List<BaseMBeanObserver> build(MBeanServerConnection mbeanServer) {
+		List<BaseMBeanObserver> observers = new ArrayList<BaseMBeanObserver>();
+		
+		return observers;
+	}
 	
 	/**
 	 * Creates a new BaseMBeanObserver
@@ -160,16 +169,18 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 		for(Map.Entry<ObjectName, String[]> entry: objectNamesAttrs.entrySet()) {
 			map.put(entry.getKey(), mbs.getAttributeMap(entry.getKey(), entry.getValue()));
 		}
-		active.set(accept(map, clock.getTime()));
+		active.set(accept(map, clock.getTime(), elapsed("BaseElapsedTime")));
+		
 	}
 	
 	/**
 	 * Callback to the concrete observer when data has been collected
 	 * @param data The data as Maps of collected data keyed by the attribute name within a map keyed by the ObjectName of the MBean collected from\
 	 * @param currentTime The current time according to the configured clock
+	 * @param elapsedTime The elapsed time since the prior accept in ns.
 	 * @return true to continue polling, false otherwise
 	 */
-	protected abstract boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime); 
+	protected abstract boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime); 
 	
 	/**
 	 * Callback before polling starts to ensure the observer should be scheduled

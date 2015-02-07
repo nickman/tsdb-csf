@@ -40,15 +40,15 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 	 /**  */
 	private static final long serialVersionUID = -6556007382355868989L;
 	/** The currently loaded class count metric */
-	final OTMetric loadedClassCount;
+	protected final OTMetric loadedClassCount;
 	 /** The total loaded class count metric */
-	final OTMetric totalLoadedClassCount;
+	protected final OTMetric totalLoadedClassCount;
 	 /** The total unloaded class count metric */
-	final OTMetric unloadedClassCount;
+	protected final OTMetric unloadedClassCount;
 	 /** The class unload rate metric */
-	final OTMetric classUnloadRate;
+	protected final OTMetric classUnloadRate;
 	 /** The class load rate metric */
-	final OTMetric classLoadRate;
+	protected final OTMetric classLoadRate;
 	 
 	/**
 	 * Creates a new ClassLoadingMBeanObserver
@@ -77,16 +77,16 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserver#accept(java.util.Map, long)
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserver#accept(java.util.Map, long, long)
 	 */
 	@Override
-	protected boolean accept(Map<ObjectName, Map<String, Object>> data, final long currentTime) {
+	protected boolean accept(Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime) {
 		Map<String, Object> values = data.values().iterator().next();
-		final long totalLoaded = (Long)values.get(ClassLoadingAttribute.TOTAL_LOADED_CLASS_COUNT);
-		final long unLoaded = (Long)values.get(ClassLoadingAttribute.UNLOADED_CLASS_COUNT);
+		final long totalLoaded = (Long)values.get(ClassLoadingAttribute.TOTAL_LOADED_CLASS_COUNT.attributeName);
+		final long unLoaded = (Long)values.get(ClassLoadingAttribute.UNLOADED_CLASS_COUNT.attributeName);
 		final Long loadRate = delta("loadRate", totalLoaded);
 		final Long unloadRate = delta("unloadRate", unLoaded);
-		loadedClassCount.trace(currentTime, values.get(ClassLoadingAttribute.LOADED_CLASS_COUNT));
+		loadedClassCount.trace(currentTime, values.get(ClassLoadingAttribute.LOADED_CLASS_COUNT.attributeName));
 		totalLoadedClassCount.trace(currentTime, totalLoaded);
 		unloadedClassCount.trace(currentTime, unLoaded);
 		classUnloadRate.trace(currentTime, unloadRate);

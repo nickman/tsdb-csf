@@ -44,9 +44,9 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 	/**  */
 	private static final long serialVersionUID = 6501323051943930514L;
 	/** The total compile time metric */
-	final OTMetric totalCompileTime;
+	protected final OTMetric totalCompileTime;
 	 /** The compile rate metric */
-	final OTMetric compileRate;
+	protected final OTMetric compileRate;
 	
 	/** The compiler MXBean ObjectName */
 	final ObjectName objectName = Util.objectName(ManagementFactory.COMPILATION_MXBEAN_NAME);
@@ -82,13 +82,13 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserver#accept(java.util.Map, long)
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserver#accept(java.util.Map, long, long)
 	 */
 	@Override
-	protected boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime) {
+	protected boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime) {
 		Map<String, Object> values = data.values().iterator().next();
-		totalCompileTime.trace(currentTime, values.get(CompilationAttribute.TOTAL_COMPILATION_TIME));
-		compileRate.trace(currentTime, delta("compileRate", (Long)values.get(CompilationAttribute.TOTAL_COMPILATION_TIME)));
+		totalCompileTime.trace(currentTime, values.get(CompilationAttribute.TOTAL_COMPILATION_TIME.attributeName));
+		compileRate.trace(currentTime, delta("compileRate", (Long)values.get(CompilationAttribute.TOTAL_COMPILATION_TIME.attributeName)));
 		return true;
 	}
 
