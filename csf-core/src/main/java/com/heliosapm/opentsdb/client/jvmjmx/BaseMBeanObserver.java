@@ -16,6 +16,7 @@
 
 package com.heliosapm.opentsdb.client.jvmjmx;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -85,11 +86,6 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 	
 	
 	
-	public static List<BaseMBeanObserver> build(MBeanServerConnection mbeanServer) {
-		List<BaseMBeanObserver> observers = new ArrayList<BaseMBeanObserver>();
-		
-		return observers;
-	}
 	
 	/**
 	 * Creates a new BaseMBeanObserver

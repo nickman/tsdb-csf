@@ -318,19 +318,33 @@ public class MetricBuilder {
 	}
 	
 	/**
-	 * Adds a map of tags to the metric name builder
+	 * Adds a map of tags to the metric name builder.
+	 * Ignores a null or empty map of tags
 	 * @param tags A map of tag values
 	 * @return this metric builder
 	 */
 	public MetricBuilder tags(final Map<String, String> tags) {
-		if(tags==null) throw new IllegalArgumentException("The passed tag map was null");
-		if(!tags.isEmpty()) {
-			for(Map.Entry<String, String> entry: tags.entrySet()) {
-				tag(entry.getKey(), entry.getValue());
-			}
+		if(tags==null || tags.isEmpty()) return this;
+		for(Map.Entry<String, String> entry: tags.entrySet()) {
+			tag(entry.getKey(), entry.getValue());
 		}
 		return this;
 	}
+	
+	/**
+	 * Adds a map of tags to the metric name builder.
+	 * Throws an {@link IllegalArgumentException} if the map is null or empty.
+	 * @param tags A map of tag values
+	 * @return this metric builder
+	 */
+	public MetricBuilder ntags(final Map<String, String> tags) {
+		if(tags==null || tags.isEmpty()) throw new IllegalArgumentException("The passed tag map was null or empty");
+		for(Map.Entry<String, String> entry: tags.entrySet()) {
+			tag(entry.getKey(), entry.getValue());
+		}
+		return this;
+	}
+	
 	
 	/**
 	 * Returns the long hash code of the builder in its current state.

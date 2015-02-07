@@ -232,7 +232,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
-			return (bitMask & mask)==mask;
+			return (mask & bitMask)==bitMask;
 		}
 		
 		/**
@@ -331,7 +331,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
-			return (bitMask & mask)==mask;
+			return (mask & bitMask)==bitMask;
 		}
 
 		/**
@@ -453,7 +453,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
-			return (bitMask & mask)==mask;
+			return (mask & bitMask)==bitMask;
 		}
 
 		/**
@@ -584,7 +584,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
-			return (bitMask & mask)==mask;
+			return (mask & bitMask)==bitMask;
 		}
 
 		/**
@@ -725,7 +725,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
-			return (bitMask & mask)==mask;
+			return (mask & bitMask)==bitMask;
 		}
 
 		/**
@@ -849,7 +849,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
-			return (bitMask & mask)==mask;
+			return (mask & bitMask)==bitMask;
 		}
 
 		/**
@@ -950,7 +950,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
-			return (bitMask & mask)==mask;
+			return (mask & bitMask)==bitMask;
 		}
 
 		/**
@@ -1057,7 +1057,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		 */
 		@Override
 		public boolean isEnabledFor(final int mask) {
-			return (bitMask & mask)==mask;
+			return (mask & bitMask)==bitMask;
 		}
 		
 		/**
