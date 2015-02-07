@@ -16,12 +16,12 @@
 
 package com.heliosapm.opentsdb.client.jvmjmx;
 
-import java.io.Closeable;
-import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.management.MBeanServerConnection;
 import javax.management.Notification;
@@ -30,7 +30,17 @@ import javax.management.NotificationListener;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
+import com.codahale.metrics.Clock;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Timer;
+import com.codahale.metrics.Timer.Context;
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
+import com.heliosapm.opentsdb.client.opentsdb.EpochClock;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -42,15 +52,30 @@ import com.heliosapm.opentsdb.client.util.Util;
  * <p><code>com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserver</code></p>
  */
 
-public class BaseMBeanObserver implements Closeable, NotificationListener, NotificationFilter, Runnable {
+public abstract class BaseMBeanObserver implements NotificationListener, NotificationFilter, Runnable {
+	/**  */
+	private static final long serialVersionUID = -8583616842316152417L;
+	/** Instance logger */
+	protected final Logger log = LogManager.getLogger(getClass());
 	/** The MBeanObserver defining what we're collecting */
 	protected final MBeanObserver mbeanObserver;
 	/** The MBeanServer we're connecting from */
 	protected final RuntimeMBeanServerConnection mbs;
-	/** The object names being monitored */
+	/** The attributes being collected keyed by the object names being monitored */
 	protected final Map<ObjectName, String[]> objectNamesAttrs;
 	/** The tags common to all metrics submitted from this observer */
 	protected final Map<String, String> tags = new LinkedHashMap<String, String>();
+	/** A refresh timer */
+	protected final Timer timer = new Timer();
+	/** A meter of collection exceptions */
+	protected final Meter collectExceptions = new Meter();
+	/** Indicates if this observer is actively polling */
+	protected final AtomicBoolean active = new AtomicBoolean(false); 
+	/** A long delta tracker */
+	protected final NonBlockingHashMap<String, long[]> longDeltas = new NonBlockingHashMap<String, long[]>();
+	/** The clock to get the current time with */
+	protected final Clock clock;
+	
 	
 	/** The attribute mask */
 	protected int attributeMask = -1;
@@ -92,6 +117,7 @@ public class BaseMBeanObserver implements Closeable, NotificationListener, Notif
 			objectNamesAttrs.put(on, mbeanObserver.getAttributeNames(attributeMask));
 		}
 		initializeAgentName();
+		clock = ConfigurationReader.confBool(Constants.PROP_TIME_IN_SEC, Constants.DEFAULT_TIME_IN_SEC) ? EpochClock.INSTANCE : Clock.defaultClock();
 	}
 	
 	/**
@@ -100,7 +126,14 @@ public class BaseMBeanObserver implements Closeable, NotificationListener, Notif
 	 */
 	void initializeAgentName() {
 		if(!mbs.isInVM() && (!tags.containsKey(Constants.APP_TAG) || !tags.containsKey(Constants.HOST_TAG))) {
-			
+			// FIXME: The agent name discovery should be configurable
+			final RemoteAgentName ran = new DefaultRemoteAgentName();
+			if(!tags.containsKey(Constants.APP_TAG)) {
+				tags.put(Constants.APP_TAG, ran.getAppName(mbs));
+			}
+			if(!tags.containsKey(Constants.HOST_TAG)) {
+				tags.put(Constants.HOST_TAG, ran.getHostName(mbs));
+			}			
 		}		
 	}
 	
@@ -110,9 +143,53 @@ public class BaseMBeanObserver implements Closeable, NotificationListener, Notif
 	 */
 	@Override
 	public void run() {
-
+		final Context ctx = timer.time();
+		try {
+			refresh();
+			ctx.stop();
+		} catch (Exception ex) {
+			collectExceptions.mark();
+		} 
+	}
+	
+	/**
+	 * Polls the target MBeanServer for this MBeanObserver's target data
+	 */
+	protected void refresh() {
+		final Map<ObjectName, Map<String, Object>> map = new HashMap<ObjectName, Map<String, Object>>(objectNamesAttrs.size());
+		for(Map.Entry<ObjectName, String[]> entry: objectNamesAttrs.entrySet()) {
+			map.put(entry.getKey(), mbs.getAttributeMap(entry.getKey(), entry.getValue()));
+		}
+		active.set(accept(map, clock.getTime()));
+	}
+	
+	/**
+	 * Callback to the concrete observer when data has been collected
+	 * @param data The data as Maps of collected data keyed by the attribute name within a map keyed by the ObjectName of the MBean collected from\
+	 * @param currentTime The current time according to the configured clock
+	 * @return true to continue polling, false otherwise
+	 */
+	protected abstract boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime); 
+	
+	/**
+	 * Callback before polling starts to ensure the observer should be scheduled
+	 * @param mbs The MBeanServer connection
+	 * @param objectNamesAttrs The attribute names being collected keyed by the ObjectName of the target MBean
+	 * @return true to contine, false otherwise
+	 */
+	protected boolean initialize(final RuntimeMBeanServerConnection mbs, final Map<ObjectName, String[]> objectNamesAttrs) {
+		return true;
 	}
 
+	/**
+	 * Indicates if this observer is actively polling
+	 * @return true if this observer is actively polling, false otherwise
+	 */
+	public boolean isActive() {
+		return active.get();
+	}
+	
+	
 	/**
 	 * {@inheritDoc}
 	 * @see javax.management.NotificationFilter#isNotificationEnabled(javax.management.Notification)
@@ -132,12 +209,97 @@ public class BaseMBeanObserver implements Closeable, NotificationListener, Notif
 	}
 
 	/**
-	 * {@inheritDoc}
-	 * @see java.io.Closeable#close()
+	 * Returns the MBeanObserver
+	 * @return the mbeanObserver
 	 */
-	@Override
-	public void close() throws IOException {
-
+	public MBeanObserver getMbeanObserver() {
+		return mbeanObserver;
 	}
 
+	/**
+	 * Returns a map of the attributes being collected keyed by the object names being monitored
+	 * @return a map of attribute names keyed by ObjectNames
+	 */
+	public Map<ObjectName, String[]> getObjectNamesAttrs() {
+		return Collections.unmodifiableMap(objectNamesAttrs);
+	}
+
+	/**
+	 * Returns the configured tags
+	 * @return the tags
+	 */
+	public Map<String, String> getTags() {
+		return tags;
+	}
+
+	/**
+	 * Returns the collection timer
+	 * @return the timer
+	 */
+	public Timer getTimer() {
+		return timer;
+	}
+
+	/**
+	 * Returns the exception meter
+	 * @return the collectExceptions
+	 */
+	public Meter getCollectExceptions() {
+		return collectExceptions;
+	}
+
+	/**
+	 * Computes a delta between the named passed sample and the prior sample for the same name.
+	 * @param name The name of the delta
+	 * @param sample The new sample
+	 * @param defaultValue The value to return if there was no prior sample
+	 * @return the computed delta which could be null
+	 */
+	protected Long delta(final String name, final long sample, final Long defaultValue) {
+		final long[] samp = new long[]{sample};
+		long[] state = longDeltas.putIfAbsent(name, samp);
+		if(state==null) {
+			log.info("Initialized Delta [{}]: {}", name, sample);
+			return defaultValue;
+		}
+		state = longDeltas.replace(name, samp);
+		long delta = sample - state[0];
+		if(delta!=0) {
+			log.info("Calc Delta [{}]: state:{}, sample:{}, delta:{}", name, state[0], sample, delta);
+		}
+		return delta;
+	}
+	
+	/**
+	 * Computes a delta between the named passed sample and the prior sample for the same name.
+	 * @param name The name of the delta
+	 * @param sample The new sample
+	 * @return the computed delta which could be null
+	 */
+	protected Long delta(final String name, final long sample) {
+		return delta(name, sample, null);
+	}
+	
+
+	/**
+	 * Computes the delta between the current time and the prior call for the same elapsed name
+	 * @param name The name of the elapsed time context
+	 * @return the elapsed time which could be -1L if this is the first call
+	 */
+	protected long elapsed(final String name) {
+		return delta(name, System.nanoTime(), -1L);
+	}
+	
+	
+	/**
+	 * Calculates a percent
+	 * @param part The part 
+	 * @param whole The whole
+	 * @return The percentage that the part is of the whole
+	 */
+	protected int percent(double part, double whole) {
+		if(part==0d || whole==0d) return 0;
+		double p = part/whole*100;
+		return (int) Math.round(p);
+	}
 }

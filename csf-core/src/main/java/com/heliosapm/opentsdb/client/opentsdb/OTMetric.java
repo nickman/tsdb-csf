@@ -774,6 +774,26 @@ public class OTMetric implements Serializable {
     	}
     }
     
+	/**
+	 * Traces a value for this metric
+	 * @param timestamp The timestamp
+	 * @param value The value
+	 */
+	public void trace(final long timestamp, final Object value) {
+		if(value!=null) {
+			MetricBuilder.trace(this, value);
+		}
+	}
+	
+	/**
+	 * Traces a value for the this metric using the configured clock for the timestamp
+	 * @param value The value
+	 */
+	public void trace(final Object value) {
+		if(value!=null) {
+			MetricBuilder.trace(this, value);
+		}
+	}
   
     
 //    /**
