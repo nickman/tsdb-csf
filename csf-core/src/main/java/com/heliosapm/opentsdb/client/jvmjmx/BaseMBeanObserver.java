@@ -18,6 +18,7 @@ package com.heliosapm.opentsdb.client.jvmjmx;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -41,6 +42,7 @@ import com.codahale.metrics.Timer.Context;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.EpochClock;
+import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -75,7 +77,9 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 	/** A long delta tracker */
 	protected final NonBlockingHashMap<String, long[]> longDeltas = new NonBlockingHashMap<String, long[]>();
 	/** The clock to get the current time with */
-	protected final Clock clock;
+	protected final Clock clock;	
+	/** The metrics that belong to this observer */
+	protected final Set<OTMetric> groupMetrics = new HashSet<OTMetric>();
 	
 	
 	/** The attribute mask */
@@ -139,6 +143,14 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 				tags.put(Constants.HOST_TAG, ran.getHostName(mbs));
 			}			
 		}		
+	}
+	
+	/**
+	 * Returns the default group name which uniquely identifies the target MBeanServer and ObjectName (which could be a pattern).
+	 * @return the default group name 
+	 */
+	protected String getDefaultGroupName() {
+		return mbs.getMBeanServerId() + "/" + mbeanObserver.objectName.toString();
 	}
 	
 	/**

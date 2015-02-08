@@ -23,12 +23,14 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.management.ObjectName;
 
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.json.JSONArray;
 
 import com.codahale.metrics.Clock;
 import com.google.common.hash.Funnel;
@@ -58,6 +60,9 @@ public class MetricBuilder {
 	
 	/** The buffer factory for allocating buffers to stream metrics out to the tracer */
     private static final DynamicByteBufferBackedChannelBufferFactory bufferFactory = new DynamicByteBufferBackedChannelBufferFactory(128);
+    
+    /** A map of OTMetric groups keyed by the group name */
+    private static final Map<String, Set<OTMetric>> groups = new ConcurrentHashMap<String, Set<OTMetric>>();
 
     private static final MetricBuffer METRIC_BUFFER = new MetricBuffer();
     
@@ -365,7 +370,53 @@ public class MetricBuilder {
 	 * @return an OTMetric
 	 */
 	public OTMetric build() {
-		return OTMetricCache.getInstance().getOTMetric(name, prefix, extension, tags);
+		return build(null);
+	}
+	
+	/**
+	 * Builds an OTMetric from this builder
+	 * @param groupName An optional group name that groups all the created metrics into a set 
+	 * which can be retrieved after all the group's OTMetrics have been created.
+	 * @return an OTMetric
+	 */
+	public OTMetric build(final String groupName) {
+		final OTMetric otMetric = OTMetricCache.getInstance().getOTMetric(name, prefix, extension, tags);
+		if(groupName!=null) {
+			Set<OTMetric> groupSet = groups.get(groupName);
+			if(groupSet==null) {
+				synchronized(groups) {
+					groupSet = groups.get(groupName);
+					if(groupSet==null) {
+						groupSet = new CopyOnWriteArraySet<OTMetric>();
+						groups.put(groupName, groupSet);						
+					}
+				}
+			}
+			groupSet.add(otMetric);
+			System.err.println("Adding to group [" + groupName + "]: [" + otMetric.toString() + "]");
+		}
+		return otMetric;
+	}
+	
+	/**
+	 * Returns the named OTMetric group
+	 * @param groupName The group name
+	 * @param remove true to remove the group, false to leave it in the cache so it can keep accumulating
+	 * @return the group set or null if the named group does not exist
+	 */
+	public static Set<OTMetric> getGroupSet(final String groupName, final boolean remove) {
+		if(groupName==null) throw new IllegalArgumentException("The passed group name was null");
+		if(remove) return groups.remove(groupName);
+		return groups.get(groupName);
+	}
+
+	/**
+	 * Removes and returns the named OTMetric group
+	 * @param groupName The group name
+	 * @return the group set or null if the named group does not exist
+	 */
+	public static Set<OTMetric> getGroupSet(final String groupName) {
+		return getGroupSet(groupName, true);
 	}
 	
 	/**
@@ -412,8 +463,10 @@ public class MetricBuilder {
 	 * @param metric The OTMetric to trace
 	 * @param value The value
 	 */
-	public static void trace(final OTMetric metric, final Object value) {
-		trace(metric, getClock().getTime(), value);
+	public static long trace(final OTMetric metric, final Object value) {
+		final long time = getClock().getTime();
+		trace(metric, time, value);
+		return time;
 	}
 	
 	

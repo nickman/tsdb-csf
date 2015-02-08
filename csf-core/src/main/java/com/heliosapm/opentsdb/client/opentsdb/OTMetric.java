@@ -57,7 +57,8 @@ public class OTMetric implements Serializable {
 	
 	static final short LONG_HASH_CODE = 0;						// 8 bytes
 	static final short HASH_CODE = LONG_HASH_CODE + 8;			// 4 bytes
-	static final short HAS_APP_TAG = HASH_CODE + 4;				// 1 byte
+	static final short LAST_TRACE_TIME = HASH_CODE + 4;			// 8 bytes
+	static final short HAS_APP_TAG = LAST_TRACE_TIME + 8;		// 1 byte
 	static final short HAS_HOST_TAG = HAS_APP_TAG + 1;			// 1 byte
 	static final short IS_EXT_TAG = HAS_HOST_TAG + 1;			// 1 byte
 	static final short TOTAL_SIZE_OFFSET = IS_EXT_TAG + 1;  	// 4 bytes
@@ -181,6 +182,7 @@ public class OTMetric implements Serializable {
 			buff	
 			.putLong(0)							// the long hash code, Zero for now
 			.putInt(0)							// the java hash code, Zero for now
+			.putLong(0)							// the last trace time, Zero
 			.put(sfn.hasAppTag() ? ONE_BYTE : ZERO_BYTE)						// App Tag
 			.put(sfn.hasHostTag() ? ONE_BYTE : ZERO_BYTE)						// Host Tag
 			.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
@@ -209,7 +211,7 @@ public class OTMetric implements Serializable {
 			buff.putInt(TOTAL_SIZE_OFFSET, totalLength);
 			buff.limit(pos);
 			buff.position(0);				
-			nameBuffer = ByteBuffer.allocateDirect(buff.limit()).put(buff).asReadOnlyBuffer();
+			nameBuffer = ByteBuffer.allocateDirect(buff.limit()).put(buff); //.asReadOnlyBuffer();
 		} finally {
 			OffHeapFIFOFile.clean(buff);
 		}		
@@ -230,147 +232,6 @@ public class OTMetric implements Serializable {
 	}
 	
 
-	
-//	/**
-//	 * Creates a new OTMetric
-//	 * @param flatName The plain flat name from the Metric name
-//	 * @param nprefix The optional prefix which is prefixed to the flat name
-//	 * @param extension The optional extension which is appended to the TSDB metric name
-//	 * @param extraTags The optional extra tags to add
-//	 */
-//	OTMetric(final String flatName, final String nprefix, final String extension, final Map<String, String> extraTags) {
-//		if(flatName==null) throw new IllegalArgumentException("The passed flat name was null");
-//		final String fprefix = nprefix==null ? null : nprefix.trim();
-//		String fname = (fprefix==null ? "" : (fprefix + ".")) + flatName.replace(" ", "");
-//		if(fname.isEmpty()) throw new IllegalArgumentException("The passed flat name was empty");
-//		final String fext = extension==null ? null : extension.trim(); 
-//		final boolean isext = fext!=null && !fext.isEmpty();
-//		int eindex = fname.indexOf('=');		
-//		final boolean hasTags = (extraTags!=null && !extraTags.isEmpty());
-//		if(eindex==-1 && !hasTags) {
-//			if(isext) {
-//				fname = fname + "." + fext; 
-//			}			
-//			// totally flat metric.
-//			final byte[] name = fname.getBytes(UTF8);
-//			nameBuffer = (ByteBuffer)ByteBuffer.allocateDirect(name.length + TOTAL_SIZE)
-//					.put(ZERO_BYTE)						// No app tag
-//					.put(ZERO_BYTE)						// No host tag
-//					.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
-//					.putInt(name.length)				// Length of the full name
-//					.putInt(name.length)				// Length of the prefix
-//					.putInt(ZERO_BYTE)					// Zero tags
-//					.put(name)
-//					.asReadOnlyBuffer()
-//					.flip();			
-//		} else {
-//			ByteBuffer buff = null;
-//			try {
-//				buff = ByteBuffer.allocateDirect((fname.getBytes(UTF8).length + (hasTags ? extraTags.toString().length() : 0))*2);
-//				int cindex = fname.indexOf(':');
-//				final boolean wasPseudo = cindex==-1;				
-//				if(cindex==-1 && !hasTags) {
-//					
-//					// pseudo flat metric, e.g. [KitchenSink.resultCounts.op=cache-lookup.service=cacheservice]
-//					final String[] prefixes = DOT_SPLITTER.split(fname.substring(0, eindex));
-//					
-//					if(prefixes.length<2) {/* FIXME: */} // INVALID. We're either starting with a "=" or there is no prefix, only tags.
-//					
-//					StringBuilder b = new StringBuilder(prefixes[0]);
-//					for(int i = 1; i < prefixes.length-1; i++) {
-//						b.append(".").append(prefixes[i]);
-//					}
-//					if(isext) {
-//						b.append(".").append(fext);
-//					}
-//					b.append(":");
-//					final String[] tags = COMMA_SPLITTER.split((prefixes[prefixes.length-1] + "=" + fname.substring(eindex+1)).replace('.', ','));
-//					for(String tag: tags) {
-//						b.append(tag).append(",");
-//					}
-//					b.deleteCharAt(b.length()-1);
-////					if(isext) {
-////						b.append(".").append(fext);
-////					}
-//					fname = b.toString();
-//					cindex = fname.indexOf(':');
-//					eindex = fname.indexOf('=');
-//				} else {
-////					if(isext) {
-////						fname = fname + "." + fext;
-////					}					
-//				}				
-//				final byte[] prefix =
-//					(
-//						(!wasPseudo) ? (fname.substring(0, cindex) ) : (cindex==-1 ? fname : fname.substring(0, cindex))
-//						+ 
-//						(isext ? ("." + fext) : "")
-//					).getBytes(UTF8);
-//				final String[] tags = COMMA_SPLITTER.split(fname.substring(cindex+1));
-//				
-//				
-//				buff					
-//					.put(ZERO_BYTE)			// App Tag, Zero for now
-//					.put(ZERO_BYTE)			// Host Tag, Zero for now
-//					.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
-//					.putInt(0)				// Total Length, Zero for now
-//					.putInt(prefix.length)	// Length of the prefix
-//					.putInt(tags.length)	// Tag count for now
-//					.put(prefix);			// The prefix bytes
-//				
-//				int actualTagCount = 0;
-//				int totalLength = prefix.length;
-//				byte hasAppTag = ZERO_BYTE, hasHostTag = ZERO_BYTE;
-//				for(String tag: tags) {
-//					final int eind = tag.indexOf('=');
-//					if(eind==-1) continue;
-//					final byte[] key = Util.clean(tag.substring(0, eind)).getBytes(UTF8);
-//					if(key.length==0) continue;
-//					final byte[] value = Util.clean(tag.substring(eind+1)).getBytes(UTF8);
-//					if(value.length==0) continue;
-//					if(Arrays.equals(APP_TAG_BYTES, key)) {
-//						hasAppTag = ONE_BYTE;
-//					} else if(Arrays.equals(HOST_TAG_BYTES, key)) {
-//						hasHostTag = ONE_BYTE;
-//					}
-//					int tagLength = key.length + value.length + TAG_OVERHEAD; 
-//					buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);
-//					actualTagCount++;						
-//					totalLength += tagLength;
-//				}
-//				if(extraTags!=null && !extraTags.isEmpty()) {
-//					for(Map.Entry<String, String> entry: extraTags.entrySet()) {
-//						final byte[] key = Util.clean(entry.getKey()).getBytes(UTF8);
-//						final byte[] value = Util.clean(entry.getValue()).getBytes(UTF8);
-//						if(key.length==0 || value.length==0) continue;
-//						if(hasAppTag!=ONE_BYTE && Arrays.equals(APP_TAG_BYTES, key)) {
-//							hasAppTag = ONE_BYTE;
-//						} else if(hasHostTag!=ONE_BYTE && Arrays.equals(HOST_TAG_BYTES, key)) {
-//							hasHostTag = ONE_BYTE;
-//						}
-//						int tagLength = key.length + value.length + TAG_OVERHEAD;
-//						buff.putInt(tagLength).put(QT).put(key).put(QT).put(COLON).put(QT).put(value).put(QT);
-//						actualTagCount++;						
-//						totalLength += tagLength;
-//					}
-//				}
-//				final int pos = buff.position();
-//				buff.rewind();
-//				buff.put(hasAppTag);
-//				buff.put(hasHostTag);
-//				buff.put(isext ? ONE_BYTE : ZERO_BYTE);
-//				buff.putInt(totalLength);
-//				buff.putInt(prefix.length);
-//				buff.putInt(actualTagCount);					
-//				buff.limit(pos);
-//				buff.position(0);				
-//				nameBuffer = ByteBuffer.allocateDirect(buff.limit()).put(buff).asReadOnlyBuffer();				
-//			} finally {
-//				OffHeapFIFOFile.clean(buff);
-//			}
-//		}
-//		
-//	}
 	
 	
 	/**
@@ -616,6 +477,22 @@ public class OTMetric implements Serializable {
 	}
 	
 	/**
+	 * Returns the last trace time as a UTC long, or 0L if a trace has never occurred
+	 * @return the last trace time 
+	 */
+	public long getLastTraceTime() {
+		return nameBuffer.getLong(LAST_TRACE_TIME);
+	}
+	
+	/**
+	 * Sets the last trace time as a UTC long
+	 * @param traceTime the last trace time 
+	 */
+	void setTraceTime(final long traceTime) {
+		nameBuffer.putLong(LAST_TRACE_TIME, traceTime);
+	}
+	
+	/**
 	 * Returns the OTMetric's tags
 	 * @return the OTMetric's tags
 	 */
@@ -751,7 +628,7 @@ public class OTMetric implements Serializable {
 		cbuff.writeBytes(METRIC_CLOSER);
 		if(appendComma) {
 			cbuff.writeBytes(COMMA);
-		}
+		}		
     	return cbuff;
     }
     
@@ -779,7 +656,8 @@ public class OTMetric implements Serializable {
 	 */
 	public void trace(final long timestamp, final Object value) {
 		if(value!=null) {
-			MetricBuilder.trace(this, value);
+			setTraceTime(timestamp);
+			MetricBuilder.trace(this, timestamp, value);
 		}
 	}
 	
@@ -789,7 +667,7 @@ public class OTMetric implements Serializable {
 	 */
 	public void trace(final Object value) {
 		if(value!=null) {
-			MetricBuilder.trace(this, value);
+			setTraceTime(MetricBuilder.trace(this, value));			
 		}
 	}
   
@@ -846,17 +724,7 @@ public class OTMetric implements Serializable {
 		if (getClass() != obj.getClass())
 			return false;
 		OTMetric other = (OTMetric) obj;
-		if (nameBuffer == null) {
-			if (other.nameBuffer != null)
-				return false;
-		} else if (!nameBuffer.equals(other.nameBuffer))
-			return false;
-		return true;
+		return other.longHashCode()==longHashCode();
 	}
-	
-
-	
-	
-
 }
 

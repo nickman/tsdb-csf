@@ -211,11 +211,11 @@ public class OpenTsdb {
     		httpClient = HttpMetricsPoster.getInstance();
     	}
     	if(chBuff.readableBytes()<5) return;
-//    	try {
-//    		System.err.println(new JSONArray(chBuff.toString(Constants.UTF8)).toString(1));
-//    	} catch (Exception ex) {
-//    		ex.printStackTrace(System.err);
-//    	}
+    	try {
+    		System.err.println(new JSONArray(chBuff.toString(Constants.UTF8)).toString(1));
+    	} catch (Exception ex) {
+    		ex.printStackTrace(System.err);
+    	}
     	httpClient.send(chBuff, metricCount);
     	logger.debug("Sent [{}] metrics", metricCount);
     }
