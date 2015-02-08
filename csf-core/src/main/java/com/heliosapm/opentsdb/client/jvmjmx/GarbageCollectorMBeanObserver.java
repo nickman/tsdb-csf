@@ -20,6 +20,7 @@ import static com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.GARBAGE_COLLECT
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -100,7 +101,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 		garbageCollectors = objectNamesAttrs.keySet();
 		boolean tmp = false;
 		try {
-			delta("ProcessCPUTime", (Long)mbs.getAttribute(OS_OBJECT_NAME, "ProcessCpuTime"));
+			delta(deltaKey("ProcessCPUTime"), (Long)mbs.getAttribute(OS_OBJECT_NAME, "ProcessCpuTime"));
 			tmp = true;
 		} catch (Exception ex) {/* No Op */}		
 		hasProcessCpuTime = tmp;
@@ -117,14 +118,14 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 		lastUsedDelta = new LinkedHashMap<String, Map<String, OTMetric>>(poolCount);
 		lastCommittedDelta = new LinkedHashMap<String, Map<String, OTMetric>>(poolCount);
 		percentageCPUTimeInGC = MetricBuilder.metric("java.lang.gc").ext("pctCPUTimeInGC").tags(tags).build();
-		totalUsedDeltaOnLastGC = MetricBuilder.metric("java.lang.gc").ext("usedFreeOnLastGC").tags(tags).build();
-		totalCommittedDeltaOnLastGC = MetricBuilder.metric("java.lang.gc").ext("committedFreeOnLastGC").tags(tags).build();
+		totalUsedDeltaOnLastGC = MetricBuilder.metric("java.lang.gc").ext("totalFreedOnLastGC").tag("type", "used").tags(tags).build();
+		totalCommittedDeltaOnLastGC = MetricBuilder.metric("java.lang.gc").ext("totalFreedOnLastGC").tag("type", "committed").tags(tags).build();
 		for(String poolName: poolNames) {
 			Map<String, OTMetric> lud = new LinkedHashMap<String, OTMetric>(gcCount);
 			Map<String, OTMetric> lcd = new LinkedHashMap<String, OTMetric>(gcCount);
 			for(String gcName: gcNames) {
-				lud.put(gcName, MetricBuilder.metric("java.lang.gc").ext("lastGCUsedFreed").tag("gcname", gcName).tag("pool", poolName).tags(tags).build());				
-				lud.put(gcName, MetricBuilder.metric("java.lang.gc").ext("lastGCCommittedFreed").tag("gcname", gcName).tag("pool", poolName).tags(tags).build());
+				lud.put(gcName, MetricBuilder.metric("java.lang.gc").ext("freedOnLastGC").tag("gcname", gcName).tag("pool", poolName).tag("type", "used").tags(tags).build());				
+				lud.put(gcName, MetricBuilder.metric("java.lang.gc").ext("freedOnLastGC").tag("gcname", gcName).tag("pool", poolName).tag("type", "committed").tags(tags).build());
 			}
 			lastUsedDelta.put(poolName, lud);
 			lastCommittedDelta.put(poolName, lcd);			
@@ -148,7 +149,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	protected boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime) {
 		try {
 			long totalCollectTime = -1L;
-			final Set<MemoryUsage> memUsages = new HashSet<MemoryUsage>();
+			final Set<Map<MUsage, Long>> memUsages = new HashSet<Map<MUsage, Long>>();
 			for(ObjectName on: garbageCollectors) {
 				final Map<String, Object> values = data.get(on);
 				final String gcName = on.getKeyProperty("name");
@@ -158,8 +159,8 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 				
 				final long time = (Long)values.get(GarbageCollectorAttribute.COLLECTION_TIME.attributeName);			
 				final long count = (Long)values.get(GarbageCollectorAttribute.COLLECTION_COUNT.attributeName);
-				final Long timeElapsed = delta(gcName + "collectionTime", time);
-				final Long countElapsed = delta(gcName + "collectionCount", count);
+				final Long timeElapsed = delta(deltaKey(gcName, "collectionTime"), time);
+				final Long countElapsed = delta(deltaKey(gcName, "collectionCount"), count);
 				
 				totalCollectionTimes.get(gcName).trace(currentTime, time);
 				totalCollectionCounts.get(gcName).trace(currentTime, count);
@@ -175,6 +176,12 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 					collectionCountRates.get(gcName).trace(currentTime, 0);
 				}
 				// =============
+				
+				/*
+				 * -- lastGCCommittedFreed    vs.   usedFreeOnLastGC
+				 * -- committedFreeOnLastGC 
+				 */
+				
 				final CompositeData lgi = (CompositeData)values.get(GarbageCollectorAttribute.LAST_GC_INFO_INIT.attributeName);
 				if(lgi!=null) {
 					try {
@@ -183,8 +190,8 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 					} catch (Exception x) {/* No Op */}
 					// memoryUsageAfterGc
 					try {
-						log.info("GC ID: {}:{}", gcName, lgi.get("id"));
-						Long gcIdDelta = delta(gcName + "LastGCID", (Long)lgi.get("id"));
+//						log.info("GC ID: {}:{}", gcName, lgi.get("id"));
+						Long gcIdDelta = delta(deltaKey(gcName, "LastGCID"), (Long)lgi.get("id"));
 						if(gcIdDelta!=null && gcIdDelta.longValue()>0) {
 							// FIXME:  Should we trace all zeros if there has not been a new GC ?
 							final Map<Set<String>, CompositeData> usageBeforeGc = (Map<Set<String>, CompositeData>)lgi.get("memoryUsageBeforeGc");
@@ -194,11 +201,11 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 									CompositeData pBefore = (CompositeData)usageBeforeGc.get(new Object[]{poolName}).get("value");
 									CompositeData pAfter = (CompositeData)usageAfterGc.get(new Object[]{poolName}).get("value");
 									if(pBefore!=null && pAfter!=null) {
-										MemoryUsage delta = diff(pBefore, pAfter);
+										Map<MUsage, Long> delta = diff(pBefore, pAfter);
 										log.info("Mem Delta for Pool [{}/{}] :  {}", gcName, poolName, delta);
 										memUsages.add(delta);
-										try { lastUsedDelta.get(poolName).get(gcName).trace(currentTime, delta.getUsed()); } catch (Exception x) {/* No Op */}
-										try { lastCommittedDelta.get(poolName).get(gcName).trace(currentTime, delta.getCommitted()); } catch (Exception x) {/* No Op */}
+										try { lastUsedDelta.get(poolName).get(gcName).trace(currentTime, delta.get(MUsage.used)); } catch (Exception x) {/* No Op */}
+										try { lastCommittedDelta.get(poolName).get(gcName).trace(currentTime, delta.get(MUsage.committed)); } catch (Exception x) {/* No Op */}
 									}
 								}
 							}
@@ -210,9 +217,9 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 				}			
 			}
 			if(!memUsages.isEmpty()) {
-				MemoryUsage totalDelta = sum(memUsages.toArray(new MemoryUsage[memUsages.size()]));
-				totalUsedDeltaOnLastGC.trace(currentTime, totalDelta.getUsed());
-				totalCommittedDeltaOnLastGC.trace(currentTime, totalDelta.getCommitted());
+				Map<MUsage, Long> totalDelta = sum(memUsages.toArray(new Map[memUsages.size()]));
+				totalUsedDeltaOnLastGC.trace(currentTime, totalDelta.get(MUsage.used));
+				totalCommittedDeltaOnLastGC.trace(currentTime, totalDelta.get(MUsage.committed));
 			}
 			if(totalCollectTime > -1 && elapsedTime > -1) {
 				totalCollectTime++;
@@ -228,6 +235,18 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 			log.error("Collection Failed", ex);
 			return false;
 		}
+	}
+	
+	
+	/**
+	 * Formats the passed memory usage
+	 * @param mu the memory usage to format
+	 * @return the formatted string
+	 */
+	public static String format(final MemoryUsage mu) {
+		if(mu==null) return "";
+		if(mu.getInit()==-1L) return String.format("MemoryUsage:[used:%s, committed:%s]", mu.getUsed(), mu.getCommitted()); 
+		return String.format("MemoryUsage:[init:%s, used:%s, committed:%s, max:%s]", mu.getInit(), mu.getUsed(), mu.getCommitted(), mu.getMax());		
 	}
 	
 	/**
@@ -259,13 +278,38 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 * Computes the delta in memory usage between two instances
 	 * @param before The memory usage before a GC event
 	 * @param after The memory usage after a GC event
-	 * @return a MemoryUsage instance representing the delta in the Used and Committed memory.
+	 * @return a map of MemoryUsage keys and values instance representing the delta in the Used and Committed memory.
 	 * (Init and Max are -1L since they don't change).
 	 */
-	protected static MemoryUsage diff(final CompositeData before, final CompositeData after) {
+	protected static Map<MUsage, Long> diff(final CompositeData before, final CompositeData after) {
 		final MemoryUsage _before = MemoryUsage.from((CompositeData) before);
-		final MemoryUsage _after = MemoryUsage.from((CompositeData) before);
-		return new MemoryUsage(-1L, _before.getUsed()-_after.getUsed(), _before.getCommitted()-_after.getCommitted(), -1L);		
+		final MemoryUsage _after = MemoryUsage.from((CompositeData) after);
+		Map<MUsage, Long> diff = new EnumMap<MUsage, Long>(MUsage.class);
+		diff.put(MUsage.used, _before.getUsed()-_after.getUsed());
+		diff.put(MUsage.committed, _before.getCommitted()-_after.getCommitted());
+		return diff;
+//		System.err.println("BEFORE: " + format(_before));
+//		System.err.println("AFTER: " + format(_after));
+//		return new MemoryUsage(-1L, _before.getUsed()-_after.getUsed(), _before.getCommitted()-_after.getCommitted(), -1L);		
+	}
+	
+	
+	/**
+	 * <p>Title: MUsage</p>
+	 * <p>Description: Enuemerates the mem usage keys</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.GarbageCollectorMBeanObserver.MUsage</code></p>
+	 */
+	public static enum MUsage {
+		/** Initial allocation */
+		init,
+		/** Currently used */
+		used,
+		/** Currently committed */
+		committed,
+		/** Maximum committed */
+		max;
 	}
 	
 	/**
@@ -286,13 +330,17 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 * @return a MemoryUsage instance representing the sum of the deltas in the Used and Committed memory.
 	 * (Init and Max are -1L since they don't change).
 	 */
-	protected static MemoryUsage sum(final MemoryUsage...usages) {
+	public static Map<MUsage, Long> sum(final Map<MUsage, Long>...usages) {
 		long used = 0L, committed = 0L;
-		for(MemoryUsage m: usages) {
-			used += m.getUsed();
-			committed += m.getCommitted();
+		for(Map<MUsage, Long> em: usages) {
+			used += em.get(MUsage.used);
+			committed += em.get(MUsage.committed);
 		}
-		return new MemoryUsage(-1L, used, committed, -1L);
+		final Map<MUsage, Long> map = new EnumMap<MUsage, Long>(MUsage.class);
+		map.put(MUsage.used, used);
+		map.put(MUsage.committed, committed);
+		System.err.println(String.format("TOTAL: used:%s, committed:%s, all:%s", used, committed, used + committed));
+		return map;
 	}
 
 }

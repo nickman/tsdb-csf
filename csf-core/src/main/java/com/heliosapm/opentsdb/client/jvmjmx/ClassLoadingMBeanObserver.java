@@ -84,8 +84,8 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 		Map<String, Object> values = data.values().iterator().next();
 		final long totalLoaded = (Long)values.get(ClassLoadingAttribute.TOTAL_LOADED_CLASS_COUNT.attributeName);
 		final long unLoaded = (Long)values.get(ClassLoadingAttribute.UNLOADED_CLASS_COUNT.attributeName);
-		final Long loadRate = delta("loadRate", totalLoaded);
-		final Long unloadRate = delta("unloadRate", unLoaded);
+		final Long loadRate = delta(deltaKey("loadRate"), totalLoaded);
+		final Long unloadRate = delta(deltaKey("unloadRate"), unLoaded);
 		loadedClassCount.trace(currentTime, values.get(ClassLoadingAttribute.LOADED_CLASS_COUNT.attributeName));
 		totalLoadedClassCount.trace(currentTime, totalLoaded);
 		unloadedClassCount.trace(currentTime, unLoaded);

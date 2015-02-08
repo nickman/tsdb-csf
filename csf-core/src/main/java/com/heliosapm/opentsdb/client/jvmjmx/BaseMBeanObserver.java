@@ -175,7 +175,25 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 	 * @param elapsedTime The elapsed time since the prior accept in ns.
 	 * @return true to continue polling, false otherwise
 	 */
-	protected abstract boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime); 
+	protected abstract boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime);
+	
+	
+	/**
+	 * Builds a delta key from the passed sub keys.
+	 * The key will automatically be prefixed with the MBeanServerId
+	 * @param subKeys The subkeys to append
+	 * @return the delta key
+	 */
+	protected String deltaKey(final Object...subKeys) {
+		final StringBuilder b = new StringBuilder(mbs.getMBeanServerId());
+		if(subKeys!=null && subKeys.length>0) {
+			for(Object subKey: subKeys) {
+				if(subKey==null) continue;
+				b.append("/").append(subKey.toString());
+			}
+		}
+		return b.toString();
+	}
 	
 	/**
 	 * Callback before polling starts to ensure the observer should be scheduled
@@ -265,14 +283,14 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 		final long[] samp = new long[]{sample};
 		long[] state = longDeltas.putIfAbsent(name, samp);
 		if(state==null) {
-			log.info("Initialized Delta [{}]: {}", name, sample);
+//			log.info("Initialized Delta [{}]: {}", name, sample);
 			return defaultValue;
 		}
 		state = longDeltas.replace(name, samp);
 		long delta = sample - state[0];
-		if(delta!=0) {
-			log.info("Calc Delta [{}]: state:{}, sample:{}, delta:{}", name, state[0], sample, delta);
-		}
+//		if(delta!=0) {
+//			log.info("Calc Delta [{}]: state:{}, sample:{}, delta:{}", name, state[0], sample, delta);
+//		}
 		return delta;
 	}
 	

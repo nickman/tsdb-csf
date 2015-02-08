@@ -88,7 +88,7 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 	protected boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime) {
 		Map<String, Object> values = data.values().iterator().next();
 		totalCompileTime.trace(currentTime, values.get(CompilationAttribute.TOTAL_COMPILATION_TIME.attributeName));
-		compileRate.trace(currentTime, delta("compileRate", (Long)values.get(CompilationAttribute.TOTAL_COMPILATION_TIME.attributeName)));
+		compileRate.trace(currentTime, delta(deltaKey("compileRate"), (Long)values.get(CompilationAttribute.TOTAL_COMPILATION_TIME.attributeName)));
 		return true;
 	}
 

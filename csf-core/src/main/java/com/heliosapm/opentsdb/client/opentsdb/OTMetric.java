@@ -203,9 +203,7 @@ public class OTMetric implements Serializable {
 			}
 			
 			final int pos = buff.position();
-			// Set LONG_HASH_CODE, HASH_CODE, TOTAL_SIZE_OFFSET
 			final HashCode hashCode = hasherx.hash();
-			System.err.println("OTM:[" + hasher.toString() + "]");
 			buff.putLong(LONG_HASH_CODE, hashCode.padToLong());
 			buff.putInt(HASH_CODE, hashCode.hashCode());			
 			buff.putInt(TOTAL_SIZE_OFFSET, totalLength);
