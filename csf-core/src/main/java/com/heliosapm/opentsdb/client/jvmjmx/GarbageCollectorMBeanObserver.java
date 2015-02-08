@@ -147,7 +147,6 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	@Override
 	protected boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime) {
 		try {
-			log.error("Accepting DataMap: " + data);
 			long totalCollectTime = -1L;
 			final Set<MemoryUsage> memUsages = new HashSet<MemoryUsage>();
 			for(ObjectName on: garbageCollectors) {
@@ -159,8 +158,8 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 				
 				final long time = (Long)values.get(GarbageCollectorAttribute.COLLECTION_TIME.attributeName);			
 				final long count = (Long)values.get(GarbageCollectorAttribute.COLLECTION_COUNT.attributeName);
-				final Long timeElapsed = delta("collectionTime", time);
-				final Long countElapsed = delta("collectionCount", count);
+				final Long timeElapsed = delta(gcName + "collectionTime", time);
+				final Long countElapsed = delta(gcName + "collectionCount", count);
 				
 				totalCollectionTimes.get(gcName).trace(currentTime, time);
 				totalCollectionCounts.get(gcName).trace(currentTime, count);
@@ -184,17 +183,23 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 					} catch (Exception x) {/* No Op */}
 					// memoryUsageAfterGc
 					try {
-						final Map<Set<String>, CompositeData> usageBeforeGc = (Map<Set<String>, CompositeData>)lgi.get("memoryUsageBeforeGc");
-						final Map<Set<String>, CompositeData> usageAfterGc = (Map<Set<String>, CompositeData>)lgi.get("memoryUsageAfterGc");					
-						if(usageBeforeGc!=null && usageAfterGc!=null) {
-							for(String poolName: poolNames) {
-								CompositeData pBefore = usageBeforeGc.get(new Object[]{poolName});
-								CompositeData pAfter = usageAfterGc.get(new Object[]{poolName});
-								if(pBefore!=null && pAfter!=null) {
-									MemoryUsage delta = diff(pBefore, pAfter);
-									memUsages.add(delta);
-									lastUsedDelta.get(poolName).get(gcName).trace(currentTime, delta.getUsed());
-									lastCommittedDelta.get(poolName).get(gcName).trace(currentTime, delta.getCommitted());
+						log.info("GC ID: {}:{}", gcName, lgi.get("id"));
+						Long gcIdDelta = delta(gcName + "LastGCID", (Long)lgi.get("id"));
+						if(gcIdDelta!=null && gcIdDelta.longValue()>0) {
+							// FIXME:  Should we trace all zeros if there has not been a new GC ?
+							final Map<Set<String>, CompositeData> usageBeforeGc = (Map<Set<String>, CompositeData>)lgi.get("memoryUsageBeforeGc");
+							final Map<Set<String>, CompositeData> usageAfterGc = (Map<Set<String>, CompositeData>)lgi.get("memoryUsageAfterGc");					
+							if(usageBeforeGc!=null && usageAfterGc!=null) {
+								for(String poolName: poolNames) {
+									CompositeData pBefore = (CompositeData)usageBeforeGc.get(new Object[]{poolName}).get("value");
+									CompositeData pAfter = (CompositeData)usageAfterGc.get(new Object[]{poolName}).get("value");
+									if(pBefore!=null && pAfter!=null) {
+										MemoryUsage delta = diff(pBefore, pAfter);
+										log.info("Mem Delta for Pool [{}/{}] :  {}", gcName, poolName, delta);
+										memUsages.add(delta);
+										try { lastUsedDelta.get(poolName).get(gcName).trace(currentTime, delta.getUsed()); } catch (Exception x) {/* No Op */}
+										try { lastCommittedDelta.get(poolName).get(gcName).trace(currentTime, delta.getCommitted()); } catch (Exception x) {/* No Op */}
+									}
 								}
 							}
 						}
@@ -258,8 +263,8 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 * (Init and Max are -1L since they don't change).
 	 */
 	protected static MemoryUsage diff(final CompositeData before, final CompositeData after) {
-		final MemoryUsage _before = MemoryUsage.from(before);
-		final MemoryUsage _after = MemoryUsage.from(after);
+		final MemoryUsage _before = MemoryUsage.from((CompositeData) before);
+		final MemoryUsage _after = MemoryUsage.from((CompositeData) before);
 		return new MemoryUsage(-1L, _before.getUsed()-_after.getUsed(), _before.getCommitted()-_after.getCommitted(), -1L);		
 	}
 	

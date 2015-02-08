@@ -23,10 +23,12 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.management.ObjectName;
 
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.json.JSONArray;
 
 import com.codahale.metrics.Clock;
 import com.google.common.hash.Funnel;
@@ -57,6 +59,8 @@ public class MetricBuilder {
 	/** The buffer factory for allocating buffers to stream metrics out to the tracer */
     private static final DynamicByteBufferBackedChannelBufferFactory bufferFactory = new DynamicByteBufferBackedChannelBufferFactory(128);
 
+    private static final MetricBuffer METRIC_BUFFER = new MetricBuffer();
+    
     /** The clock for generating timestamps */
     private static Clock clock = null;
     
@@ -397,9 +401,10 @@ public class MetricBuilder {
 	public static void trace(final OTMetric metric, final long timestamp, final Object value) {
 		if(metric==null) throw new IllegalArgumentException("The passed metric was null");
 		if(value==null) throw new IllegalArgumentException("The passed value was null");
-		final ChannelBuffer chBuff = bufferFactory.getBuffer();
-		metric.toJSON(timestamp, value, chBuff, false);
-		OpenTsdb.getInstance().send(chBuff, 1);		
+		METRIC_BUFFER.append(metric, timestamp, value);
+//		final ChannelBuffer chBuff = bufferFactory.getBuffer();
+//		metric.toJSON(timestamp, value, chBuff, false);
+//		OpenTsdb.getInstance().send(chBuff, 1);		
 	}
 	
 	/**
@@ -432,6 +437,59 @@ public class MetricBuilder {
 			}
 		}
 		return clock;
+	}
+	
+	static class MetricBuffer implements Runnable {
+		protected final AtomicInteger counter = new AtomicInteger(0);
+		protected final int sizeThreshold = 100;
+		protected final long timeThreshold = 5000;
+		protected ChannelBuffer metricBuffer = bufferFactory.getBuffer(4096);
+		
+		MetricBuffer() {
+			metricBuffer.writeBytes(OTMetric.JSON_OPEN_ARR);
+			Threading.getInstance().schedule(this, timeThreshold);
+		}
+		
+		public void run() {
+			try {
+				synchronized(counter) {
+					final int count = counter.get();
+					if(count>0) {
+						flush(count);
+					}
+				}
+			} catch (Exception ex) {
+				ex.printStackTrace(System.err);
+			}
+		}
+		
+		void append(final OTMetric otm, final long timestamp, final Object value) {			
+			synchronized(counter) {
+				final int count = counter.incrementAndGet();
+				otm.toJSON(timestamp, value, metricBuffer, true);
+				if(count < sizeThreshold) {
+					return;
+				}
+				flush(count);
+			}
+		}
+		
+		void flush(final int count) {
+			try {
+				metricBuffer.writerIndex(metricBuffer.writerIndex()-OTMetric.JSON_COMMA.length);
+				metricBuffer.writeBytes(OTMetric.JSON_CLOSE_ARR);
+//				try {
+//					System.err.println(new JSONArray(metricBuffer.toString(UTF8)).toString(1));
+//					System.err.println("Sending " + count + " metrics");
+//				} catch (Exception ex) {}
+				OpenTsdb.getInstance().send(metricBuffer, count);
+				metricBuffer = bufferFactory.getBuffer(4096);
+				metricBuffer.writeBytes(OTMetric.JSON_OPEN_ARR);
+				counter.set(0);
+			} catch (Exception ex) {
+				ex.printStackTrace(System.err);
+			}
+		}
 	}
 
 }

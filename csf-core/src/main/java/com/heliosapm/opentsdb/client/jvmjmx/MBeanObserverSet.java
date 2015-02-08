@@ -28,6 +28,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jboss.netty.util.Timeout;
 
+import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 
@@ -57,6 +58,10 @@ public class MBeanObserverSet implements Runnable {
 	/** The polling period unit */
 	final TimeUnit unit;
 	
+	
+	static {
+		LoggingConfiguration.getInstance();
+	}
 	
 	public static void main(String[] args) {
 		log("Testing MOS");
