@@ -81,6 +81,7 @@ public class MBeanObserverSet implements Runnable {
 		final Map<String, String> tags = observer.getTags();
 		mos.enabledObservers.add(new CompilationMBeanObserver(mbeanServer, tags));
 		mos.enabledObservers.add(new GarbageCollectorMBeanObserver(mbeanServer, tags));
+		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags));
 		mos.start();
 		return mos;
 	}

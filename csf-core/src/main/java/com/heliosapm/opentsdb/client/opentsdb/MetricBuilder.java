@@ -298,9 +298,9 @@ public class MetricBuilder {
 	 * @param value The tag value
 	 * @return this metric builder
 	 */
-	public MetricBuilder tag(final String key, final String value) {
+	public MetricBuilder tag(final String key, final Object value) {
 		if(tags==null) tags = new LinkedHashMap<String, String>(3);
-		tags.put(nvl(key, "tag key"), nvl(value, "tag value"));
+		tags.put(nvl(key, "tag key"), nvl(value.toString(), "tag value"));
 		return this;
 	}
 	

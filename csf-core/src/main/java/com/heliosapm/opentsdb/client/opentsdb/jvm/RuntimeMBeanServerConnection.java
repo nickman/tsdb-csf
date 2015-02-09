@@ -485,7 +485,7 @@ public class RuntimeMBeanServerConnection implements MBeanServerConnection, Noti
 	 * @param attributes The attribute names to retrieve
 	 * @return a map of attribute values
 	 */
-	public Map<String, Object> getAttributeMap(final ObjectName name, final String[] attributes) {
+	public Map<String, Object> getAttributeMap(final ObjectName name, final String...attributes) {
 		final AttributeList attrList = getAttributes(name, attributes);
 		final Map<String, Object> map = new HashMap<String, Object>(attrList.size());
 		for(Attribute attr: attrList.asList()) {

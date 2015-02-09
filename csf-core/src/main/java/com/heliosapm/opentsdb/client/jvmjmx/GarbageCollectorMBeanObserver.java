@@ -194,15 +194,11 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 					percentageCPUTimeInGC.trace(currentTime, percent(tct, cpuTime));
 				}			
 			}
-			int zeroTraced = 0;
 			for(OTMetric otm: groupMetrics) {
 				if(otm.getLastTraceTime() < currentTime) {
-					log.info("Tracing Default Zero for [{}]", otm);
 					otm.trace(currentTime, 0);
-					zeroTraced++;
 				}
 			}
-			log.info("Zero Traced {} metrics out of {}", zeroTraced, groupMetrics.size());
 			return true;
 		} catch (Exception ex) {
 			log.error("Collection Failed", ex);
@@ -362,23 +358,6 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	}
 	
 	
-	/**
-	 * <p>Title: MUsage</p>
-	 * <p>Description: Enuemerates the mem usage keys</p> 
-	 * <p>Company: Helios Development Group LLC</p>
-	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.GarbageCollectorMBeanObserver.MUsage</code></p>
-	 */
-	public static enum MUsage {
-		/** Initial allocation */
-		init,
-		/** Currently used */
-		used,
-		/** Currently committed */
-		committed,
-		/** Maximum committed */
-		max;
-	}
 	
 	/**
 	 * Returns the process cpu time
@@ -388,6 +367,10 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 		return (Long)mbs.getAttribute(OS_OBJECT_NAME, "ProcessCpuTime");
 	}
 	
+	/**
+	 * Returns the number of processors available to the target JVM
+	 * @return the number of processors 
+	 */
 	protected int getProcessorCount() {
 		return (Integer)mbs.getAttribute(OS_OBJECT_NAME, "AvailableProcessors");
 	}
