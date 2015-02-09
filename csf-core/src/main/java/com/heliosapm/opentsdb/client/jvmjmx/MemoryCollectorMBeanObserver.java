@@ -34,18 +34,37 @@ import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 
 /**
  * <p>Title: MemoryCollectorMBeanObserver</p>
- * <p>Description: </p> 
+ * <p>Description: MBeanObserver for the Memory (Heap and NonHeap summary) MXBean</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MemoryCollectorMBeanObserver</code></p>
  */
 
 public class MemoryCollectorMBeanObserver extends BaseMBeanObserver {
+	/**  */
+	private static final long serialVersionUID = -6369906554383026767L;
+	/** The heap used metric */
 	protected final OTMetric heapUsed;
+	/** The heap committed metric */
 	protected final OTMetric heapCommitted;
+	/** The percentage heap capacity metric */
+	protected final OTMetric heapPctCapacity;
+	/** The non-heap used metric */
 	protected final OTMetric nonHeapUsed;
+	/** The non-heap committed metric */
 	protected final OTMetric nonHeapCommitted;
+	/** The percentage non-heap capacity metric */
+	protected final OTMetric nonHeapPctCapacity;	
+	/** The pending finalizers count metric */
 	protected final OTMetric pendingFinalizers;
+	
+	/** The max heap size */
+	protected long maxHeap = -1L;
+	/** The max non-heap size */
+	protected long maxNonHeap = -1L;
+
+	/** The Mem Type metric name extension */
+	protected static final String MEM_EXT = "memory";
 	
 	/** The Mem Type tag key */
 	protected static final String MEM_TYPE = "type";
@@ -72,10 +91,12 @@ public class MemoryCollectorMBeanObserver extends BaseMBeanObserver {
 	public MemoryCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
 		super(mbeanServerConn, MEMORY_MXBEAN, tags);
 		objectName = objectNamesAttrs.keySet().iterator().next();
-		heapUsed = MetricBuilder.metric(objectName).ext("memory").tags(tags).tag(MEM_ALLOC, MUsage.used).tag(MEM_TYPE, "heap").build();
-		heapCommitted = MetricBuilder.metric(objectName).ext("memory").tags(tags).tag(MEM_ALLOC, MUsage.committed).tag(MEM_TYPE, "heap").build();
-		nonHeapUsed = MetricBuilder.metric(objectName).ext("memory").tags(tags).tag(MEM_ALLOC, MUsage.used).tag(MEM_TYPE, "nonheap").build();
-		nonHeapCommitted = MetricBuilder.metric(objectName).ext("memory").tags(tags).tag(MEM_ALLOC, MUsage.committed).tag(MEM_TYPE, "nonheap").build();
+		heapUsed = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.used).tag(MEM_TYPE, "heap").build();
+		heapCommitted = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.committed).tag(MEM_TYPE, "heap").build();
+		heapPctCapacity = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, "pctCapacity").tag(MEM_TYPE, "heap").build();
+		nonHeapUsed = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.used).tag(MEM_TYPE, "nonheap").build();
+		nonHeapCommitted = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.committed).tag(MEM_TYPE, "nonheap").build();
+		nonHeapPctCapacity = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, "pctCapacity").tag(MEM_TYPE, "nonheap").build();
 		pendingFinalizers = MetricBuilder.metric(objectName).ext("pendingFinalizers").tags(tags).build();
 		traceOneTimers(objectName);
 	}
@@ -89,11 +110,13 @@ public class MemoryCollectorMBeanObserver extends BaseMBeanObserver {
 			final long timestamp = clock.getTime();
 			final Map<String, Object> initial = mbs.getAttributeMap(on, MemoryAttribute.HEAP_MEMORY_USAGE_INIT.attributeName, MemoryAttribute.NON_HEAP_MEMORY_USAGE_INIT.attributeName);
 			final MemoryUsage heap = MemoryUsage.from((CompositeData)initial.get(MemoryAttribute.HEAP_MEMORY_USAGE_INIT.attributeName));
+			maxHeap = heap.getMax();
 			final MemoryUsage nonHeap = MemoryUsage.from((CompositeData)initial.get(MemoryAttribute.NON_HEAP_MEMORY_USAGE_INIT.attributeName));
-			MetricBuilder.metric(on).ext("memory").tags(tags).tag(MEM_ALLOC, MUsage.init).tag(MEM_TYPE, "heap").build().trace(timestamp, heap.getInit());
-			MetricBuilder.metric(on).ext("memory").tags(tags).tag(MEM_ALLOC, MUsage.max).tag(MEM_TYPE, "heap").build().trace(timestamp, heap.getMax());
-			MetricBuilder.metric(on).ext("memory").tags(tags).tag(MEM_ALLOC, MUsage.init).tag(MEM_TYPE, "nonheap").build().trace(timestamp, nonHeap.getInit());
-			MetricBuilder.metric(on).ext("memory").tags(tags).tag(MEM_ALLOC, MUsage.max).tag(MEM_TYPE, "nonheap").build().trace(timestamp, nonHeap.getMax());
+			maxNonHeap = nonHeap.getMax();
+			MetricBuilder.metric(on).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.init).tag(MEM_TYPE, "heap").build().trace(timestamp, heap.getInit());
+			MetricBuilder.metric(on).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.max).tag(MEM_TYPE, "heap").build().trace(timestamp, heap.getMax());
+			MetricBuilder.metric(on).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.init).tag(MEM_TYPE, "nonheap").build().trace(timestamp, nonHeap.getInit());
+			MetricBuilder.metric(on).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.max).tag(MEM_TYPE, "nonheap").build().trace(timestamp, nonHeap.getMax());
 		} catch (Exception ex) {
 			log.error("Failed to trace init/max for [{}]", on, ex);
 		}
@@ -112,6 +135,8 @@ public class MemoryCollectorMBeanObserver extends BaseMBeanObserver {
 		heapCommitted.trace(currentTime, heap.getCommitted());
 		nonHeapUsed.trace(currentTime, nonHeap.getUsed());
 		nonHeapCommitted.trace(currentTime, nonHeap.getCommitted());
+		heapPctCapacity.trace(currentTime, percent(heap.getCommitted(), maxHeap));
+		nonHeapPctCapacity.trace(currentTime, percent(nonHeap.getCommitted(), maxNonHeap));
 		pendingFinalizers.trace(currentTime, memData.get(MemoryAttribute.OBJECT_PENDING_FINALIZATION_COUNT.attributeName));
 		return true;
 	}

@@ -31,5 +31,8 @@ public enum MUsage {
 	/** Currently committed */
 	committed,
 	/** Maximum committed */
-	max;
+	max,
+	/** Percent capacity */
+	pctCapacity;
+	
 }

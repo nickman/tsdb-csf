@@ -349,12 +349,11 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 		final MemoryUsage _before = MemoryUsage.from((CompositeData) before);
 		final MemoryUsage _after = MemoryUsage.from((CompositeData) after);
 		Map<MUsage, Long> diff = new EnumMap<MUsage, Long>(MUsage.class);
-		diff.put(MUsage.used, _before.getUsed()-_after.getUsed());
-		diff.put(MUsage.committed, _before.getCommitted()-_after.getCommitted());
+		long memDiff = _before.getUsed()-_after.getUsed();
+		diff.put(MUsage.used, memDiff < 0 ? 0 : memDiff);
+		memDiff = _before.getCommitted()-_after.getCommitted();
+		diff.put(MUsage.committed, memDiff < 0 ? 0 : memDiff);
 		return diff;
-//		System.err.println("BEFORE: " + format(_before));
-//		System.err.println("AFTER: " + format(_after));
-//		return new MemoryUsage(-1L, _before.getUsed()-_after.getUsed(), _before.getCommitted()-_after.getCommitted(), -1L);		
 	}
 	
 	
