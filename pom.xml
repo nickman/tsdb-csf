@@ -26,6 +26,8 @@
         <log4j.version>2.1</log4j.version>
         <high-scale-lib.version>1.1.4</high-scale-lib.version>
         <guava.version>17.0</guava.version>
+        <netty.version>3.9.4.Final</netty.version>
+        <javassist.version>3.19.0-GA</javassist.version>
         <!-- Plugin Versions -->
         <compiler-plugin.version>3.2</compiler-plugin.version>
         <source-plugin.version>2.4</source-plugin.version>
@@ -73,10 +75,22 @@
         <dependencies>
 
             <dependency>
+              <groupId>org.javassist</groupId>
+              <artifactId>javassist</artifactId>
+              <version>${javassist.version}</version>
+            </dependency>
+
+
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty</artifactId>
+                <version>${netty.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>io.dropwizard.metrics</groupId>
                 <artifactId>metrics-core</artifactId>
                 <version>${metrics.version}</version>
-                <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>io.dropwizard.metrics</groupId>
@@ -180,7 +194,7 @@
                     </execution>
                 </executions>
             </plugin>
-
+            <!--
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>findbugs-maven-plugin</artifactId>
@@ -198,7 +212,7 @@
                     </execution>
                 </executions>
             </plugin>
-
+            -->
             <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-jar-plugin</artifactId>

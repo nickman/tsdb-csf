@@ -16,7 +16,7 @@
   </Appenders>
   <Loggers>
    <Root level="info">
-     <AppenderRef ref="STDOUT" level="error"/>
+     <AppenderRef ref="STDOUT" level="info"/>
      <AppenderRef ref="BootFile" level="trace"/>
    </Root>
  </Loggers>
