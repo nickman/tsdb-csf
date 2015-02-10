@@ -1074,7 +1074,10 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		/**  */
 		THREAD_COUNT("ThreadCount", int.class),
 		/**  */
-		TOTAL_STARTED_THREAD_COUNT("TotalStartedThreadCount", long.class);
+		TOTAL_STARTED_THREAD_COUNT("TotalStartedThreadCount", long.class),
+		/**  */
+		ALL_THREAD_IDS("AllThreadIds", long[].class);
+		
 
 		
 		private ThreadingAttribute(final String attributeName, final Class<?> type) {

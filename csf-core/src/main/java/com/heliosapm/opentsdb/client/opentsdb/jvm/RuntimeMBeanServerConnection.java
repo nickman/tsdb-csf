@@ -31,14 +31,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.management.Attribute;
 import javax.management.AttributeList;
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanInfo;
+import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
 import javax.management.MBeanServerDelegate;
+import javax.management.MBeanServerFactory;
 import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.NotificationFilter;
@@ -222,8 +225,42 @@ public class RuntimeMBeanServerConnection implements MBeanServerConnection, Noti
 	 * @return true if the delegate is in this JVM, false otherwise
 	 */
 	public boolean isInVM() {
-		return localPlatform || MBeanObserverBuilder.isSameJVM(delegate);
+		return localPlatform || isSameJVM(delegate);
 	}
+	
+	/**
+	 * Determines if the passed MBeanServerConnection is attached to an in-jvm MBeanServer, or a remote MBeanServer.
+	 * @param mbsc the MBeanServerConnection to test
+	 * @return true if the passed MBeanServerConnection is attached to an in-jvm MBeanServer, false otherwise
+	 */
+	public static boolean isSameJVM(final MBeanServerConnection mbsc) {
+		if(mbsc==null) throw new IllegalArgumentException("The passed MBeanServerConnection was null");
+		final MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
+		if(mbsc==platformMBeanServer) return true;
+		final String UID = UUID.randomUUID().toString();
+		final NotificationListener testNotifListener = new NotificationListener() {
+			@Override
+			public void handleNotification(Notification notification, Object handback) {
+				/* No Op */
+			}
+		};
+		try {
+			mbsc.addNotificationListener(MBeanServerDelegate.DELEGATE_NAME, testNotifListener, null, UID);
+			for(MBeanServer srvr: MBeanServerFactory.findMBeanServer(null)) {
+				try {
+					srvr.removeNotificationListener(MBeanServerDelegate.DELEGATE_NAME, testNotifListener, null, UID);
+					return true;
+				} catch (ListenerNotFoundException lnfe) {/* No Op */}
+			}
+			try {
+				mbsc.removeNotificationListener(MBeanServerDelegate.DELEGATE_NAME, testNotifListener, null, UID);
+			} catch (Exception ex) {/* No Op */}
+			return false;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+		
 
 	
 	/**

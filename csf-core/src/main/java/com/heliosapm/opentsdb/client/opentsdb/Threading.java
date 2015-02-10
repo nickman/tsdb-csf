@@ -128,6 +128,10 @@ public class Threading {
 		log.info("ThreadPoolAndScheduling Service Initialized\n\tThreadPool Size:{}\n\tThreadPool QueueSize:{}\n\tTick Size: {}\n\tWheel Size: {}", poolSize, qSize, tickSize, wheelSize);
 	}
 	
+	
+//	Caused by: java.lang.NoSuchMethodError: org.jboss.netty.util.HashedWheelTimer.<init>(Ljava/util/concurrent/ThreadFactory;Lorg/jboss/netty/util/ThreadNameDeterminer;JLjava/util/concurrent/TimeUnit;I)V
+//	at com.heliosapm.opentsdb.client.opentsdb.Threading.<init>(Threading.java:117)	
+	
 	/**
 	 * Returns the shared thread pool
 	 * @return the shared thread pool

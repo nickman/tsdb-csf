@@ -14,16 +14,12 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.opentsdb.jvm;
-
 /**
- * <p>Title: AttributeManager</p>
+ * <p>Title: package-info</p>
  * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.opentsdb.jvm.AttributeManager</code></p>
+ * <p><code>com.heliosapm.attachme.package-info</code></p>
  */
 
-public interface AttributeManager<T extends Enum<T>> extends AttributeProvider {
-	
-}
+package com.heliosapm.attachme;

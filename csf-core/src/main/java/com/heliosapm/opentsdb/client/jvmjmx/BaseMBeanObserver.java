@@ -37,6 +37,8 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import com.codahale.metrics.Clock;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
@@ -55,7 +57,7 @@ import com.heliosapm.opentsdb.client.util.Util;
  * FIXME:  need standard helpers to build unique delta keys so we don't have collisions between different instances.
  */
 
-public abstract class BaseMBeanObserver implements NotificationListener, NotificationFilter, Runnable {
+public abstract class BaseMBeanObserver implements NotificationListener, NotificationFilter, Runnable, MetricSet {
 	/**  */
 	private static final long serialVersionUID = -8583616842316152417L;
 	/** Instance logger */
@@ -143,6 +145,18 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 				tags.put(Constants.HOST_TAG, ran.getHostName(mbs));
 			}			
 		}		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.codahale.metrics.MetricSet#getMetrics()
+	 */
+	@Override
+	public Map<String, Metric> getMetrics() {  ///  MAKE THE CLASSNAME A TAG
+		final Map<String, Metric> metrics = new HashMap<String, Metric>(2);
+		metrics.put("jmx.collections.type=" + getClass().getSimpleName(), timer);
+		metrics.put("jmx.exceptions.type=" + getClass().getSimpleName(), collectExceptions);
+		return metrics;
 	}
 	
 	/**

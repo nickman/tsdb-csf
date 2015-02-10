@@ -170,16 +170,9 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 		}
 		if(otDerivedMetrics.containsKey("PctProcessCpuLoad")) {
 			final double processCpu = attributeValues.get(OperatingSystemAttribute.PROCESS_CPU_LOAD).doubleValue();
+			final double systemCpu = attributeValues.get(OperatingSystemAttribute.SYSTEM_CPU_LOAD).doubleValue();
+			otDerivedMetrics.get("PctProcessCpuLoad").trace(currentTime,percent(processCpu, systemCpu));
 		}
-		
-//		tmp.put("UsedPhysicalMemorySize", EnumSet.of(OperatingSystemAttribute.FREE_PHYSICAL_MEMORY_SIZE, OperatingSystemAttribute.TOTAL_PHYSICAL_MEMORY_SIZE));
-//		tmp.put("PctUsedPhysicalMemory", EnumSet.of(OperatingSystemAttribute.FREE_PHYSICAL_MEMORY_SIZE, OperatingSystemAttribute.TOTAL_PHYSICAL_MEMORY_SIZE));
-//		tmp.put("PctFreePhysicalMemory", EnumSet.of(OperatingSystemAttribute.FREE_PHYSICAL_MEMORY_SIZE, OperatingSystemAttribute.TOTAL_PHYSICAL_MEMORY_SIZE));
-//		tmp.put("UsedSwapSpace", EnumSet.of(OperatingSystemAttribute.FREE_SWAP_SPACE_SIZE, OperatingSystemAttribute.TOTAL_SWAP_SPACE_SIZE));
-//		tmp.put("PctUsedSwap", EnumSet.of(OperatingSystemAttribute.FREE_SWAP_SPACE_SIZE, OperatingSystemAttribute.TOTAL_SWAP_SPACE_SIZE));
-//		tmp.put("PctFreeSwap", EnumSet.of(OperatingSystemAttribute.FREE_SWAP_SPACE_SIZE, OperatingSystemAttribute.TOTAL_SWAP_SPACE_SIZE));
-//		tmp.put("PctFDCapacity", EnumSet.of(OperatingSystemAttribute.OPEN_FILE_DESCRIPTOR_COUNT, OperatingSystemAttribute.MAX_FILE_DESCRIPTOR_COUNT));
-//		tmp.put("PctProcessCpuLoad", EnumSet.of(OperatingSystemAttribute.PROCESS_CPU_LOAD, OperatingSystemAttribute.SYSTEM_CPU_LOAD));
 		
 		return true;
 	}

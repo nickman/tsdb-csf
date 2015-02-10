@@ -670,7 +670,29 @@ public class OTMetric implements Serializable {
 			setTraceTime(MetricBuilder.trace(this, value));			
 		}
 	}
+	
+	public void trace(final long value) {
+		setTraceTime(MetricBuilder.trace(this, value));		
+	}
   
+	public void trace(final int value) {
+		setTraceTime(MetricBuilder.trace(this, value));		
+	}
+	
+	public void trace(final double value) {
+		setTraceTime(MetricBuilder.trace(this, value));		
+	}
+	
+	public void trace(final float value) {
+		setTraceTime(MetricBuilder.trace(this, value));		
+	}
+	
+	public void trace(final short value) {
+		setTraceTime(MetricBuilder.trace(this, value));		
+	}
+	
+
+
     
 //    /**
 //     * Writes the passed set of metrics into the passed buffer

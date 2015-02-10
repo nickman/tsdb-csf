@@ -24,11 +24,16 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.management.MBeanServer;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jboss.netty.util.Timeout;
 
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.MetricSet;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
+import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 
@@ -65,6 +70,8 @@ public class MBeanObserverSet implements Runnable {
 	
 	public static void main(String[] args) {
 		log("Testing MOS");
+		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4242");
+		System.setProperty("tsdb.http.compression.enabled", "false");
 		MBeanObserverSet mos = build(RuntimeMBeanServerConnection.newInstance(ManagementFactory.getPlatformMBeanServer()), 5, TimeUnit.SECONDS);
 		log("MOS enabled with [" + mos.enabledObservers.size() + "] MBeanObservers");
 		try { Thread.currentThread().join(); } catch (Exception ex) {}
@@ -72,6 +79,10 @@ public class MBeanObserverSet implements Runnable {
 	
 	public static void log(Object msg) {
 		System.out.println(msg);
+	}
+	
+	public static MBeanObserverSet build(final MBeanServer mbeanServer, final long period, final TimeUnit unit) {
+		return build(RuntimeMBeanServerConnection.newInstance(mbeanServer), period, unit);
 	}
 	
 	public static MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final long period, final TimeUnit unit) {
@@ -84,7 +95,16 @@ public class MBeanObserverSet implements Runnable {
 		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags));
 		mos.enabledObservers.add(new MemoryPoolsCollectorMBeanObserver(mbeanServer, tags));
 		mos.enabledObservers.add(new OperatingSystemCollectorMBeanObserver(mbeanServer, tags));
+		mos.enabledObservers.add(new ThreadingCollectorMBeanObserver(mbeanServer, tags));
 		mos.start();
+		final MetricRegistry reg = new MetricRegistry();
+		for(MetricSet ms: mos.enabledObservers) {
+			reg.registerAll(ms);
+		}
+		OpenTSDBReporter reporter = OpenTSDBReporter.forRegistry(reg).build();
+		//ConsoleReporter creporter = ConsoleReporter.forRegistry(reg).build();
+		reporter.start(10, TimeUnit.SECONDS);
+		//creporter.start(10, TimeUnit.SECONDS);
 		return mos;
 	}
 	
