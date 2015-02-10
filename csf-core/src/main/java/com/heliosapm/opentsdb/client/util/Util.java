@@ -258,6 +258,19 @@ public class Util {
     	if(x<0 || x > 30) throw new IllegalArgumentException("Unsupported Value [" + x + "]. Only supported for values between 0 and 30 inclusive");
     	return POW2[x];
     }
+    
+	/**
+	 * Calculates a percent
+	 * @param part The part 
+	 * @param whole The whole
+	 * @return The percentage that the part is of the whole
+	 */
+	public static int percent(double part, double whole) {
+		if(part==0d || whole==0d) return 0;
+		double p = part/whole*100;
+		return (int) Math.round(p);
+	}
+
 	
 	
 }

@@ -16,6 +16,10 @@
 
 package com.heliosapm.opentsdb.client.jvmjmx;
 
+import java.lang.management.MemoryUsage;
+
+import com.heliosapm.opentsdb.client.util.Util;
+
 /**
  * <p>Title: MUsage</p>
  * <p>Description: Enuemerates the mem usage keys</p> 
@@ -23,16 +27,61 @@ package com.heliosapm.opentsdb.client.jvmjmx;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.jvmjmx.GarbageCollectorMBeanObserver.MUsage</code></p>
  */
-public enum MUsage {
+public enum MUsage implements MemoryUsageReader {
 	/** Initial allocation */
-	init,
+	init{
+		@Override
+		public long get(final MemoryUsage memoryUsage) {
+			return memoryUsage.getInit();
+		}
+	},
 	/** Currently used */
-	used,
+	used{
+		@Override
+		public long get(final MemoryUsage memoryUsage) {
+			return memoryUsage.getUsed();
+		}
+	},
 	/** Currently committed */
-	committed,
+	committed{
+		@Override
+		public long get(final MemoryUsage memoryUsage) {
+			return memoryUsage.getCommitted();
+		}
+	},
 	/** Maximum committed */
-	max,
-	/** Percent capacity */
-	pctCapacity;
+	max{
+		@Override
+		public long get(final MemoryUsage memoryUsage) {
+			return memoryUsage.getMax();
+		}
+	},
+	/** Percent capacity (used as a % of Max) */
+	pctUsed{
+		@Override
+		public long get(final MemoryUsage memoryUsage) {
+			return Util.percent(memoryUsage.getUsed(), memoryUsage.getMax());
+		}
+	},	
+	/** Percent capacity (committed as a % of Max) */
+	pctCapacity{
+		@Override
+		public long get(final MemoryUsage memoryUsage) {
+			return Util.percent(memoryUsage.getCommitted(), memoryUsage.getMax());
+		}
+	};
+	
+	
+	private static final MUsage[] ONE_TIMES = new MUsage[]{init, max};
+	private static final MUsage[] NON_ONE_TIMES = new MUsage[]{used, committed, pctUsed, pctCapacity};
+	
+	public static MUsage[] getNonOneTimes() {
+		return NON_ONE_TIMES.clone();
+	}
+	
+	public static MUsage[] getOneTimes() {
+		return ONE_TIMES.clone();
+	}
+	
 	
 }

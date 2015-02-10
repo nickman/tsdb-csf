@@ -18,7 +18,9 @@ package com.heliosapm.opentsdb.client.jvmjmx;
 
 import static com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.MEMORY_MXBEAN;
 
+import java.lang.management.MemoryType;
 import java.lang.management.MemoryUsage;
+import java.util.EnumMap;
 import java.util.Map;
 
 import javax.management.MBeanServerConnection;
@@ -44,17 +46,7 @@ public class MemoryCollectorMBeanObserver extends BaseMBeanObserver {
 	/**  */
 	private static final long serialVersionUID = -6369906554383026767L;
 	/** The heap used metric */
-	protected final OTMetric heapUsed;
-	/** The heap committed metric */
-	protected final OTMetric heapCommitted;
-	/** The percentage heap capacity metric */
-	protected final OTMetric heapPctCapacity;
-	/** The non-heap used metric */
-	protected final OTMetric nonHeapUsed;
-	/** The non-heap committed metric */
-	protected final OTMetric nonHeapCommitted;
-	/** The percentage non-heap capacity metric */
-	protected final OTMetric nonHeapPctCapacity;	
+	protected final Map<MemoryType, Map<MUsage, OTMetric>> memMetrics = new EnumMap<MemoryType, Map<MUsage, OTMetric>>(MemoryType.class);
 	/** The pending finalizers count metric */
 	protected final OTMetric pendingFinalizers;
 	
@@ -91,12 +83,12 @@ public class MemoryCollectorMBeanObserver extends BaseMBeanObserver {
 	public MemoryCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
 		super(mbeanServerConn, MEMORY_MXBEAN, tags);
 		objectName = objectNamesAttrs.keySet().iterator().next();
-		heapUsed = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.used).tag(MEM_TYPE, "heap").build();
-		heapCommitted = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.committed).tag(MEM_TYPE, "heap").build();
-		heapPctCapacity = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, "pctCapacity").tag(MEM_TYPE, "heap").build();
-		nonHeapUsed = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.used).tag(MEM_TYPE, "nonheap").build();
-		nonHeapCommitted = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, MUsage.committed).tag(MEM_TYPE, "nonheap").build();
-		nonHeapPctCapacity = MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, "pctCapacity").tag(MEM_TYPE, "nonheap").build();
+		for(MemoryType mt: MemoryType.values()) {
+			final Map<MUsage, OTMetric> otmap = new EnumMap<MUsage, OTMetric>(MUsage.class);
+			for(MUsage mu: MUsage.getNonOneTimes()) {
+				otmap.put(mu, MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, mu).tag(MEM_TYPE, mt.name().toLowerCase()).build());
+			}
+		}
 		pendingFinalizers = MetricBuilder.metric(objectName).ext("pendingFinalizers").tags(tags).build();
 		traceOneTimers(objectName);
 	}
@@ -129,14 +121,14 @@ public class MemoryCollectorMBeanObserver extends BaseMBeanObserver {
 	@Override
 	protected boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime) {
 		final Map<String, Object> memData = data.get(objectName);
-		final MemoryUsage heap = MemoryUsage.from((CompositeData)memData.get(MemoryAttribute.HEAP_MEMORY_USAGE_INIT.attributeName));
-		final MemoryUsage nonHeap = MemoryUsage.from((CompositeData)memData.get(MemoryAttribute.NON_HEAP_MEMORY_USAGE_INIT.attributeName));
-		heapUsed.trace(currentTime, heap.getUsed());
-		heapCommitted.trace(currentTime, heap.getCommitted());
-		nonHeapUsed.trace(currentTime, nonHeap.getUsed());
-		nonHeapCommitted.trace(currentTime, nonHeap.getCommitted());
-		heapPctCapacity.trace(currentTime, percent(heap.getCommitted(), maxHeap));
-		nonHeapPctCapacity.trace(currentTime, percent(nonHeap.getCommitted(), maxNonHeap));
+		final Map<MemoryType, MemoryUsage> usages = new EnumMap<MemoryType, MemoryUsage>(MemoryType.class);
+		usages.put(MemoryType.HEAP, MemoryUsage.from((CompositeData)memData.get(MemoryAttribute.HEAP_MEMORY_USAGE_INIT.attributeName)));
+		usages.put(MemoryType.NON_HEAP, MemoryUsage.from((CompositeData)memData.get(MemoryAttribute.NON_HEAP_MEMORY_USAGE_INIT.attributeName)));
+		for(MemoryType mt: MemoryType.values()) {
+			for(MUsage mu: MUsage.getNonOneTimes()) {
+				memMetrics.get(mt).get(mu).trace(currentTime, mu.get(usages.get(mt)));
+			}
+		}
 		pendingFinalizers.trace(currentTime, memData.get(MemoryAttribute.OBJECT_PENDING_FINALIZATION_COUNT.attributeName));
 		return true;
 	}

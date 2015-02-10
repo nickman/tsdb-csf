@@ -393,7 +393,7 @@ public class MetricBuilder {
 				}
 			}
 			groupSet.add(otMetric);
-			System.err.println("Adding to group [" + groupName + "]: [" + otMetric.toString() + "]");
+//			System.err.println("Adding to group [" + groupName + "]: [" + otMetric.toString() + "]");
 		}
 		return otMetric;
 	}

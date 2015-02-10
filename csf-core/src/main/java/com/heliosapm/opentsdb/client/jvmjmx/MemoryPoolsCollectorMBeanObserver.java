@@ -43,6 +43,8 @@ import com.heliosapm.opentsdb.client.util.Util;
 
 public class MemoryPoolsCollectorMBeanObserver extends BaseMBeanObserver {
 	
+	/**  */
+	private static final long serialVersionUID = 6809115571686500213L;
 	/** Sets of metrics keyed by the pool name */
 	protected final Map<String, Map<MUsage, OTMetric>> poolMetrics;
 	/** The max sizes keyed by the pool name */
@@ -77,13 +79,13 @@ public class MemoryPoolsCollectorMBeanObserver extends BaseMBeanObserver {
 		poolMetrics = new HashMap<String, Map<MUsage, OTMetric>>(objectNamesAttrs.size());
 		poolMaxes = new HashMap<String, Long>(objectNamesAttrs.size());
 		for(ObjectName on: objectNamesAttrs.keySet()) {
-			Map<MUsage, OTMetric> otMetrics = new EnumMap<MUsage, OTMetric>(MUsage.class);	// used, committed, pctCapacity
+			Map<MUsage, OTMetric> otMetrics = new EnumMap<MUsage, OTMetric>(MUsage.class);
 			final String poolName = on.getKeyProperty("name");
 			final String cleanedPoolName = Util.clean(poolName);
 			poolMetrics.put(poolName, otMetrics);
-			otMetrics.put(MUsage.used, MetricBuilder.metric(on).ext("mempool").tags(tags).tag(MEM_ALLOC, MUsage.used).tag(POOL, cleanedPoolName).build());
-			otMetrics.put(MUsage.committed, MetricBuilder.metric(on).ext("mempool").tags(tags).tag(MEM_ALLOC, MUsage.committed).tag(POOL, cleanedPoolName).build());
-			otMetrics.put(MUsage.pctCapacity, MetricBuilder.metric(on).ext("mempool").tags(tags).tag(MEM_ALLOC, MUsage.pctCapacity).tag(POOL, cleanedPoolName).build());
+			for(MUsage mu: MUsage.getNonOneTimes()) {
+				otMetrics.put(mu, MetricBuilder.metric("java.lang").ext("mempool").tags(tags).tag(MEM_ALLOC, mu).tag(POOL, cleanedPoolName).build());
+			}
 			traceOneTimers(on);
 		}
 		
@@ -99,8 +101,9 @@ public class MemoryPoolsCollectorMBeanObserver extends BaseMBeanObserver {
 			final String poolName = on.getKeyProperty("name");
 			final MemoryUsage usage = MemoryUsage.from((CompositeData)mbs.getAttribute(on, "Usage"));
 			poolMaxes.put(poolName, usage.getMax());
-			MetricBuilder.metric(on).ext("mempool").tags(tags).tag(MEM_ALLOC, MUsage.init).tag(POOL, Util.clean(poolName)).build().trace(timestamp, usage.getInit());
-			MetricBuilder.metric(on).ext("mempool").tags(tags).tag(MEM_ALLOC, MUsage.max).tag(POOL, Util.clean(poolName)).build().trace(timestamp, usage.getMax());
+			for(MUsage mu: MUsage.getOneTimes()) {
+				MetricBuilder.metric("java.lang").ext("mempool").tags(tags).tag(MEM_ALLOC, mu).tag(POOL, Util.clean(poolName)).build().trace(timestamp, mu.get(usage));
+			}
 		} catch (Exception ex) {
 			log.error("Failed to trace init/max for [{}]", on, ex);
 		}
@@ -117,9 +120,9 @@ public class MemoryPoolsCollectorMBeanObserver extends BaseMBeanObserver {
 			final String poolName = on.getKeyProperty("name");
 			final Map<MUsage, OTMetric> otMetrics = poolMetrics.get(poolName);
 			final MemoryUsage usage = MemoryUsage.from((CompositeData)data.get(on).get("Usage"));
-			otMetrics.get(MUsage.used).trace(currentTime, usage.getUsed());
-			otMetrics.get(MUsage.committed).trace(currentTime, usage.getCommitted());
-			otMetrics.get(MUsage.pctCapacity).trace(currentTime, percent(usage.getCommitted(), poolMaxes.get(poolName)));
+			for(MUsage mu: MUsage.getNonOneTimes()) {
+				otMetrics.get(mu).trace(currentTime, mu.get(usage));
+			}
 		}
 		return true;
 	}
