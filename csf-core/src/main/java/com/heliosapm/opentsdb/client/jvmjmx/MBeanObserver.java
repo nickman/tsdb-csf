@@ -34,7 +34,12 @@ import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Array;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -762,32 +767,33 @@ public enum MBeanObserver implements MXBeanDescriptor {
 	 */	
 	public static enum OperatingSystemAttribute implements AttributeManager<OperatingSystemAttribute> {
 		/**  */
-		MAX_FILE_DESCRIPTOR_COUNT("MaxFileDescriptorCount", long.class),
+		MAX_FILE_DESCRIPTOR_COUNT("MaxFileDescriptorCount", long.class, true),
 		/**  */
-		OPEN_FILE_DESCRIPTOR_COUNT("OpenFileDescriptorCount", long.class),
+		OPEN_FILE_DESCRIPTOR_COUNT("OpenFileDescriptorCount", long.class, false),
 		/**  */
-		COMMITTED_VIRTUAL_MEMORY_SIZE("CommittedVirtualMemorySize", long.class),
+		COMMITTED_VIRTUAL_MEMORY_SIZE("CommittedVirtualMemorySize", long.class, false),
 		/**  */
-		FREE_PHYSICAL_MEMORY_SIZE("FreePhysicalMemorySize", long.class),
+		FREE_PHYSICAL_MEMORY_SIZE("FreePhysicalMemorySize", long.class, false),
 		/**  */
-		FREE_SWAP_SPACE_SIZE("FreeSwapSpaceSize", long.class),
+		FREE_SWAP_SPACE_SIZE("FreeSwapSpaceSize", long.class, false),
 		/**  */
-		PROCESS_CPU_LOAD("ProcessCpuLoad", double.class),
+		PROCESS_CPU_LOAD("ProcessCpuLoad", double.class, false),
 		/**  */
-		PROCESS_CPU_TIME("ProcessCpuTime", long.class),
+		PROCESS_CPU_TIME("ProcessCpuTime", long.class, false),
 		/**  */
-		SYSTEM_CPU_LOAD("SystemCpuLoad", double.class),
+		SYSTEM_CPU_LOAD("SystemCpuLoad", double.class, false),
 		/**  */
-		TOTAL_PHYSICAL_MEMORY_SIZE("TotalPhysicalMemorySize", long.class),
+		TOTAL_PHYSICAL_MEMORY_SIZE("TotalPhysicalMemorySize", long.class, true),
 		/**  */
-		TOTAL_SWAP_SPACE_SIZE("TotalSwapSpaceSize", long.class),
+		TOTAL_SWAP_SPACE_SIZE("TotalSwapSpaceSize", long.class, true),
 		/**  */
-		SYSTEM_LOAD_AVERAGE("SystemLoadAverage", double.class);
+		SYSTEM_LOAD_AVERAGE("SystemLoadAverage", double.class, false);
 		
-		private OperatingSystemAttribute(final String attributeName, final Class<?> type) {
+		private OperatingSystemAttribute(final String attributeName, final Class<?> type, final boolean oneTime) {
 			this.attributeName = attributeName;
 			this.type = type;
 			primitive = type.isPrimitive();
+			this.oneTime = oneTime;
 		}
 		
 		/** The bitmask */
@@ -798,6 +804,85 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		public final Class<?> type;
 		/** The unloaded class count */
 		public final boolean primitive;
+		/** Indicates if the attribute is a one time */
+		public final boolean oneTime;
+		
+		/** A set of the one time attributes */
+		public static final Set<OperatingSystemAttribute> ONE_TIMERS = Collections.unmodifiableSet(EnumSet.of(MAX_FILE_DESCRIPTOR_COUNT, TOTAL_PHYSICAL_MEMORY_SIZE, TOTAL_SWAP_SPACE_SIZE));
+		/** A set of the non-one time attributes */
+		public static final Set<OperatingSystemAttribute> NON_ONE_TIMERS = Collections.unmodifiableSet(EnumSet.complementOf(EnumSet.of(MAX_FILE_DESCRIPTOR_COUNT, TOTAL_PHYSICAL_MEMORY_SIZE, TOTAL_SWAP_SPACE_SIZE)));
+		
+		/** A map of OperatingSystemAttribute enum members keyed by the attribute name */
+		public static final Map<String, OperatingSystemAttribute> ATTR2ENUM;
+		
+		static {
+			final OperatingSystemAttribute[] values = values();
+			final Map<String, OperatingSystemAttribute> tmp = new HashMap<String, OperatingSystemAttribute>(values.length);
+			for(OperatingSystemAttribute osa: values) {
+				tmp.put(osa.attributeName.toLowerCase(), osa);
+			}
+			ATTR2ENUM = Collections.unmodifiableMap(tmp);
+		}
+		
+		/**
+		 * Returns the OperatingSystemAttribute enum member for the passed attribute name
+		 * @param attributeName The attribute name to get the OperatingSystemAttribute enum member for 
+		 * @return the OperatingSystemAttribute
+		 */
+		public static OperatingSystemAttribute getEnum(final String attributeName) {
+			if(attributeName==null || attributeName.trim().isEmpty()) throw new IllegalArgumentException("The passed attributeName was null or empty");
+			OperatingSystemAttribute osa = ATTR2ENUM.get(attributeName.trim().toLowerCase());
+			if(osa==null) throw new IllegalArgumentException("The passed attributeName [" + attributeName + "] was not a valid OperatingSystemAttribute attribute name");
+			return osa;
+		}
+		
+		/**
+		 * Returns a set of the one timer attributes for which the attribute name is in the passed array of enabled attribute names
+		 * @param enabled The enabled attribute names
+		 * @return The set of enabled one timers
+		 */
+		public static EnumSet<OperatingSystemAttribute> getEnabledOneTimers(final String[] enabled) {
+			final Set<String> attrNames = new HashSet<String>(Arrays.asList(enabled));
+			EnumSet<OperatingSystemAttribute> set = EnumSet.noneOf(OperatingSystemAttribute.class);
+			for(OperatingSystemAttribute osa: ONE_TIMERS) {
+				if(attrNames.contains(osa.attributeName)) {
+					set.add(osa);
+				}
+			}
+			return set;
+		}
+		
+		/**
+		 * Returns a set of the non-one-timer attributes for which the attribute name is in the passed array of enabled attribute names
+		 * @param enabled The enabled attribute names
+		 * @return The set of enabled non-one-timers
+		 */
+		public static EnumSet<OperatingSystemAttribute> getEnabledNonOneTimers(final String[] enabled) {
+			final Set<String> attrNames = new HashSet<String>(Arrays.asList(enabled));
+			EnumSet<OperatingSystemAttribute> set = EnumSet.noneOf(OperatingSystemAttribute.class);
+			for(OperatingSystemAttribute osa: NON_ONE_TIMERS) {
+				if(attrNames.contains(osa.attributeName)) {
+					set.add(osa);
+				}
+			}
+			return set;
+		}
+		
+		/**
+		 * Returns an array of attribute names for the passed OperatingSystemAttribute
+		 * @param attrs A collection of OperatingSystemAttributes to get the attribute names for
+		 * @return an array of attribute names
+		 */
+		public static String[] getAttributeNameArr(final Collection<OperatingSystemAttribute> attrs) {
+			if(attrs==null || attrs.isEmpty()) return new String[0];
+			final String[] attrNames = new String[attrs.size()];
+			int index = 0;
+			for(OperatingSystemAttribute osa: attrs) {
+				attrNames[index] = osa.attributeName;
+				index++;
+			}
+			return attrNames;
+		}
 		
 		/**
 		 * Returns all the attribute names

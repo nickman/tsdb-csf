@@ -169,7 +169,8 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 	}
 	
 	/**
-	 * Polls the target MBeanServer for this MBeanObserver's target data
+	 * Polls the target MBeanServer for this MBeanObserver's target data.
+	 * FIXME:  Allow the impl to override which attributes are repeatedly polled for
 	 */
 	protected void refresh() {
 		final Map<ObjectName, Map<String, Object>> map = new HashMap<ObjectName, Map<String, Object>>(objectNamesAttrs.size());
