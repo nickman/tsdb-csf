@@ -484,7 +484,7 @@ public class MetricBuilder {
 	private static Clock getClock() {
 		if(clock==null) {
 			if(ConfigurationReader.confBool(Constants.PROP_TIME_IN_SEC, Constants.DEFAULT_TIME_IN_SEC)) {
-				clock = EpochClock.INSTANCE;;			
+				clock = EpochClock.INSTANCE;		
 			} else {
 				clock = Clock.UserTimeClock.defaultClock();
 			}

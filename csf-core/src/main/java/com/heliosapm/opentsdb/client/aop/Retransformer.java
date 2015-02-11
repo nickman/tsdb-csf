@@ -303,6 +303,37 @@ Caused by: java.lang.ClassNotFoundException: com.heliosapm.opentsdb.client.opent
     at java.lang.ClassLoader.loadClass(ClassLoader.java:424) ~[na:1.7.0_25]
     at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:308) ~[na:1.7.0_25]
     at java.lang.ClassLoader.loadClass(ClassLoader.java:357) ~[na:1.7.0_25]
+    
+    
+
+// the following code re-registers the jboss aop transformer ;
+instrumentation = org.jboss.aop.standalone.PluggableInstrumentor.instrumentor;
+println "Inst:${instrumentation.getClass().getName()}";
+tmgr = instrumentation.mTransformerManager;
+jbossTransformer = null;
+if(tmgr!=null) {
+    tmgr.mTransformerList.each() {
+        if("org.jboss.aop.standalone.AOPTransformer".equals(it.transformer().getClass().getName())) {
+            jbossTransformer = it.transformer();
+        }
+    }
+    if(jbossTransformer!=null) {
+        instrumentation.removeTransformer(jbossTransformer);        
+        instrumentation.addTransformer(jbossTransformer, true);
+        println "Switched JBoss AOP Transformer";
+    }    
+}
+
+
+jbossTransformer = null;
+tmgr = instrumentation.mRetransfomableTransformerManager;
+if(tmgr!=null) {
+    tmgr.mTransformerList.each() {
+        println "\tRetrans:${it.transformer().getClass().getName()}";
+        jbossTransformer = it.transformer();
+    }
+}
+    
 */    
       
 
