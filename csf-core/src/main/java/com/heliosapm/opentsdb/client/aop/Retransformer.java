@@ -216,7 +216,7 @@ public class Retransformer {
 			cp.importPackage("com.heliosapm.opentsdb.client.opentsdb");
 			final CtClass target = cp.get(clazz.getName());
 			for(Method mx: methods.values()) {
-				final String metricName = MetricBuilder.metric(mx.getName()).ext("elapsed").tag("class", clazz.getSimpleName()).tag("package", clazz.getPackage().getName()).build().toString();
+				final String metricName = MetricBuilder.metric("method.elapsedns").tag("method", mx.getName()).tag("class", clazz.getSimpleName()).tag("package", clazz.getPackage().getName()).build().toString();
 				log.info("Adding metric name {}", metricName);
 				CtMethod ctm = target.getDeclaredMethod(mx.getName(), sig(cp, mx));
 				target.removeMethod(ctm);

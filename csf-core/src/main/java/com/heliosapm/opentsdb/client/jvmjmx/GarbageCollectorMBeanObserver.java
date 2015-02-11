@@ -389,7 +389,6 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 		final Map<MUsage, Long> map = new EnumMap<MUsage, Long>(MUsage.class);
 		map.put(MUsage.used, used);
 		map.put(MUsage.committed, committed);
-		System.err.println(String.format("TOTAL: used:%s, committed:%s, all:%s", used, committed, used + committed));
 		return map;
 	}
 

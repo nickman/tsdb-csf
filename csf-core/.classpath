@@ -6,9 +6,9 @@
   <classpathentry kind="src" path="src/main/resources" excluding="**/*.java"/>
   <classpathentry kind="output" path="target/classes"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
-  <classpathentry kind="var" path="M2_REPO/org/javassist/javassist/3.19.0-GA/javassist-3.19.0-GA.jar" sourcepath="M2_REPO/org/javassist/javassist/3.19.0-GA/javassist-3.19.0-GA-sources.jar">
+  <classpathentry kind="var" path="M2_REPO/org/javassist/javassist/3.18.1-GA/javassist-3.18.1-GA.jar" sourcepath="M2_REPO/org/javassist/javassist/3.18.1-GA/javassist-3.18.1-GA-sources.jar">
     <attributes>
-      <attribute value="jar:file:/C:/Users/nwhitehe/.m2/repository/org/javassist/javassist/3.19.0-GA/javassist-3.19.0-GA-javadoc.jar!/" name="javadoc_location"/>
+      <attribute value="jar:file:/C:/Users/nwhitehe/.m2/repository/org/javassist/javassist/3.18.1-GA/javassist-3.18.1-GA-javadoc.jar!/" name="javadoc_location"/>
     </attributes>
   </classpathentry>
   <classpathentry kind="var" path="M2_REPO/io/netty/netty/3.9.4.Final/netty-3.9.4.Final.jar" sourcepath="M2_REPO/io/netty/netty/3.9.4.Final/netty-3.9.4.Final-sources.jar">

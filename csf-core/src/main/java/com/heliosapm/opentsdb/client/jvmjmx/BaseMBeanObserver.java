@@ -178,6 +178,7 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 			refresh();
 			ctx.stop();
 		} catch (Exception ex) {
+			log.error("Collection Failure", ex);
 			collectExceptions.mark();
 		} 
 	}

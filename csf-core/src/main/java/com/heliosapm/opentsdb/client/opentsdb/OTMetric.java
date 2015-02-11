@@ -380,7 +380,7 @@ public class OTMetric implements Serializable {
 		OTMetric otm = new OTMetric(ManagementFactory.CLASS_LOADING_MXBEAN_NAME);
 		printDetails(otm);
 		for(GarbageCollectorMXBean gc: ManagementFactory.getGarbageCollectorMXBeans()) {
-			otm = new OTMetric(gc.getObjectName().toString());
+			otm = new OTMetric(ManagementFactory.GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",name=" + gc.getName());
 			printDetails(otm);
 		}
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice");

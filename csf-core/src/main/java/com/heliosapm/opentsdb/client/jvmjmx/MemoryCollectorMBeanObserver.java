@@ -87,6 +87,7 @@ public class MemoryCollectorMBeanObserver extends BaseMBeanObserver {
 			final Map<MUsage, OTMetric> otmap = new EnumMap<MUsage, OTMetric>(MUsage.class);
 			for(MUsage mu: MUsage.getNonOneTimes()) {
 				otmap.put(mu, MetricBuilder.metric(objectName).ext(MEM_EXT).tags(tags).tag(MEM_ALLOC, mu).tag(MEM_TYPE, mt.name().toLowerCase()).build());
+				memMetrics.put(mt, otmap);
 			}
 		}
 		pendingFinalizers = MetricBuilder.metric(objectName).ext("pendingFinalizers").tags(tags).build();

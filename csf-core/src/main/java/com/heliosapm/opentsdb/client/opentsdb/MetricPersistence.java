@@ -541,12 +541,12 @@ public class MetricPersistence implements FilenameFilter  {
 				lockFileFc.truncate(PIDBYTES.length);
 				lockFileFc.write(ByteBuffer.wrap(PIDBYTES), 0);
 				lockFileLock = lockFileFc.tryLock(0, PIDBYTES.length, true);
-				tmpLock.close();
+//				tmpLock.close();
 				return true;
 			} catch (Exception ex) {
 				if(lockFileRaf!=null) try { lockFileRaf.close(); } catch (Exception x) {/* No Op */}
 				if(lockFileFc!=null) try { lockFileFc.close(); } catch (Exception x) {/* No Op */}
-				if(tmpLock!=null) try { tmpLock.close();} catch (Exception x) {/* No Op */}
+//				if(tmpLock!=null) try { tmpLock.close();} catch (Exception x) {/* No Op */}
 				throw ex;
 			} 
 		} catch (Exception x) {
