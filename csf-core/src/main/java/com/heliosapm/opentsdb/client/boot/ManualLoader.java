@@ -17,6 +17,7 @@
 package com.heliosapm.opentsdb.client.boot;
 
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
@@ -42,6 +43,27 @@ public class ManualLoader {
 			throw new RuntimeException(ex);
 		}
 	}
+	
+	/**
+	 * Loads tsdb-csf into the current environment, assuming the jar has been appended to the sys classpath
+	 * @param mbs The MBeanServer where the classloader will be registered
+	 * @throws ClassNotFoundException 
+	 * @throws SecurityException 
+	 * @throws NoSuchMethodException 
+	 * @throws InvocationTargetException 
+	 * @throws IllegalArgumentException 
+	 * @throws IllegalAccessException 
+	 */
+	public static void boot(final MBeanServer mbs) throws ClassNotFoundException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
+		final Class<?> logConfClazz = Class.forName("com.heliosapm.opentsdb.client.logging.LoggingConfiguration");
+		logConfClazz.getDeclaredMethod("getInstance").invoke(null);
+		System.out.println("Initialized tsdb-csf Logging");
+		final Class<?> observerClass = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet");
+		observerClass.getDeclaredMethod("build", MBeanServer.class, long.class, TimeUnit.class)
+			.invoke(null, ManagementFactory.getPlatformMBeanServer(), 5, TimeUnit.SECONDS);
+		System.out.println("Initialized tsdb-csf MXBeanObserver");								
+	}
+	
 	
 	/**
 	 * Loads tsdb-csf into the current environment

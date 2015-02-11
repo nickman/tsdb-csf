@@ -27,7 +27,7 @@
         <high-scale-lib.version>1.1.4</high-scale-lib.version>
         <guava.version>17.0</guava.version>
         <netty.version>3.9.4.Final</netty.version>
-        <javassist.version>3.19.0-GA</javassist.version>
+        <javassist.version>3.18.1-GA</javassist.version>
         <!-- Plugin Versions -->
         <compiler-plugin.version>3.2</compiler-plugin.version>
         <source-plugin.version>2.4</source-plugin.version>
@@ -237,6 +237,7 @@
                   </archive>
               </configuration>
             </plugin>
+                <!--
               <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                   <artifactId>maven-shade-plugin</artifactId>
@@ -275,7 +276,7 @@
                         </execution>
                       </executions>
                     </plugin>     
-
+                    -->
 
             <plugin>
             <groupId>org.apache.maven.plugins</groupId>

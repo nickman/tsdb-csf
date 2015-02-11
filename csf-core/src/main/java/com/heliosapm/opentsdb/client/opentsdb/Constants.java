@@ -64,6 +64,21 @@ public interface Constants {
 	public static final String PROP_REQUEST_RETRY_DELAY = "tsdb.http.request.retries.delay";
 	/** The default retry delay in ms. */
 	public static final int DEFAULT_REQUEST_RETRY_DELAY = 2000;
+
+	// =======================================
+	// Metric Sink
+	// =======================================
+	
+	/** The system property config name for the metric sink buffer size threshold trigger */
+	public static final String PROP_SINK_SIZE_TRIGGER = "tsdb.metricsink.trigger.size";
+	/** The default metric sink buffer size threshold trigger */
+	public static final int DEFAULT_SINK_SIZE_TRIGGER = 100;
+	/** The system property config name for the metric sink buffer time threshold trigger */
+	public static final String PROP_SINK_TIME_TRIGGER = "tsdb.metricsink.trigger.size";
+	/** The default metric sink buffer time threshold trigger in ms. */
+	public static final long DEFAULT_SINK_TIME_TRIGGER = 5000;
+
+	
 	
 	/** The system property config name for the http request timeout */
 	public static final String PROP_REQUEST_TIMEOUT = "tsdb.http.request.timeout";

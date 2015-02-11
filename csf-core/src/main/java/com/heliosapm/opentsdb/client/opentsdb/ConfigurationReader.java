@@ -108,6 +108,23 @@ public class ConfigurationReader {
 	}
 	
 	/**
+	 * Returns the long configuration value for the passed config key.
+	 * See {@link #conf(String, Object)} for the processing rules.
+	 * @param propName The system property configuration key
+	 * @param defaultValue The default value
+	 * @return the configuration value
+	 */
+	public static long confLong(final String propName, final long defaultValue) {
+		String value = conf(propName, defaultValue);
+		try {
+			return new Double(value).longValue();
+		} catch (Exception ex) {
+			return defaultValue;
+		}
+	}
+	
+	
+	/**
 	 * Returns the URI configuration value for the passed config key.
 	 * See {@link #conf(String, Object)} for the processing rules.
 	 * @param propName The system property configuration key
