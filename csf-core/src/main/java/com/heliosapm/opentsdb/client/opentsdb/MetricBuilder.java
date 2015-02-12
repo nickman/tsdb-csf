@@ -55,6 +55,10 @@ public class MetricBuilder {
 	private String prefix = null;
 	/** An optional metric name suffix */
 	private String extension = null;
+	/** An optional CHMetric type */
+	private CHMetric chm = null;
+	/** An existing OTMetric to base a new Metric on */
+	private OTMetric otMetricBase = null;
 	/** Optional tags to be appended */
 	private Map<String, String> tags = null;
 	
@@ -260,6 +264,19 @@ public class MetricBuilder {
 	}
 	
 	/**
+	 * Creates a new metric builder from an existing {@link OTMetric}.
+	 * @param otMetric The {@link OTMetric} to build from
+	 * @return the metric builder
+	 */
+	public static MetricBuilder metric(final OTMetric otMetric) {
+		if(otMetric==null) throw new IllegalArgumentException("The passed otMetric was null");
+		MetricBuilder mb = new MetricBuilder(otMetric.getMetricName());
+		mb.tags(otMetric.getTags());
+		return mb;
+	}
+	
+	
+	/**
 	 * Creates a new MetricBuilder
 	 * @param name The base metric name
 	 */
@@ -289,6 +306,18 @@ public class MetricBuilder {
 	 */
 	public MetricBuilder ext(final String extension) {
 		this.extension = nvl(extension, "extension");
+		return this;
+	}
+	
+	/**
+	 * Adds a CHMetric type to the metric name builder
+	 * @param chMetric The CHMetric type to set
+	 * @return this builder
+	 */
+	public MetricBuilder chMetric(final CHMetric chMetric) {
+		if(chMetric!=null) {
+			this.chm = chMetric;
+		}
 		return this;
 	}
 	
@@ -374,6 +403,39 @@ public class MetricBuilder {
 	}
 	
 	/**
+	 * Builds the OTMeric but does not add it to the OTMetricCache
+	 * @return the built OTMetric
+	 */
+	public OTMetric buildNoCache() {
+		return buildNoCache(null);
+	}
+	
+	/**
+	 * Builds the OTMeric but does not add it to the OTMetricCache
+	 * @param groupName An optional group name that groups all the created metrics into a set 
+	 * which can be retrieved after all the group's OTMetrics have been created.
+	 * @return the built OTMetric
+	 */
+	public OTMetric buildNoCache(final String groupName) {
+		final OTMetric otm = new OTMetric(name, prefix, extension, tags);
+		if(chm!=null) otm.setCHMetricType(chm);
+		if(groupName!=null) {
+			Set<OTMetric> groupSet = groups.get(groupName);
+			if(groupSet==null) {
+				synchronized(groups) {
+					groupSet = groups.get(groupName);
+					if(groupSet==null) {
+						groupSet = new CopyOnWriteArraySet<OTMetric>();
+						groups.put(groupName, groupSet);						
+					}
+				}
+			}
+			groupSet.add(otm);
+		}		
+		return otm;
+	}
+	
+	/**
 	 * Builds an OTMetric from this builder
 	 * @param groupName An optional group name that groups all the created metrics into a set 
 	 * which can be retrieved after all the group's OTMetrics have been created.
@@ -381,6 +443,40 @@ public class MetricBuilder {
 	 */
 	public OTMetric build(final String groupName) {
 		final OTMetric otMetric = OTMetricCache.getInstance().getOTMetric(name, prefix, extension, tags);
+		if(chm!=null) otMetric.setCHMetricType(chm);
+		if(groupName!=null) {
+			Set<OTMetric> groupSet = groups.get(groupName);
+			if(groupSet==null) {
+				synchronized(groups) {
+					groupSet = groups.get(groupName);
+					if(groupSet==null) {
+						groupSet = new CopyOnWriteArraySet<OTMetric>();
+						groups.put(groupName, groupSet);						
+					}
+				}
+			}
+			groupSet.add(otMetric);
+		}
+		return otMetric;
+	}
+	
+	/**
+	 * Builds an opt cache backed OTMetric from this builder
+	 * @return an OTMetric
+	 */
+	public OTMetric optBuild() {
+		return optBuild(null);
+	}
+	
+	/**
+	 * Builds an opt cache backed OTMetric from this builder
+	 * @param groupName An optional group name that groups all the created metrics into a set 
+	 * which can be retrieved after all the group's OTMetrics have been created.
+	 * @return an OTMetric
+	 */
+	public OTMetric optBuild(final String groupName) {
+		final OTMetric otMetric = LongIdOTMetricCache.getInstance().getOTMetric(this);
+		if(chm!=null) otMetric.setCHMetricType(chm);
 		if(groupName!=null) {
 			Set<OTMetric> groupSet = groups.get(groupName);
 			if(groupSet==null) {
@@ -397,6 +493,7 @@ public class MetricBuilder {
 		}
 		return otMetric;
 	}
+	
 	
 	/**
 	 * Returns the named OTMetric group

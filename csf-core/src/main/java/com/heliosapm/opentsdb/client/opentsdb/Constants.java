@@ -78,6 +78,18 @@ public interface Constants {
 	/** The default metric sink buffer time threshold trigger in ms. */
 	public static final long DEFAULT_SINK_TIME_TRIGGER = 5000;
 
+	// =======================================
+	// LongIdOTMetricCache
+	// =======================================
+
+	/** The system property config name for the LongIdOTMetricCache initial cache size */
+	public static final String PROP_OPT_CACHE_INIT_SIZE = "tsdb.optcache.initsize";
+	/** The default LongIdOTMetricCache initial cache size */
+	public static final int DEFAULT_OPT_CACHE_INIT_SIZE = 512;
+	/** The system property config name for the LongIdOTMetricCache space for speed option */
+	public static final String PROP_OPT_CACHE_SPACE_FOR_SPEED = "tsdb.optcache.space4speed";
+	/** The default LongIdOTMetricCache space for speed option*/
+	public static final boolean DEFAULT_OPT_CACHE_SPACE_FOR_SPEED = false;
 	
 	
 	/** The system property config name for the http request timeout */

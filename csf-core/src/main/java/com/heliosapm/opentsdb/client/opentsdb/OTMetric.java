@@ -61,6 +61,7 @@ public class OTMetric implements Serializable {
 	static final short HAS_APP_TAG = LAST_TRACE_TIME + 8;		// 1 byte
 	static final short HAS_HOST_TAG = HAS_APP_TAG + 1;			// 1 byte
 	static final short IS_EXT_TAG = HAS_HOST_TAG + 1;			// 1 byte
+	static final short CHMETRIC_TAG = IS_EXT_TAG + 1;			// 1 byte
 	static final short TOTAL_SIZE_OFFSET = IS_EXT_TAG + 1;  	// 4 bytes
 	static final short MN_SIZE_OFFSET = TOTAL_SIZE_OFFSET + 4; 	// 4 bytes
 	static final short TAG_COUNT_OFFSET = MN_SIZE_OFFSET + 4;	// 4 bytes
@@ -186,6 +187,7 @@ public class OTMetric implements Serializable {
 			.put(sfn.hasAppTag() ? ONE_BYTE : ZERO_BYTE)						// App Tag
 			.put(sfn.hasHostTag() ? ONE_BYTE : ZERO_BYTE)						// Host Tag
 			.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
+			.put(ZERO_BYTE)						// CHMetric type flag
 			.putInt(0)							// Total Length, Zero for now
 			.putInt(metricName.length)			// Length of the prefix
 			.putInt(sfn.getTags().size())		// Tag count
@@ -291,6 +293,8 @@ public class OTMetric implements Serializable {
 		public boolean hasAppTag() {
 			return tags.containsKey(Constants.APP_TAG);
 		}
+		
+
 		
 		/**
 		 * Indicates if the tags contain a host tag
@@ -413,6 +417,7 @@ public class OTMetric implements Serializable {
 		b.append("\n\tisExtension:").append(otm.isExtension());
 		b.append("\n\tPrefix:").append(otm.getMetricName());
 		b.append("\n\tTagCount:").append(otm.getTagCount());
+		b.append("\n\tCHMetric:").append(otm.getCHMetricType());
 		b.append("\n\tTags:").append(otm.getTags());
 		b.append("\n\thashCode:").append(otm.hashCode());
 		b.append("\n\tlongHashCode:").append(otm.longHashCode());
@@ -474,6 +479,25 @@ public class OTMetric implements Serializable {
 	 */
 	public int getTagCount() {
 		return nameBuffer.getInt(TAG_COUNT_OFFSET);
+	}
+	
+	/**
+	 * Returns the CHMetric type of this OTMetric
+	 * @return the CHMetric type of this OTMetric
+	 */
+	public CHMetric getCHMetricType() {
+		return CHMetric.valueOf(nameBuffer.get(CHMETRIC_TAG)); 
+	}
+
+	/**
+	 * Sets the CHMetric type for this OTMetric
+	 * @param chMetric the CHMetric type for this OTMetric
+	 * @return this OTMetric
+	 */
+	public OTMetric setCHMetricType(final CHMetric chMetric) {
+		if(chMetric==null) throw new IllegalArgumentException("The passed chMetric was null");
+		nameBuffer.put(CHMETRIC_TAG, chMetric.bordinal);
+		return this;
 	}
 	
 	/**
@@ -671,29 +695,46 @@ public class OTMetric implements Serializable {
 		}
 	}
 	
+	/**
+	 * Traces a value for the this metric using the configured clock for the timestamp
+	 * @param value The value
+	 */
 	public void trace(final long value) {
 		setTraceTime(MetricBuilder.trace(this, value));		
 	}
   
+	/**
+	 * Traces a value for the this metric using the configured clock for the timestamp
+	 * @param value The value
+	 */
 	public void trace(final int value) {
 		setTraceTime(MetricBuilder.trace(this, value));		
 	}
 	
+	/**
+	 * Traces a value for the this metric using the configured clock for the timestamp
+	 * @param value The value
+	 */
 	public void trace(final double value) {
 		setTraceTime(MetricBuilder.trace(this, value));		
 	}
 	
+	/**
+	 * Traces a value for the this metric using the configured clock for the timestamp
+	 * @param value The value
+	 */
 	public void trace(final float value) {
 		setTraceTime(MetricBuilder.trace(this, value));		
 	}
 	
+	/**
+	 * Traces a value for the this metric using the configured clock for the timestamp
+	 * @param value The value
+	 */
 	public void trace(final short value) {
 		setTraceTime(MetricBuilder.trace(this, value));		
 	}
 	
-
-
-    
 //    /**
 //     * Writes the passed set of metrics into the passed buffer
 //     * @param metrics The metrics to render
