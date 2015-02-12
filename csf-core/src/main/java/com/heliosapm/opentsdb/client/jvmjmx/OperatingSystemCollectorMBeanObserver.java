@@ -74,6 +74,7 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 		tmp.put("PctFreeSwap", EnumSet.of(OperatingSystemAttribute.FREE_SWAP_SPACE_SIZE, OperatingSystemAttribute.TOTAL_SWAP_SPACE_SIZE));
 		tmp.put("PctFDCapacity", EnumSet.of(OperatingSystemAttribute.OPEN_FILE_DESCRIPTOR_COUNT, OperatingSystemAttribute.MAX_FILE_DESCRIPTOR_COUNT));
 		tmp.put("PctProcessCpuLoad", EnumSet.of(OperatingSystemAttribute.PROCESS_CPU_LOAD, OperatingSystemAttribute.SYSTEM_CPU_LOAD));
+		tmp.put("PctProcessCpuTime", EnumSet.of(OperatingSystemAttribute.PROCESS_CPU_TIME));
 		
 		DERIVED_OT_METRICS = Collections.unmodifiableMap(tmp);
 	}
@@ -172,6 +173,10 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 			final double processCpu = attributeValues.get(OperatingSystemAttribute.PROCESS_CPU_LOAD).doubleValue();
 			final double systemCpu = attributeValues.get(OperatingSystemAttribute.SYSTEM_CPU_LOAD).doubleValue();
 			otDerivedMetrics.get("PctProcessCpuLoad").trace(currentTime,percent(processCpu, systemCpu));
+		} 
+		if(otDerivedMetrics.containsKey("PctProcessCpuTime")) {
+			final long processCpuTime = attributeValues.get(OperatingSystemAttribute.PROCESS_CPU_TIME).longValue();			
+			otDerivedMetrics.get("PctProcessCpuTime").trace(currentTime,percent(processCpuTime, elapsedTime));
 		}
 		
 		return true;

@@ -19,6 +19,7 @@ package com.heliosapm.opentsdb.client.boot;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -35,6 +36,8 @@ import javax.management.loading.MLet;
 public class ManualLoader {
 	/** The classloader ObjectName */
 	public static final ObjectName OBJECT_NAME;
+	
+	private static final AtomicBoolean booted = new AtomicBoolean(false);
 	
 	static {
 		try {
@@ -55,13 +58,15 @@ public class ManualLoader {
 	 * @throws IllegalAccessException 
 	 */
 	public static void boot(final MBeanServer mbs) throws ClassNotFoundException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
-		final Class<?> logConfClazz = Class.forName("com.heliosapm.opentsdb.client.logging.LoggingConfiguration");
-		logConfClazz.getDeclaredMethod("getInstance").invoke(null);
-		System.out.println("Initialized tsdb-csf Logging");
-		final Class<?> observerClass = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet");
-		observerClass.getDeclaredMethod("build", MBeanServer.class, long.class, TimeUnit.class)
-			.invoke(null, ManagementFactory.getPlatformMBeanServer(), 5, TimeUnit.SECONDS);
-		System.out.println("Initialized tsdb-csf MXBeanObserver");								
+		if(booted.compareAndSet(false, true)) {
+			final Class<?> logConfClazz = Class.forName("com.heliosapm.opentsdb.client.logging.LoggingConfiguration");
+			logConfClazz.getDeclaredMethod("getInstance").invoke(null);
+			System.out.println("Initialized tsdb-csf Logging");
+			final Class<?> observerClass = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet");
+			observerClass.getDeclaredMethod("build", MBeanServer.class, long.class, TimeUnit.class)
+				.invoke(null, ManagementFactory.getPlatformMBeanServer(), 5, TimeUnit.SECONDS);
+			System.out.println("Initialized tsdb-csf MXBeanObserver");
+		}
 	}
 	
 	
