@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.opentsdb;
+package com.heliosapm.opentsdb.client.opentsdb.opt;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -24,6 +24,11 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
+import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
+import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 
 /**
  * <p>Title: LongIdOTMetricCache</p>
@@ -82,7 +87,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.LongIdOTMetricCacheMBean#getOTMetric(long)
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCacheMBean#getOTMetric(long)
 	 */
 	@Override
 	public OTMetric getOTMetric(final long id) {
@@ -93,7 +98,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.LongIdOTMetricCacheMBean#getSize()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCacheMBean#getSize()
 	 */
 	@Override
 	public int getSize() {
@@ -104,7 +109,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.LongIdOTMetricCacheMBean#getCacheInternals()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCacheMBean#getCacheInternals()
 	 */
 	@Override
 	public String getCacheInternals() {
@@ -126,7 +131,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.LongIdOTMetricCacheMBean#getReprobes()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCacheMBean#getReprobes()
 	 */
 	@Override
 	public long getReprobes() {
@@ -238,7 +243,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.LongIdOTMetricCacheMBean#getInitialSize()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCacheMBean#getInitialSize()
 	 */
 	@Override
 	public int getInitialSize() {
@@ -247,7 +252,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.LongIdOTMetricCacheMBean#isSpace4Speed()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCacheMBean#isSpace4Speed()
 	 */
 	@Override
 	public boolean isSpace4Speed() {

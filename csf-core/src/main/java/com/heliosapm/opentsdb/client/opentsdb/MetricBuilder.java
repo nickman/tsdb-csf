@@ -20,6 +20,7 @@ import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
+import java.security.acl.LastOwnerException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -36,6 +37,7 @@ import com.codahale.metrics.Clock;
 import com.google.common.hash.Funnel;
 import com.google.common.hash.PrimitiveSink;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric.SplitFlatName;
+import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -559,9 +561,15 @@ public class MetricBuilder {
 	 * Traces a value for the passed metric using the configured clock for the timestamp
 	 * @param metric The OTMetric to trace
 	 * @param value The value
+	 * @return The time recorded
 	 */
 	public static long trace(final OTMetric metric, final Object value) {
 		final long time = getClock().getTime();
+		// ####    FIXME
+		// Temporary hack to avoid sending 2 values for the same timestamp
+		// ####
+		final long ctime = metric.getLastTraceTime();
+		if(time==ctime) return ctime; 
 		trace(metric, time, value);
 		return time;
 	}

@@ -62,7 +62,7 @@ public class OTMetric implements Serializable {
 	static final short HAS_HOST_TAG = HAS_APP_TAG + 1;			// 1 byte
 	static final short IS_EXT_TAG = HAS_HOST_TAG + 1;			// 1 byte
 	static final short CHMETRIC_TAG = IS_EXT_TAG + 1;			// 1 byte
-	static final short TOTAL_SIZE_OFFSET = IS_EXT_TAG + 1;  	// 4 bytes
+	static final short TOTAL_SIZE_OFFSET = CHMETRIC_TAG + 1;  	// 4 bytes
 	static final short MN_SIZE_OFFSET = TOTAL_SIZE_OFFSET + 4; 	// 4 bytes
 	static final short TAG_COUNT_OFFSET = MN_SIZE_OFFSET + 4;	// 4 bytes
 	// ------  then metric name bytes  ----------

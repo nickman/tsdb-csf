@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.opentsdb;
+package com.heliosapm.opentsdb.client.opentsdb.opt;
+
+import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 
 /**
  * <p>Title: LongIdOTMetricCacheMBean</p>

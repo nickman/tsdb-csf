@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.opentsdb;
+package com.heliosapm.opentsdb.client.opentsdb.opt;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 
