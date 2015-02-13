@@ -33,6 +33,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -63,7 +64,7 @@ public class LocalAgentInstaller  {
 	/** The created agent jar file name */
 	protected static final AtomicReference<String> agentJar = new AtomicReference<String>(null); 
 	/** The shorthand agent class name */
-	public static final String SHORTHAND_AGENT_NAME = "com.heliosapm.shorthand.AgentMain";
+	public static final String AGENT_MAIN_NAME = "com.heliosapm.attachme.agent.AgentInstrumentation";
 	
 	/**
 	 * Simple example of the install commands executed.
@@ -76,6 +77,18 @@ public class LocalAgentInstaller  {
 		VirtualMachine vm = VirtualMachine.attach(pid);
 		vm.loadAgent(fileName);
 		System.out.println("Instrumentation Deployed:" + ManagementFactory.getPlatformMBeanServer().isRegistered(AgentInstrumentation.AGENT_INSTR_ON));
+		Instrumentation instr = getInstrumentation();
+		System.out.println("Instrumentation:" + instr);
+		try {
+			Field f = instr.getClass().getDeclaredField("mNativeAgent");
+			f.setAccessible(true);
+			long address = f.getLong(instr);
+			System.out.println("mNativeAgent:" + address + "  Hex:" + Long.toHexString(address));
+			System.out.println("PID:" + ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
+			Thread.currentThread().join();
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+		}
 	}
 	
 	/**
@@ -94,7 +107,7 @@ public class LocalAgentInstaller  {
 	 */
 	private static Instrumentation getAgentInstalledInstrumentation() {
 		try {
-			Class<?> locatorClass = Class.forName(SHORTHAND_AGENT_NAME);
+			Class<?> locatorClass = Class.forName(AGENT_MAIN_NAME);
 			return (Instrumentation) locatorClass.getDeclaredMethod("getInstrumentation").invoke(null);
 		} catch (Exception ex) {
 			return null;

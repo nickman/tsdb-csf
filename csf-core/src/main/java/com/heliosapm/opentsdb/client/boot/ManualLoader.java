@@ -31,6 +31,12 @@ import javax.management.loading.MLet;
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.boot.ManualLoader</code></p>
+ * TODO:  Configs for:
+ * Transformer Switch
+ * MBeanObservers
+ * Install instrumentation Agent
+ * Install time instrumentation
+ * 
  */
 
 public class ManualLoader {

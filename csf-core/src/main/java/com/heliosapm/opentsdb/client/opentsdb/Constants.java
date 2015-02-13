@@ -77,6 +77,15 @@ public interface Constants {
 	public static final String PROP_SINK_TIME_TRIGGER = "tsdb.metricsink.trigger.size";
 	/** The default metric sink buffer time threshold trigger in ms. */
 	public static final long DEFAULT_SINK_TIME_TRIGGER = 5000;
+	/** The system property config name for the metric sink input queue size */
+	public static final String PROP_SINK_INPUT_QSIZE = "tsdb.metricsink.inputq.size";
+	/** The default metric sink input queue size */
+	public static final int DEFAULT_SINK_INPUT_QSIZE = 5000;
+	/** The system property config name for the metric sink input queue fairness */
+	public static final String PROP_SINK_INPUT_QFAIR = "tsdb.metricsink.inputq.fair";
+	/** The default metric sink input queue size */
+	public static final boolean DEFAULT_SINK_INPUT_QFAIR = false;
+	
 
 	// =======================================
 	// LongIdOTMetricCache
@@ -264,5 +273,21 @@ public interface Constants {
 	/** The default on heap OTMetric guava cache spec */
 	public static final String DEFAULT_OTMETRIC_CACHE_SPEC = String.format("concurrencyLevel=%s,initialCapacity=512,maximumSize=4096,recordStats", CORES);
 
+	// =======================================
+	// Instrumentation Providers
+	// =======================================
+	/** The system property name for the default domain of the target MBeanServer */
+	public static final String PROP_INSTR_PROV_DOMAIN = "tsdb.aop.instr.domain";
+	/** The system property name for the object name of the target mbean */
+	public static final String PROP_INSTR_PROV_ON = "tsdb.aop.instr.on";
+	/** The system property name for the attribute name of the attribute providing the Instrumentation */
+	public static final String PROP_INSTR_PROV_ATTR = "tsdb.aop.instr.attr";
+	/** The system property name for the class name containing the instrumentation in a static field */
+	public static final String PROP_INSTR_PROV_CLASS = "tsdb.aop.instr.statclass";
+	/** The system property name for the static field containing the instrumentation */
+	public static final String PROP_INSTR_PROV_FIELD = "tsdb.aop.instr.statfield";
+	
+	
+	
 	
 }
