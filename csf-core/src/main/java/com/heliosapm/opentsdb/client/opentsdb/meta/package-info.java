@@ -13,22 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.aop;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 
 /**
- * <p>Title: TSDBGauge</p>
- * <p>Description: </p> 
+ * <p>Title: package-info</p>
+ * <p>Description: Support for sending metric meta-data back to OpenTSDB</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.TSDBGauge</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.opentsdb.meta.package-info</code></p>
  */
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ ElementType.METHOD, ElementType.FIELD, ElementType.ANNOTATION_TYPE })
-public @interface TSDBGauge {
 
-}
+package com.heliosapm.opentsdb.client.opentsdb.meta;

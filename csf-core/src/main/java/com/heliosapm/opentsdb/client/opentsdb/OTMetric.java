@@ -62,7 +62,8 @@ public class OTMetric implements Serializable {
 	static final short HAS_HOST_TAG = HAS_APP_TAG + 1;			// 1 byte
 	static final short IS_EXT_TAG = HAS_HOST_TAG + 1;			// 1 byte
 	static final short CHMETRIC_TAG = IS_EXT_TAG + 1;			// 1 byte
-	static final short TOTAL_SIZE_OFFSET = CHMETRIC_TAG + 1;  	// 4 bytes
+	static final short SUB_METRIC_TAG = CHMETRIC_TAG + 1;		// 1 byte
+	static final short TOTAL_SIZE_OFFSET = SUB_METRIC_TAG + 1; 	// 4 bytes
 	static final short MN_SIZE_OFFSET = TOTAL_SIZE_OFFSET + 4; 	// 4 bytes
 	static final short TAG_COUNT_OFFSET = MN_SIZE_OFFSET + 4;	// 4 bytes
 	// ------  then metric name bytes  ----------
@@ -188,6 +189,7 @@ public class OTMetric implements Serializable {
 			.put(sfn.hasHostTag() ? ONE_BYTE : ZERO_BYTE)						// Host Tag
 			.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
 			.put(ZERO_BYTE)						// CHMetric type flag
+			.put(ZERO_BYTE)						// SubMetric type flag
 			.putInt(0)							// Total Length, Zero for now
 			.putInt(metricName.length)			// Length of the prefix
 			.putInt(sfn.getTags().size())		// Tag count
@@ -339,8 +341,11 @@ public class OTMetric implements Serializable {
 		}
 	}
 	
+	/** An empty SplitFileName const */
 	private static final SplitFlatName EMPTY_FLAT_NAME = new SplitFlatName("");
+	/** A splitter pattern for non-single quote wrapped dots  */
 	public static final Pattern DOT_NQ_SPLITTER = Pattern.compile("[\\.|:|,](?=([^']*'[^']*')*[^']*$)");
+	/** A splitter pattern for string rendered maps */
 	public static final Pattern MAP_FORMAT_SPLITTER = Pattern.compile("(.*?)\\{(.*?)\\}\\$");
 	
 	/**
@@ -418,6 +423,7 @@ public class OTMetric implements Serializable {
 		b.append("\n\tPrefix:").append(otm.getMetricName());
 		b.append("\n\tTagCount:").append(otm.getTagCount());
 		b.append("\n\tCHMetric:").append(otm.getCHMetricType());
+		b.append("\n\tSubMetric:").append(otm.isSubMetric());
 		b.append("\n\tTags:").append(otm.getTags());
 		b.append("\n\thashCode:").append(otm.hashCode());
 		b.append("\n\tlongHashCode:").append(otm.longHashCode());
@@ -488,6 +494,23 @@ public class OTMetric implements Serializable {
 	public CHMetric getCHMetricType() {
 		return CHMetric.valueOf(nameBuffer.get(CHMETRIC_TAG)); 
 	}
+	
+	/**
+	 * Indicates if this is a sub-metric, meaning that it was created by a reporter for a Metric that generates multiple traces.
+	 * @return true if this is a sub-metric, false otherwise
+	 */
+	public boolean isSubMetric() {
+		return nameBuffer.get(SUB_METRIC_TAG)==ZERO_BYTE;
+	}
+	
+	/**
+	 * Marks this OTMetric as a sub-metric
+	 * @return this OTMetric
+	 */
+	public OTMetric setSubMetric() {
+		nameBuffer.put(SUB_METRIC_TAG, ONE_BYTE);
+		return this;
+	}
 
 	/**
 	 * Sets the CHMetric type for this OTMetric
@@ -499,6 +522,19 @@ public class OTMetric implements Serializable {
 		nameBuffer.put(CHMETRIC_TAG, chMetric.bordinal);
 		return this;
 	}
+	
+	/**
+	 * Sets the CHMetric type for this OTMetric and marks it as a sub-metric
+	 * @param chMetric the CHMetric type for this OTMetric
+	 * @return this OTMetric
+	 */
+	public OTMetric setSubCHMetricType(final CHMetric chMetric) {
+		if(chMetric==null) throw new IllegalArgumentException("The passed chMetric was null");
+		setCHMetricType(chMetric);
+		setSubMetric();
+		return this;
+	}
+	
 	
 	/**
 	 * Returns the last trace time as a UTC long, or 0L if a trace has never occurred

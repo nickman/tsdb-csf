@@ -19,9 +19,11 @@ package com.heliosapm.opentsdb.client.opentsdb.opt;
 import java.util.AbstractSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import com.codahale.metrics.Clock;
 import com.codahale.metrics.Counter;
@@ -40,7 +42,7 @@ import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 
 /**
  * <p>Title: LongIdMetricRegistry</p>
- * <p>Description: </p> 
+ * <p>Description: An optimized metric registry implementation.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.LongIdMetricRegistry</code></p>
@@ -55,6 +57,8 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
 	
 	/** The metric cache */
 	private final NonBlockingHashMapLong<Metric> metrics;
+	/** The sub-metric cache */
+	private final NonBlockingHashMapLong<Set<OTMetric>> submetrics;
 	
 	/** The long id otmetric cache */
 	private final LongIdOTMetricCache otCache;
@@ -87,6 +91,7 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
 		initialSize = ConfigurationReader.confInt(Constants.PROP_OPT_CACHE_INIT_SIZE, Constants.DEFAULT_OPT_CACHE_INIT_SIZE);
 		space4Speed = ConfigurationReader.confBool(Constants.PROP_OPT_CACHE_SPACE_FOR_SPEED, Constants.DEFAULT_OPT_CACHE_SPACE_FOR_SPEED);
 		metrics = new NonBlockingHashMapLong<Metric>(initialSize, space4Speed);	
+		submetrics = new NonBlockingHashMapLong<Set<OTMetric>>(initialSize, space4Speed);
 		otCache = LongIdOTMetricCache.getInstance();
 	}
 	
@@ -118,24 +123,72 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
      * @return {@code metric}
      * @throws IllegalArgumentException if the name is already registered
      */    
-    public <T extends Metric> T register(final OTMetric otMetric, final T metric) throws IllegalArgumentException {
+    public <T extends Metric> OTMetric register(final OTMetric otMetric, final T metric) throws IllegalArgumentException {
+    	return register(otMetric, metric, null);
+    }
+
+    
+    /**
+     * Given a {@link Metric}, registers it under the given {@link OTMetric}.
+     *
+     * @param otMetric   the name of the metric
+     * @param metric the metric
+     * @param <T>    the type of the metric
+     * @param ext    An optional reporter extension for metrics which have submetrics created by the reporter (timers, meters)
+     * @return the passed OTMetric, or if we're requesting an extension, returns the created extension OTMetric
+     * @throws IllegalArgumentException if the name is already registered
+     */    
+    public <T extends Metric> OTMetric register(final OTMetric otMetric, final T metric, final String ext) throws IllegalArgumentException {
         if (metric instanceof MetricSet) {
             registerAll(otMetric, (MetricSet) metric);
         } else {
+        	// check if the passed otMetric is registered
         	final long otId = otMetric.longHashCode();
         	OTMetric otm = otCache.getOTMetric(otId);
-        	Metric exMetric = metrics.putIfAbsent(otId, metric);
-        	if(exMetric==null) {
-        		if(otm==null) otCache.put(otMetric);
+        	if(otm==null) {
         		otMetric.setCHMetricType(CHMetric.getCHMetricType(metric));
-        		onMetricAdded(otMetric, metric);
-        	} else {
-        		// metric alredy exists for that OTMetric
-        		throw new IllegalArgumentException("A metric named " + otMetric + " already exists");        		
+        		otCache.put(otMetric);
         	}
-        }
-        return metric;    
+        	// If ext is NOT null, we're registering a sub-metric,
+        	// but it might be the first time we're seeing the passed metric.
+        	final Metric exMetric = metrics.putIfAbsent(otId, metric);
+        	if(exMetric==null) {
+        		onMetricAdded(otMetric, metric);
+        	}
+        	if(ext!=null) {
+        		otm = subMetric(otMetric, ext);
+        		otMetric.setSubCHMetricType(CHMetric.getCHMetricType(metric));
+        		return otm;
+        	}        	
+        }    
+        return otMetric;
     }
+    
+    /**
+     * Creates and registers a new sub-metric OTMetric.
+     * Also registers the sub-metric as a child of the passed parent
+     * so that when the parent is removed from the registry, we can
+     * remove all the children too.
+     * @param parentOTMetric The parent metric
+     * @param ext The sub-metric extension
+     * @return the new sub-metric OTMetric
+     */
+    protected OTMetric subMetric(final OTMetric parentOTMetric, final String ext) {
+    	final OTMetric otm = MetricBuilder.metric(parentOTMetric).ext(ext).optBuild();
+    	Set<OTMetric> subs = submetrics.get(parentOTMetric.longHashCode());
+    	if(subs==null) {
+    		synchronized(submetrics) {
+    			subs = submetrics.get(parentOTMetric.longHashCode());
+    	    	if(subs==null) {
+    	    		subs = new NonBlockingHashSet<OTMetric>();
+    	    		submetrics.put(parentOTMetric.longHashCode(), subs);
+    	    	}
+    		}
+    	}
+    	subs.add(otm);
+    	return otm;
+    }
+    
     
     private void onMetricAdded(final OTMetric otMetric, final Metric metric) {
     	/* No Op */
@@ -173,6 +226,17 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
     }
     
     /**
+     * Creates a new {@link Counter} and registers it under the given name.
+     *
+     * @param name the name of the metric
+     * @return a new {@link Counter}
+     */
+    public Counter counter(final OTMetric name) {
+        return getOrAdd(name, CHMetricBuilder.COUNTERS);
+    }
+    
+    
+    /**
      * Creates a new {@link Histogram} and registers it under the given name.
      *
      * @param name the name of the metric
@@ -183,6 +247,17 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
     }
     
     /**
+     * Creates a new {@link Histogram} and registers it under the given name.
+     *
+     * @param name the name of the metric
+     * @return a new {@link Histogram}
+     */
+    public Histogram histogram(final OTMetric name) {
+        return getOrAdd(name, CHMetricBuilder.HISTOGRAMS);
+    }
+    
+    
+    /**
      * Creates a new {@link Meter} and registers it under the given name.
      *
      * @param name the name of the metric
@@ -191,6 +266,17 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
     public Meter meter(final String name) {
         return getOrAdd(name, CHMetricBuilder.METERS);
     }
+    
+    /**
+     * Creates a new {@link Meter} and registers it under the given name.
+     *
+     * @param name the name of the metric
+     * @return a new {@link Meter}
+     */
+    public Meter meter(final OTMetric name) {
+        return getOrAdd(name, CHMetricBuilder.METERS);
+    }
+    
 
     /**
      * Creates a new {@link Timer} and registers it under the given name.
@@ -202,6 +288,15 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
         return getOrAdd(name, CHMetricBuilder.TIMERS);
     }
     
+    /**
+     * Creates a new {@link Timer} and registers it under the given name.
+     *
+     * @param name the name of the metric
+     * @return a new {@link Timer}
+     */
+    public Timer timer(final OTMetric name) {
+        return getOrAdd(name, CHMetricBuilder.TIMERS);
+    }
     
     
     /**
@@ -388,8 +483,11 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
     	return metricMap;
     }
     
-    
     private <T extends Metric> T getOrAdd(final OTMetric otMetric, CHMetricBuilder<T> builder) {
+    	return getOrAdd(otMetric, builder, null);
+    }
+    
+    private <T extends Metric> T getOrAdd(final OTMetric otMetric, CHMetricBuilder<T> builder, final String ext) {
     	if(otMetric==null) throw new IllegalArgumentException("The passed OTMetric was null");
     	if(builder==null) throw new IllegalArgumentException("The passed CHMetricBuilder was null");    	
     	final Metric metric = metrics.get(otMetric.longHashCode());
@@ -397,7 +495,9 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
             return (T)metric;
         } else if (metric == null) {
             try {
-                return register(otMetric, builder.newMetric(otMetric.longHashCode()));
+            	final Metric m = builder.newMetric(otMetric.longHashCode());
+                register(otMetric, m);
+                return (T)m;
             } catch (IllegalArgumentException e) {
                 final Metric added = metrics.get(otMetric.longHashCode());
                 if (builder.isInstance(added)) {
@@ -409,9 +509,13 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
     }
     
     private <T extends Metric> T getOrAdd(final String name, final CHMetricBuilder<T> builder) {
+    	return getOrAdd(name, builder, null);
+    }
+    
+    private <T extends Metric> T getOrAdd(final String name, final CHMetricBuilder<T> builder, final String ext) {
     	if(name==null) throw new IllegalArgumentException("The passed metric name was null");
-    	if(builder==null) throw new IllegalArgumentException("The passed CHMetricBuilder was null");    	
-    	return getOrAdd(MetricBuilder.metric(name).buildNoCache(), builder);
+    	if(builder==null) throw new IllegalArgumentException("The passed CHMetricBuilder was null");   
+    	return getOrAdd(MetricBuilder.metric(name).buildNoCache(), builder, ext);
     }
 
     

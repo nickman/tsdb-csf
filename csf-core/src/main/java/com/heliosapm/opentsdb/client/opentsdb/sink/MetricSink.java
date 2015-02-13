@@ -30,6 +30,9 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
+import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdMetricRegistry;
+import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache;
+import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOpenTSDBReporter;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 
 /**
@@ -64,7 +67,13 @@ public class MetricSink implements Runnable, IMetricSink {
 	protected final BlockingQueue<long[]> inputQueue;
 	/** The input queue processor thread */
 	protected Thread inputProcessorThread = null;
-	
+	/** The metric registry */
+	protected final LongIdMetricRegistry registry = LongIdMetricRegistry.getInstance();
+	/** The metric reporter */   // FIXME:  add options for reporter
+	protected final LongIdOpenTSDBReporter reporter = LongIdOpenTSDBReporter.forRegistry(registry).build();
+	/** The opt cache */
+	protected final LongIdOTMetricCache otCache = LongIdOTMetricCache.getInstance(); 
+
 	/** The buffer metrics are appended to */
 	protected ChannelBuffer metricBuffer = bufferFactory.getBuffer(4096);
 	/** The last flush time */
