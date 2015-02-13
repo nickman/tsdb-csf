@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.opentsdb;
+package com.heliosapm.opentsdb.client.opentsdb.opt;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 
-import com.heliosapm.opentsdb.client.aop.Retransformer;
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 
 /**
@@ -28,7 +29,7 @@ import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFa
  * <p>Description: The metric ingestion sink.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.opentsdb.MetricSink</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.opentsdb.opt.MetricSink</code></p>
  */
 
 public class MetricSink {
@@ -48,8 +49,12 @@ public class MetricSink {
 	protected long timeThreshold;
 	/** The buffer metrics are appended to */
 	protected ChannelBuffer metricBuffer = bufferFactory.getBuffer(4096);
-
-	
+	/** The metric registry */
+	protected final LongIdMetricRegistry registry = LongIdMetricRegistry.getInstance();
+	/** The metric reporter */   // FIXME:  add options for reporter
+	protected final LongIdOpenTSDBReporter reporter = LongIdOpenTSDBReporter.forRegistry(registry).build();
+	/** The opt cache */
+	protected final LongIdOTMetricCache otCache = LongIdOTMetricCache.getInstance(); 
 	/**
 	 * Acquires the MetricSink singleton instance
 	 * @return the MetricSink singleton instance
