@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.opentsdb;
+package com.heliosapm.opentsdb.client.opentsdb.opt;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.WeakHashMap;
 
 import com.codahale.metrics.Counter;
@@ -37,21 +39,23 @@ import com.codahale.metrics.Timer;
 
 public enum CHMetric {
 	/** Not a CHMetric */
-	NOTAMETRIC(null),
+	NOTAMETRIC(null, 0, EnumSet.noneOf(SubMetric.class)),
 	/** The {@link Gauge} metric */
-	GAUGE(Gauge.class),
+	GAUGE(Gauge.class, SubMetric.GAUGE_SUBMETRIC_MASK, SubMetric.GAUGE_SUBMETRICS),
 	/** The {@link Timer} metric */
-	TIMER(Timer.class),
+	TIMER(Timer.class, SubMetric.TIMER_SUBMETRIC_MASK, SubMetric.TIMER_SUBMETRICS),
 	/** The {@link Meter} metric */
-	METER(Meter.class),
+	METER(Meter.class, SubMetric.METER_SUBMETRIC_MASK, SubMetric.METER_SUBMETRICS),
 	/** The {@link Histogram} metric */
-	HISTOGRAM(Histogram.class),
+	HISTOGRAM(Histogram.class, SubMetric.HISTOGRAM_SUBMETRIC_MASK, SubMetric.HISTOGRAM_SUBMETRICS),
 	/** The {@link Counter} metric */
-	COUNTER(Counter.class);
+	COUNTER(Counter.class, SubMetric.COUNTER_SUBMETRIC_MASK, SubMetric.COUNTER_SUBMETRICS);
 	
-	private CHMetric(Class<? extends Metric> type) {
+	private CHMetric(final Class<? extends Metric> type, final int subMetricMask, final Set<SubMetric> subMetrics) {
 		this.type = type;
+		this.subMetricMask = subMetricMask;
 		this.bordinal = (byte)ordinal();		
+		this.subMetrics = Collections.unmodifiableSet(subMetrics);
 	}
 	
 	/** The maximum bordinal */
@@ -61,6 +65,11 @@ public enum CHMetric {
 	public final Class<? extends Metric> type;
 	/** The byte ordinal used to flag an OTMetric */
 	public final byte bordinal;
+	/** The bit mask of the default submetrics */
+	public final int subMetricMask;
+	
+	/** A set of the submetrics used by this CHMetric */
+	public final Set<SubMetric> subMetrics;
 	
 	private static final Map<Class<? extends Metric>, CHMetric> typeDecodeCache = Collections.synchronizedMap(new WeakHashMap<Class<? extends Metric>, CHMetric>(128));
 	/** An array of all the CHMetrics types except {@link CHMetric#NOTAMETRIC} */

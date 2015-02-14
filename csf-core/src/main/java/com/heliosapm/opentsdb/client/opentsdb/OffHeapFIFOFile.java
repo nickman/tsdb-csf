@@ -26,8 +26,8 @@ import java.io.PrintStream;
 import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
@@ -874,11 +874,11 @@ public class OffHeapFIFOFile {
 	 * or if the clean invocation fails.
 	 * @param buffs The buffers to clean
 	 */
-	public static void clean(final ByteBuffer... buffs) {
+	public static void clean(final Buffer... buffs) {
 		if(buffs!=null) {
-			for(ByteBuffer buff: buffs) {
+			for(Buffer buff: buffs) {
 				if(buff==null) continue;
-				if(directByteBuffClass!=null && buff!=null && directByteBuffClass.isInstance(buff)) {
+				if(directByteBuffClass!=null && directByteBuffClass.isInstance(buff)) {
 					try {
 						Object cleaner = getCleanerMethod.invoke(buff);
 						if(cleaner!=null) {

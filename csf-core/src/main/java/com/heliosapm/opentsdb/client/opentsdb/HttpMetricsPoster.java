@@ -30,16 +30,13 @@ import java.net.ConnectException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.nio.channels.WritableByteChannel;
-import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,7 +62,6 @@ import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.AnnotationBuilder.TSDBAnnotation;
 import com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.HTTPMethod;
 import com.heliosapm.opentsdb.client.opentsdb.EmptyAsyncHandler.FinalHookAsyncHandler;
-import com.heliosapm.opentsdb.client.registry.IMetricRegistryFactory;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBuffer;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
@@ -1240,10 +1236,11 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	/**
 	 * {@inheritDoc}
 	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#dumpMetricNames(boolean)
+	 * FIXME
 	 */
 	@Override
 	public Set<String> dumpMetricNames(final boolean recurse) {		
-		return IMetricRegistryFactory.dumpMetricNames(recurse);
+		return Collections.emptySet();
 	}
 	
 	/**

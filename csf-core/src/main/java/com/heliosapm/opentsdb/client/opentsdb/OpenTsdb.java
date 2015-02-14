@@ -16,15 +16,11 @@
 package com.heliosapm.opentsdb.client.opentsdb;
 
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.json.JSONArray;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
@@ -33,8 +29,6 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.name.AgentName;
-import com.heliosapm.opentsdb.client.registry.IMetricRegistry;
-import com.heliosapm.opentsdb.client.registry.OpenTsdbMetricRegistry;
 
 
 
@@ -55,26 +49,6 @@ public class OpenTsdb {
 	protected int batchSize;	
 	/** The Http metric poster */
 	protected HttpMetricsPoster httpClient;
-	
-	/** The OpenTSDB agent metric registry */
-	private final IMetricRegistry registry = new OpenTsdbMetricRegistry();
-	
-	
-	//		MOVE THESE TO IMETRICREGFACT
-	
-	
-//	/** JMX reporter to expose OpenTSDB agent metrics */
-//	private final JmxReporter jmxReporter = JmxReporter
-//			.forRegistry(registry)
-//			.createsObjectNamesWith(new OpenTsdbObjectNameFactory())
-//			.registerWith(ManagementFactory.getPlatformMBeanServer())
-//			.build();
-	
-    
-    
-    
-    
-    
 	
 			
 	
@@ -152,58 +126,6 @@ public class OpenTsdb {
 	}
 	
 	
-	/**
-	 * Returns the tsdb client registry
-	 * @return the tsdb client registry
-	 */
-	public IMetricRegistry getMetricRegistry() {
-		return registry;
-	}
-	
-//	/**
-//	 * Returns the tsdb client jmxReporter
-//	 * @return the tsdb client jmxReporter
-//	 */
-//	public JmxReporter getJmxReporter() {
-//		return jmxReporter;
-//	}
-	
-	
-	
-
-//    /**
-//     * Send a metric to opentsdb
-//     *
-//     * @param metric the metric to send
-//     */
-//    public void send(final OpenTsdbMetric metric) {
-//        send(Collections.singleton(metric));
-//    }
-
-//    /**
-//     * send a set of metrics to opentsdb
-//     *
-//     * @param metrics the metric set to send
-//     */
-//    public void send(final Set<OpenTsdbMetric> metrics) {
-//        // we set the patch size because of existing issue in opentsdb where large batch of metrics failed
-//        // see at https://groups.google.com/forum/#!topic/opentsdb/U-0ak_v8qu0
-//        // we recommend batch size of 5 - 10 will be safer
-//        // alternatively you can enable chunked request
-//        if (batchSize > 0 && metrics.size() > batchSize) {
-//            final Set<OpenTsdbMetric> smallMetrics = new HashSet<OpenTsdbMetric>();
-//            for (final OpenTsdbMetric metric: metrics) {
-//                smallMetrics.add(metric);
-//                if (smallMetrics.size() >= batchSize) {
-//                    sendHelper(smallMetrics);
-//                    smallMetrics.clear();
-//                }
-//            }
-//            sendHelper(smallMetrics);
-//        } else {
-//            sendHelper(metrics);
-//        }
-//    }
     
     
     public void send(final ChannelBuffer chBuff, final int metricCount) {
@@ -251,55 +173,6 @@ public class OpenTsdb {
     	return name.trim();
     }
 
-	/**
-	 * Creates a new local client metric counter
-	 * @param clazz the class the metric is being recorded for
-	 * @param names the metric name tags
-	 * @return the counter
-	 * @see com.codahale.metrics.MetricRegistry#counter(java.lang.String)
-	 */
-	public Counter counter(final Class<?> clazz, final String...names) {
-		return registry.counter(attachCMType(MetricRegistry.name(METRIC_NAME_PREFIX + clazz.getSimpleName(), names), "Counter"));
-	}
-
-
-
-	/**
-	 * Creates a new local client metric timer
-	 * @param clazz the class the metric is being recorded for
-	 * @param names the metric name tags
-	 * @return the timer
-	 * @see com.codahale.metrics.MetricRegistry#histogram(java.lang.String)
-	 */
-	public Histogram histogram(final Class<?> clazz, final String...names) {
-		return registry.histogram(attachCMType(MetricRegistry.name(METRIC_NAME_PREFIX + clazz.getSimpleName(), names), "Histogram"));
-	}
-
-
-
-	/**
-	 * Creates a new local client metric meter
-	 * @param clazz the class the metric is being recorded for
-	 * @param names the metric name tags
-	 * @return the meter
-	 * @see com.codahale.metrics.MetricRegistry#meter(java.lang.String)
-	 */
-	public Meter meter(final Class<?> clazz, final String...names) {
-		return registry.meter(attachCMType(MetricRegistry.name(METRIC_NAME_PREFIX + clazz.getSimpleName(), names), "Counter"));
-	}
-
-
-
-	/**
-	 * Creates a new local client metric timer
-	 * @param clazz the class the metric is being recorded for
-	 * @param names the metric name tags
-	 * @return the timer
-	 * @see com.codahale.metrics.MetricRegistry#timer(java.lang.String)
-	 */
-	public Timer timer(final Class<?> clazz, final String...names) {
-		return registry.timer(attachCMType(MetricRegistry.name(METRIC_NAME_PREFIX + clazz.getSimpleName(), names), "Timer"));
-	}
 	
     static {
     	// init boot logging as early as possible

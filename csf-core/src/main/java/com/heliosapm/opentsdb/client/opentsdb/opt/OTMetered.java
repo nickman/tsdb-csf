@@ -44,7 +44,7 @@ public enum OTMetered implements MeteredReader {
 	
 	
 	private OTMetered() {
-		mask = Util.pow2Index(ordinal());
+		this.mask = Util.pow2Index(ordinal());
 	}
 	
 	/** The bit mask value for this OTMetered member */

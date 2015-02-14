@@ -20,11 +20,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
@@ -32,7 +36,7 @@ import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 
 /**
  * <p>Title: LongIdOTMetricCache</p>
- * <p>Description: </p> 
+ * <p>Description: A long keyed cache for OTMetrics for faster lookup times and lower memory usage</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.LongIdOTMetricCache</code></p>
@@ -51,6 +55,21 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	private final Logger log;
 	/** The OTMetric spec */
 	private final NonBlockingHashMapLong<OTMetric> cache;
+	/** A global cache of counters keyed by the OTMetric long hash code within a map keyed by the calling thread id */
+	private final Cache<Thread, NonBlockingHashMapLong<AtomicInteger>> threadCounters = CacheBuilder.newBuilder()
+			.concurrencyLevel(Constants.CORES)
+			.initialCapacity(512)
+			.recordStats()
+			.weakKeys()
+			.build();
+	/** A global cache of counters keyed by the OTMetric */
+	private final Cache<OTMetric, AtomicInteger> counters = CacheBuilder.newBuilder()
+			.concurrencyLevel(Constants.CORES)
+			.initialCapacity(512)
+			.recordStats()
+			.weakKeys()
+			.build();
+	
 	
 	/** The initial size of the opt cache */
 	final int initialSize;
@@ -79,11 +98,138 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	 * Creates a new LongIdOTMetricCache
 	 */
 	private LongIdOTMetricCache() {
-		log = LogManager.getLogger(getClass());
-		initialSize = ConfigurationReader.confInt(Constants.PROP_OPT_CACHE_INIT_SIZE, Constants.DEFAULT_OPT_CACHE_INIT_SIZE);
-		space4Speed = ConfigurationReader.confBool(Constants.PROP_OPT_CACHE_SPACE_FOR_SPEED, Constants.DEFAULT_OPT_CACHE_SPACE_FOR_SPEED);
-		cache = new NonBlockingHashMapLong<OTMetric>(initialSize, space4Speed);
+		this.log = LogManager.getLogger(getClass());
+		this.initialSize = ConfigurationReader.confInt(Constants.PROP_OPT_CACHE_INIT_SIZE, Constants.DEFAULT_OPT_CACHE_INIT_SIZE);
+		this.space4Speed = ConfigurationReader.confBool(Constants.PROP_OPT_CACHE_SPACE_FOR_SPEED, Constants.DEFAULT_OPT_CACHE_SPACE_FOR_SPEED);
+		this.cache = new NonBlockingHashMapLong<OTMetric>(this.initialSize, this.space4Speed);
 	}
+	
+	/**
+	 * Increments a counter for the passed OTMetric Id and returns the new value
+	 * @param otMetricId the OTMetric long hash code 
+	 * @return the value of the incremented counter
+	 */
+	public int incrCounter(final long otMetricId) {		
+		final OTMetric metric =  cache.get(otMetricId);
+		if(metric==null) throw new RuntimeException("No otmeric for id [" + otMetricId + "]");
+		return incrCounter(metric);				
+	}
+	
+	/**
+	 * Decrements a counter for the passed OTMetric Id and returns the new value
+	 * @param otMetricId the OTMetric long hash code 
+	 * @return the value of the decremented counter
+	 */
+	public int decrCounter(final long otMetricId) {		
+		final OTMetric metric =  cache.get(otMetricId);
+		if(metric==null) throw new RuntimeException("No otmeric for id [" + otMetricId + "]");
+		return decrCounter(metric);				
+	}
+	
+	
+	/**
+	 * Increments a counter for the passed OTMetric and returns the new value
+	 * @param otMetric the OTMetric 
+	 * @return the value of the incremented counter
+	 */
+	public int incrCounter(final OTMetric otMetric) {
+		try {
+			final AtomicInteger ai = this.counters.get(otMetric, new Callable<AtomicInteger>() {
+				@Override
+				public AtomicInteger call() throws Exception {					
+					return new AtomicInteger(0);
+				}			
+			});
+			return ai.incrementAndGet();
+		} catch (Exception ex) {
+			// this should never happen
+			this.log.error("Unexpected exception getting counter", ex);
+			throw new RuntimeException(ex);
+		}		
+	}
+	
+	/**
+	 * Decrements a counter for the passed OTMetric and returns the new value
+	 * @param otMetric the OTMetric 
+	 * @return the value of the decremented counter unless it did not exist in which case returns zero after creating the counter
+	 */
+	public int decrCounter(final OTMetric otMetric) {
+		try {
+			final AtomicInteger ai = this.counters.get(otMetric, new Callable<AtomicInteger>() {
+				@Override
+				public AtomicInteger call() throws Exception {					
+					return new AtomicInteger(0);
+				}			
+			});
+			return ai.decrementAndGet();
+		} catch (Exception ex) {
+			// this should never happen
+			this.log.error("Unexpected exception getting counter", ex);
+			throw new RuntimeException(ex);
+		}		
+	}
+	
+	/**
+	 * Increments a current thread exclusive counter for the passed OTMetric ID and returns the new value
+	 * @param otId the OTMetric ID
+	 * @return the value of the incremented counter
+	 */
+	public int incrThreadCounter(final long otId) {
+		try {
+			final NonBlockingHashMapLong<AtomicInteger> ctrs = this.threadCounters.get(Thread.currentThread(), new Callable<NonBlockingHashMapLong<AtomicInteger>>() {
+				@Override
+				public NonBlockingHashMapLong<AtomicInteger> call() throws Exception {
+					final NonBlockingHashMapLong<AtomicInteger> ctrCache = new NonBlockingHashMapLong<AtomicInteger>(128);
+					ctrCache.put(otId, new AtomicInteger(0));
+					return ctrCache;
+				}			
+			});
+			// This part is thread safe too, so no need to get fancy
+			AtomicInteger ai = ctrs.get(otId);
+			if(ai==null) {
+				ai = new AtomicInteger(0);
+				ctrs.put(otId, ai);
+			}
+			return ai.incrementAndGet();
+		} catch (Exception ex) {
+			// this should never happen
+			this.log.error("Unexpected exception getting counter", ex);
+			throw new RuntimeException(ex);
+		}		
+	}
+	
+	/**
+	 * Decrements a current thread exclusive counter for the passed OTMetric ID and returns the new value
+	 * @param otId the OTMetric ID
+	 * @return the value of the decremented counter unless it did not exist in which case returns zero (after creating the counter)
+	 */
+	public int decrThreadCounter(final long otId) {
+		try {			
+			final boolean[] newctr = new boolean[]{false}; 
+			final NonBlockingHashMapLong<AtomicInteger> ctrs = this.threadCounters.get(Thread.currentThread(), new Callable<NonBlockingHashMapLong<AtomicInteger>>() {
+				@Override
+				public NonBlockingHashMapLong<AtomicInteger> call() throws Exception {
+					newctr[0] = true;
+					final NonBlockingHashMapLong<AtomicInteger> ctrCache = new NonBlockingHashMapLong<AtomicInteger>(128);
+					ctrCache.put(otId, new AtomicInteger(0));
+					return ctrCache;
+				}			
+			});
+			if(newctr[0]) return 0;
+			// This part is thread safe too, so no need to get fancy
+			AtomicInteger ai = ctrs.get(otId);
+			if(ai==null) {
+				ai = new AtomicInteger(0);
+				ctrs.put(otId, ai);
+			}
+			return ai.decrementAndGet();
+		} catch (Exception ex) {
+			// this should never happen
+			this.log.error("Unexpected exception getting counter", ex);
+			throw new RuntimeException(ex);
+		}		
+	}
+	
 	
 	/**
 	 * {@inheritDoc}
@@ -91,7 +237,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	 */
 	@Override
 	public OTMetric getOTMetric(final long id) {
-		return cache.get(id);
+		return this.cache.get(id);
 	}
 	
 	
@@ -102,7 +248,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	 */
 	@Override
 	public int getSize() {
-		return cache.size();
+		return this.cache.size();
 	}
 	
 	
@@ -118,7 +264,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 		final PrintStream out = System.out;
 		try {
 			System.setOut(ps);
-			cache.print();
+			this.cache.print();
 		} finally {
 			System.setOut(out);
 		}
@@ -135,7 +281,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	 */
 	@Override
 	public long getReprobes() {
-		return cache.reprobes();
+		return this.cache.reprobes();
 	}
 	
 	/**
@@ -164,7 +310,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	 * @return true if the metric was added, false if it was already in the cache
 	 */
 	public boolean put(final OTMetric otMetric) {
-		return cache.putIfAbsent(otMetric.longHashCode(), otMetric)==null;
+		return this.cache.putIfAbsent(otMetric.longHashCode(), otMetric)==null;
 	}
 	
 	
@@ -200,13 +346,13 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	 */
 	public OTMetric getOTMetric(final MetricBuilder metricBuilder) {
 		final long id = metricBuilder.longHashCode();
-		OTMetric otm = cache.get(id);
+		OTMetric otm = this.cache.get(id);
 		if(otm==null) {
-			synchronized(cache) {
-				otm = cache.get(id);
+			synchronized(this.cache) {
+				otm = this.cache.get(id);
 				if(otm==null) {
 					otm = metricBuilder.buildNoCache();
-					cache.put(id, otm);
+					this.cache.put(id, otm);
 				}
 			}
 		}
@@ -247,7 +393,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	 */
 	@Override
 	public int getInitialSize() {
-		return initialSize;
+		return this.initialSize;
 	}
 
 	/**
@@ -256,7 +402,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	 */
 	@Override
 	public boolean isSpace4Speed() {
-		return space4Speed;
+		return this.space4Speed;
 	}
 
 

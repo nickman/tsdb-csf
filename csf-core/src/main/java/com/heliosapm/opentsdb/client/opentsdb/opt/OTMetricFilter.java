@@ -17,7 +17,6 @@
 package com.heliosapm.opentsdb.client.opentsdb.opt;
 
 import com.codahale.metrics.Metric;
-import com.heliosapm.opentsdb.client.opentsdb.CHMetric;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 

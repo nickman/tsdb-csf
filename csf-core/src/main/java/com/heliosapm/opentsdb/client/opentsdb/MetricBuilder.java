@@ -37,6 +37,7 @@ import com.codahale.metrics.Clock;
 import com.google.common.hash.Funnel;
 import com.google.common.hash.PrimitiveSink;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric.SplitFlatName;
+import com.heliosapm.opentsdb.client.opentsdb.opt.CHMetric;
 import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
