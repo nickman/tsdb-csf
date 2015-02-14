@@ -590,6 +590,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 				int responseCode = -1;
 				int contentLength = 0;
 				boolean gzipped = false;
+				@SuppressWarnings("null")
 				@Override
 				public void onThrowable(final Throwable t) {
 					try {
@@ -609,6 +610,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 					}
 				}
 	
+				@SuppressWarnings("null")
 				@Override
 				public STATE onBodyPartReceived(final HttpResponseBodyPart bodyPart) throws Exception {
 					if(bodyPart.length()>0) {
@@ -627,6 +629,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 					return STATE.CONTINUE;
 				}
 	
+				@SuppressWarnings("null")
 				@Override
 				public STATE onStatusReceived(final HttpResponseStatus responseStatus) throws Exception {
 					responseCode = responseStatus.getStatusCode();
@@ -644,6 +647,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 					return putResponseHandler==OpenTsdbPutResponseHandler.NOTHING ? STATE.ABORT : STATE.CONTINUE;
 				}
 	
+				@SuppressWarnings("null")
 				@Override
 				public STATE onHeadersReceived(final HttpResponseHeaders headers) throws Exception {
 					final String contentEncoding = headers.getHeaders().getFirstValue(Names.CONTENT_ENCODING);
@@ -664,6 +668,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 					return STATE.CONTINUE;
 				}
 	
+				@SuppressWarnings("null")
 				@Override
 				public String onCompleted() throws Exception {
 					try {

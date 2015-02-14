@@ -776,6 +776,7 @@ public class OffHeapFIFOFile {
 	 * @param tmpBuffer An optional work space buffer
 	 * @param transferBuff An optional transfer byte array
 	 */
+	@SuppressWarnings("null")
 	public static void decompress(final ChannelBuffer buffer, ChannelBuffer tmpBuffer, byte[] transferBuff) {
 		if(buffer==null || buffer.readableBytes()==0) return;		
 		if(transferBuff==null) transferBuff = new byte[XFER_BUFF_SIZE];

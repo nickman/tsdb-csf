@@ -183,6 +183,7 @@ public class LoggingConfiguration {
 	 * If none are found, offline metrics storage will be disabled 
 	 * @return the directory to store to
 	 */
+	@SuppressWarnings("null")
 	protected static File initOfflineStorage() {
 		boolean gotConfiguredDir = true;
 		String offlineDir = conf(PROP_OFFLINE_DIR, DEFAULT_OFFLINE_DIR);		

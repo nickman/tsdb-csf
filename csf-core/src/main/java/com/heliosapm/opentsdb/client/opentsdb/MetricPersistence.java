@@ -397,7 +397,7 @@ public class MetricPersistence implements FilenameFilter  {
 			} catch (Exception ex) {
 				log.error("Outer Loop Exception", ex);
 			} finally {
-				ff.delete();
+				if(ff!=null) ff.delete();
 			}
 		}
 		tpe.shutdown();
