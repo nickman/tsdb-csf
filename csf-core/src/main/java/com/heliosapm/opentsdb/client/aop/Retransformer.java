@@ -16,6 +16,7 @@
 
 package com.heliosapm.opentsdb.client.aop;
 
+import java.io.File;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
@@ -40,7 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.heliosapm.attachme.agent.LocalAgentInstaller;
-import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
+import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.*;
 
 /**
@@ -53,9 +54,15 @@ import com.heliosapm.opentsdb.client.opentsdb.*;
  */
 
 public class Retransformer {
+	/** The singleton instance */
 	private static volatile Retransformer instance = null;
+	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
 	
+	/**
+	 * Acquires the retransformer singleton instance
+	 * @return the retransformer singleton instance
+	 */
 	public static Retransformer getInstance() {
 		if(instance==null) {
 			synchronized(lock) {
@@ -67,14 +74,47 @@ public class Retransformer {
 		return instance;
 	}
 	
+	/** Instance logger */
 	private final Logger log = LogManager.getLogger(getClass());
+	/** The JVM's instrumentation instance */
 	private final Instrumentation instrumentation;
+	/** The directory where the transient byte code will be written */
+	private final String byteCodeDir;
+	
+	/** The name of the directory within the agent home where we'll write the transient byte code to */
+	public static final String BYTE_CODE_DIR = ".bytecode";
+	/** The name of the directory where we'll write the transient byte code to if things don't work out with the agent home */
+	public static final String STANDBY_BYTE_CODE_DIR = System.getProperty("java.io.tmpdir") + File.separator + ".tsdb-aop" + File.separator + Constants.SPID; 
 	
 	/**
 	 * Creates a new Retransformer
 	 */
 	private Retransformer() {
-		instrumentation = LocalAgentInstaller.getInstrumentation();
+		instrumentation = TransformerManager.getInstrumentation();
+		String _byteCodeDir = ConfigurationReader.conf(Constants.PROP_OFFLINE_DIR, Constants.DEFAULT_OFFLINE_DIR) + File.separator + AgentName.appName() + File.separator + BYTE_CODE_DIR;
+		File f = new File(_byteCodeDir);
+		boolean byteCodeDirReady = true;
+		if(f.exists()) {
+			if(!f.isDirectory()) {
+				byteCodeDirReady = false;
+				log.warn("Transient bytecode directory {} is a file. Will attempt default: {}",  _byteCodeDir, STANDBY_BYTE_CODE_DIR);
+				f = new File(STANDBY_BYTE_CODE_DIR);
+			}
+		} 
+		if(!byteCodeDirReady) {
+			if(!f.mkdirs()) {
+				log.warn("Failed to create transient bytecode directory {}. Will attempt default: {}",  _byteCodeDir, STANDBY_BYTE_CODE_DIR);
+				f = new File(STANDBY_BYTE_CODE_DIR);
+				if(!f.exists()) {
+					if(!f.mkdirs()) {
+						byteCodeDirReady = false;
+						log.warn("Failed to create standby transient bytecode directory [{}]. Persisted transient classes will be disabled");						
+					}					
+				}
+			}
+		}
+		byteCodeDir = byteCodeDirReady ? f.getAbsolutePath() : null;
+		log.info("Transient ByteCode Directory: {}", byteCodeDir);
 	}
 	
 	
@@ -196,6 +236,11 @@ public class Retransformer {
 		return cts;
 	}
 	
+	/**
+	 * Instruments the specified class
+	 * @param clazz The class to instrument
+	 * @param methodNames The method names to instrument
+	 */
 	public void instrument(final Class<?> clazz, String...methodNames) {
 		log.info("Retransforming {} / {}", clazz.getName(), methodNames);
 		Set<String> mNames = new HashSet<String>(Arrays.asList(methodNames));
@@ -228,6 +273,10 @@ public class Retransformer {
 			}
 			final byte[] instrumentedByteCode = target.toBytecode();
 			getByteCodeFor(clazz, instrumentedByteCode);
+			if(byteCodeDir!=null) {
+				target.writeFile(byteCodeDir);
+				log.debug("Saved transformed class [{}] to [{}]", target.getName(), byteCodeDir);
+			}
 			//ByteCapturingClassTransform transformer = new ByteCapturingClassTransform(clazz, instrumentedByteCode);
 		} catch (Exception ex) {
 			log.error("Failed to instrument [{}]", clazz.getName(), ex);

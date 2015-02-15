@@ -22,7 +22,8 @@ import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.concurrent.Callable;
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.CachedGauge;
@@ -58,8 +59,8 @@ public enum Measurement {
 	WAITTIME(true, new WaitTimeMeasurement()),
 	/** Thread block time in ms. */
 	BLOCKTIME(true, new BlockTimeMeasurement()),
-	/** Concurrent threads with entry/exit block */
-	CONCURRENT(false, null),  // FIXME: !!!
+//	/** Concurrent threads with entry/exit block */
+//	CONCURRENT(false, null),  // FIXME: !!!
 	/** Total invocation count */
 	COUNT(false, new CountMeasurement()),
 	/** Total return count */
@@ -73,11 +74,6 @@ public enum Measurement {
 		this.requiresTinfo = requiresTinfo;
 	}
 	
-	public static void main(String[] args) {
-		for(Measurement m: Measurement.values()) {
-			System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()));
-		}
-	}
 	
 	/** The bit mask value for this Measurement member */
 	public final int mask;
@@ -86,16 +82,39 @@ public enum Measurement {
 	/** Indicates if this measurement requires a ThreadInfo */
 	public final boolean requiresTinfo;
 	
-	/** The mask for measurements requiring a thread info */
-	public static final int TI_REQUIRED_MASK = getMaskFor(WAIT, BLOCK, WAITTIME, BLOCKTIME);
-	
 	/** The thread mx bean */
 	public static final ThreadMXBean TMX = ManagementFactory.getThreadMXBean();
 
+	/** The mask for measurements requiring a thread info */
+	public static final int TI_REQUIRED_MASK = getMaskFor(WAIT, BLOCK, WAITTIME, BLOCKTIME);
+	
 	/** Indicates if thread cpu time is supported */
 	public static final boolean CPUTIMEAVAIL = TMX.isThreadCpuTimeSupported();
 	/** Indicates if thread contention monitoring is supported */
 	public static final boolean THREADCONTTIMEAVAIL = TMX.isThreadContentionMonitoringSupported();
+	/** The mask for all measurements */
+	public static final int ALL_MASK = getMaskFor(Measurement.values());
+	/** The mask for disabled measurements if thread cpu time is not supported */
+	public static final int CPU_CONDITIONAL_MASK = getMaskFor(CPU, UCPU);
+	/** The mask for disabled measurements if thread contention monitoring is not supported */
+	public static final int CONT_CONDITIONAL_MASK = getMaskFor(WAITTIME, BLOCKTIME);
+	/** The mask for all possibly disabled measurements */
+	public static final int ALL_CONDITIONAL_MASK = (CPU_CONDITIONAL_MASK | CONT_CONDITIONAL_MASK);
+	/** The actual disabled measurement mask */
+	public static final int DISABLED_MASK;
+	/** The maximum actual enabled measurements mask */
+	public static final int ACTUAL_ALL_MASK;
+	
+	static {
+		int disabledMask = 0;
+		if(!THREADCONTTIMEAVAIL) disabledMask = (disabledMask | CONT_CONDITIONAL_MASK);
+		if(!CPUTIMEAVAIL) disabledMask = (disabledMask | CPU_CONDITIONAL_MASK);
+		DISABLED_MASK = disabledMask;
+		ACTUAL_ALL_MASK = (ALL_MASK & ~DISABLED_MASK);
+	}
+	
+	
+	
 	
 	/** A cached gauge that periodically tests if thread cpu time is enabled */
 	public static final CachedGauge<Boolean> CPUTIMEON = new CachedGauge<Boolean>(5, TimeUnit.SECONDS) {
@@ -186,35 +205,6 @@ public enum Measurement {
 		}		
 	};
 	
-	/** The mask for all measurements */
-	public static final int ALL_MASK = getMaskFor(Measurement.values());
-	/** The mask for disabled measurements if thread cpu time is not supported */
-	public static final int CPU_CONDITIONAL_MASK = getMaskFor(CPU, UCPU);
-	/** The mask for disabled measurements if thread contention monitoring is not supported */
-	public static final int CONT_CONDITIONAL_MASK = getMaskFor(WAITTIME, BLOCKTIME);
-	/** The mask for all possibly disabled measurements */
-	public static final int ALL_CONDITIONAL_MASK = (CPU_CONDITIONAL_MASK | CONT_CONDITIONAL_MASK);
-	/** The actual disabled measurement mask */
-	public static final int DISABLED_MASK;
-	/** The maximum actual enabled measurements mask */
-	public static final int ACTUAL_ALL_MASK;
-	
-	static {
-		int disabledMask = 0;
-		if(!THREADCONTTIMEAVAIL) disabledMask = (disabledMask | CONT_CONDITIONAL_MASK);
-		if(!CPUTIMEAVAIL) disabledMask = (disabledMask | CPU_CONDITIONAL_MASK);
-		DISABLED_MASK = disabledMask;
-		ACTUAL_ALL_MASK = (ALL_MASK & ~DISABLED_MASK);
-	}
-	
-	/**
-	 * Disables unsupported measurements in the passed mask
-	 * @param measurementMask the measurement mask to filter
-	 * @return the possibly filtered measurement mask
-	 */
-	private static int filterUnsupported(final int measurementMask) {
-		return measurementMask & ~DISABLED_MASK;
-	}
 	
 	/**
 	 * Called at the entry of a measured block
@@ -223,9 +213,17 @@ public enum Measurement {
 	public static final void enter(final long[] buffer) {
 		final int mask = (int)buffer[0];
 		int index = 1;
-		for(Measurement m: getEnabled(mask)) {
-			m.reader.pre(buffer, index);
-			index++;
+		final boolean ti = (mask & ~TI_REQUIRED_MASK) != mask; 
+		try {
+			if(ti) {
+				TINFO.get();
+			}
+			for(Measurement m: getEnabled(mask)) {
+				m.reader.pre(buffer, index);
+				index++;
+			}
+		} finally {
+			if(ti) TINFO.remove();
 		}
 	}
 	
@@ -236,9 +234,14 @@ public enum Measurement {
 	public static final void exit(final long[] buffer) {
 		final int mask = (int)buffer[0];
 		int index = 1;
-		for(Measurement m: getEnabled((mask & ~ERROR.mask))) {
-			m.reader.post(buffer, index);
-			index++;
+		final boolean ti = (mask & ~TI_REQUIRED_MASK) != mask;
+		try {
+			for(Measurement m: getEnabled((mask & ~ERROR.mask))) {
+				m.reader.post(buffer, index);
+				index++;
+			}
+		} finally {
+			if(ti) TINFO.remove();
 		}
 	}
 	
@@ -258,7 +261,63 @@ public enum Measurement {
 		}
 	}
 	
+	public static void main(String[] args) {
+//		for(Measurement m: Measurement.values()) {
+//			System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()));
+//		}
+		TMX.setThreadCpuTimeEnabled(false);
+		TMX.setThreadContentionMonitoringEnabled(false);
+		final CountDownLatch latch = new CountDownLatch(1);
+		final Thread sleepThread = new Thread() {
+			public void run() {
+				dropLatchAndSleep(1347L, latch);
+			}
+		};
+		
+		final long[] alloc = allocate(ACTUAL_ALL_MASK);
+		final Random r = new Random(System.currentTimeMillis());
+		enter(alloc);
+		
+		long t = 0;
+		for(int i = 0; i < 10000; i++) {
+			if(i%2==0) t+= r.nextLong();
+			else t-= r.nextLong();
+		}
+		log("Random T:%s", t);
+		sleepThread.start();
+		try { latch.await(); } catch (Exception ex) {}	
+		dropLatchAndSleep(200, latch);
+		try { Thread.sleep(200); } catch (Exception ex) {}		
+//		try { Thread.currentThread().join(500); } catch (Exception ex) {}
+		exit(alloc);
+		log(renderAlloc(alloc));		
+	}
+	
+	private static synchronized void dropLatchAndSleep(final long time, final CountDownLatch latch) {
+		try { latch.countDown();  Thread.currentThread().join(time); } catch (Exception ex) {}
+	}
+	
+	public static String renderAlloc(final long[] alloc) {
+		final int mask = (int)alloc[0];
+		log("Alloc: %s", Arrays.toString(alloc));
+		final Measurement[] mez = getEnabled((mask));
+		if(mez.length==0) return "No Measurements";
+		StringBuilder b = new StringBuilder("=== Measurements:");
+		int index = 1;
+		for(Measurement m: mez) {  
+			if(alloc[index]!=-1) {
+				b.append("\n\t").append(m.name()).append(":").append(alloc[index]);
+			}
+			index++;
+		}
+		b.append("\n");
+		return b.toString();
 
+	}
+	
+	public static void log(final Object fmt, final Object...args) {
+		System.out.println(String.format(fmt.toString(), args));
+	}
 	
 	public static abstract class SimpleMeasurement implements ThreadMetricReader {
 		/** The Measurement being measured */

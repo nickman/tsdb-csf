@@ -16,6 +16,7 @@
 
 package com.heliosapm.opentsdb.client.opentsdb.sink;
 
+import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -153,5 +154,9 @@ public class MetricSink implements Runnable, IMetricSink {
 	
 	protected void flush() {
 	}
+	
+//	public long instrument(final Method method, final String namingPattern, final int measurementMask, final int subMetricMask) {
+//		
+//	}
 	
 }
