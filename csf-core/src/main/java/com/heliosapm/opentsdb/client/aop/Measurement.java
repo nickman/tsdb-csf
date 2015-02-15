@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.CachedGauge;
@@ -91,25 +92,32 @@ public enum Measurement {
 	/** The thread mx bean */
 	public static final ThreadMXBean TMX = ManagementFactory.getThreadMXBean();
 
-	private static final boolean CPUTIMEAVAIL = TMX.isThreadCpuTimeSupported();
-	private static final boolean THREADCONTTIMEAVAIL = TMX.isThreadContentionMonitoringSupported();
+	/** Indicates if thread cpu time is supported */
+	public static final boolean CPUTIMEAVAIL = TMX.isThreadCpuTimeSupported();
+	/** Indicates if thread contention monitoring is supported */
+	public static final boolean THREADCONTTIMEAVAIL = TMX.isThreadContentionMonitoringSupported();
 	
-	private static final CachedGauge<Boolean> CPUTIMEON = new CachedGauge<Boolean>(5, TimeUnit.SECONDS) {
+	/** A cached gauge that periodically tests if thread cpu time is enabled */
+	public static final CachedGauge<Boolean> CPUTIMEON = new CachedGauge<Boolean>(5, TimeUnit.SECONDS) {
 		@Override
 		protected Boolean loadValue() {
 			return TMX.isThreadCpuTimeEnabled();
 		}
 	};
-	private static final CachedGauge<Boolean> CONTENTIONON = new CachedGauge<Boolean>(5, TimeUnit.SECONDS) {
+	/** A cached gauge that periodically tests if thread contention monitoring is enabled */
+	public static final CachedGauge<Boolean> CONTENTIONON = new CachedGauge<Boolean>(5, TimeUnit.SECONDS) {
 		@Override
 		protected Boolean loadValue() {
 			return TMX.isThreadContentionMonitoringEnabled();
 		}
 	};
 	
-
 	
-	/** A global cache of value buffers keyed by the thread calling */
+	
+	/** A global cache of value buffers keyed by the thread calling 
+	 * The cache retrieves the thread buffer for the current thread, creating a new one if necessary.
+	 * 
+	 * */
 	private static final LoadingCache<Thread, LongBuffer> threadCounters = CacheBuilder.newBuilder()
 			.concurrencyLevel(Constants.CORES)
 			.initialCapacity(512)
@@ -121,12 +129,49 @@ public enum Measurement {
 					OffHeapFIFOFile.clean(notification.getValue());
 				}				
 			})
-			.build(new CacheLoader<Thread, LongBuffer>() {
-				final int size = Measurement.values().length * 8; 
-	             public LongBuffer load(Thread thread) {
-	                 return ByteBuffer.allocateDirect(size).asLongBuffer();
-	             }
-	         });
+			.build(new CacheLoader<Thread, LongBuffer>(){
+				@Override
+				public LongBuffer load(Thread key) throws Exception {
+					return ByteBuffer.allocateDirect((((getEnabled(ACTUAL_ALL_MASK).length*2) + 1) * 8)).asLongBuffer();
+				}
+			});
+	
+//	/**
+//	 * Gets the thread buffer from cache or creates a new one.
+//	 * The returned buffer contains the mask in the first slot (as a long) plus
+//	 * enough slots to contain two sets of the measurement values for all the enabled measurements.
+//	 * @param mask The measurement mask enabled for this call
+//	 * @return The counter buffer
+//	 */
+//	private static LongBuffer allocate(final int mask) {
+//		return ByteBuffer.allocateDirect(size).asLongBuffer();
+////		try {
+////			return threadCounters.get(Thread.currentThread(), new Callable<LongBuffer>(){
+////				@Override
+////				public LongBuffer call() throws Exception {
+////					final int size = (getEnabled(mask).length + 1) * 8;
+////					final LongBuffer buff = ByteBuffer.allocateDirect(size).asLongBuffer();
+////					buff.put(0, mask);
+////					return buff;
+////				}
+////			});
+////		} catch (Exception ex) {
+////			// should never happend
+////			throw new RuntimeException("Failed to allocate thread counter buffer", ex);
+////		}
+//	}
+	
+	/**
+	 * Allocates a long array for the passed measurement mask, minus the unsupported measurements, plus one for the mask.
+	 * @param mask The measurement bit mask
+	 * @return the allocated array
+	 */
+	public static long[] allocate(final int mask) {
+		final long[] alloc = new long[getEnabled(mask & ~DISABLED_MASK).length + 1];
+		alloc[0] = mask;
+		return alloc;
+	}
+
 	
 	/** A thread info thread local for the initial tinfo capture */
 	private static final ThreadLocal<ThreadInfo> TINFO = new ThreadLocal<ThreadInfo>() {
@@ -138,9 +183,82 @@ public enum Measurement {
 		@Override
 		protected ThreadInfo initialValue() {			
 			return TMX.getThreadInfo(TID);
-		}
-		
+		}		
 	};
+	
+	/** The mask for all measurements */
+	public static final int ALL_MASK = getMaskFor(Measurement.values());
+	/** The mask for disabled measurements if thread cpu time is not supported */
+	public static final int CPU_CONDITIONAL_MASK = getMaskFor(CPU, UCPU);
+	/** The mask for disabled measurements if thread contention monitoring is not supported */
+	public static final int CONT_CONDITIONAL_MASK = getMaskFor(WAITTIME, BLOCKTIME);
+	/** The mask for all possibly disabled measurements */
+	public static final int ALL_CONDITIONAL_MASK = (CPU_CONDITIONAL_MASK | CONT_CONDITIONAL_MASK);
+	/** The actual disabled measurement mask */
+	public static final int DISABLED_MASK;
+	/** The maximum actual enabled measurements mask */
+	public static final int ACTUAL_ALL_MASK;
+	
+	static {
+		int disabledMask = 0;
+		if(!THREADCONTTIMEAVAIL) disabledMask = (disabledMask | CONT_CONDITIONAL_MASK);
+		if(!CPUTIMEAVAIL) disabledMask = (disabledMask | CPU_CONDITIONAL_MASK);
+		DISABLED_MASK = disabledMask;
+		ACTUAL_ALL_MASK = (ALL_MASK & ~DISABLED_MASK);
+	}
+	
+	/**
+	 * Disables unsupported measurements in the passed mask
+	 * @param measurementMask the measurement mask to filter
+	 * @return the possibly filtered measurement mask
+	 */
+	private static int filterUnsupported(final int measurementMask) {
+		return measurementMask & ~DISABLED_MASK;
+	}
+	
+	/**
+	 * Called at the entry of a measured block
+	 * @param buffer The value buffer
+	 */
+	public static final void enter(final long[] buffer) {
+		final int mask = (int)buffer[0];
+		int index = 1;
+		for(Measurement m: getEnabled(mask)) {
+			m.reader.pre(buffer, index);
+			index++;
+		}
+	}
+	
+	/**
+	 * Called at the normal exit of a measured block
+	 * @param buffer The value buffer
+	 */
+	public static final void exit(final long[] buffer) {
+		final int mask = (int)buffer[0];
+		int index = 1;
+		for(Measurement m: getEnabled((mask & ~ERROR.mask))) {
+			m.reader.post(buffer, index);
+			index++;
+		}
+	}
+	
+	/**
+	 * Called on a thrown exception in a measured block
+	 * @param buffer The value buffer
+	 * // TODO: In some cases, we want to resolve all the measurements, 
+	 * but mostly we probably just want the error count since 
+	 * the metric values are probably invalid.
+	 */
+	public static final void errorExit(final long[] buffer) {
+		final int mask = (int)buffer[0];
+		int index = 1;
+		for(Measurement m: getEnabled((mask & ~RETURN.mask))) {  
+			m.reader.post(buffer, index);
+			index++;
+		}
+	}
+	
+
 	
 	public static abstract class SimpleMeasurement implements ThreadMetricReader {
 		/** The Measurement being measured */
@@ -153,12 +271,12 @@ public enum Measurement {
 			this.mez = mez;
 		}
 		@Override
-		public void pre(final LongBuffer values) {
-			values.put(mez.mask, pre());
+		public void pre(final long[] values, final int index) {			
+			values[index] = pre();
 		}
 		@Override
-		public void post(final LongBuffer values) {
-			values.put(mez.mask, post(values.get(mez.mask)));
+		public void post(final long[] values, final int index) {
+			values[index] = post(values[index]);
 		}		
 		
 		protected abstract long pre();
@@ -177,11 +295,11 @@ public enum Measurement {
 			this.mez = mez;
 		}
 		@Override
-		public void pre(final LongBuffer values) {
-			values.put(mez.mask, 1);
+		public void pre(final long[] values, final int index) {
+			values[index]++;
 		}
 		@Override
-		public void post(final LongBuffer values) {
+		public void post(final long[] values, final int index) {
 			/* No Op */
 		}				
 	}
@@ -196,12 +314,29 @@ public enum Measurement {
 		public ReturnMeasurement() {
 			super(RETURN);
 		}
+		@Override
+		public void post(final long[] values, final int index) {
+			values[index]++;
+		}
+		@Override
+		public void pre(final long[] values, final int index) {
+			/* No Op */
+		}				
+		
 	}
 	
 	public static class ErrorMeasurement extends IncrementMeasurement {
 		public ErrorMeasurement() {
 			super(ERROR);
 		}
+		@Override
+		public void post(final long[] values, final int index) {
+			values[index]++;
+		}
+		@Override
+		public void pre(final long[] values, final int index) {
+			/* No Op */
+		}						
 	}
 	
 	

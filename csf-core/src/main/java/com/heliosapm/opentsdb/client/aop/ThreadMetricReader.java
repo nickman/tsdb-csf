@@ -15,9 +15,6 @@
  */
 package com.heliosapm.opentsdb.client.aop;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
-import java.nio.LongBuffer;
 
 /**
  * <p>Title: ThreadMetricReader</p>
@@ -30,19 +27,21 @@ import java.nio.LongBuffer;
 public interface ThreadMetricReader {
 
 	/**
-	 * Pre call to the reader. The reader should place it's initing value in it's designated slot.
-	 * @param values The values buffer. At the begining of the call it will contain undefined data. It should be overlayed
+	 * Pre call to the reader. The reader should place it's initing value in the array slot with the passed index.
+	 * @param values The values array. At the begining of the call it will contain undefined data. It should be overlayed
 	 * by the initial value. 
+	 * @param index the index of the slot the value should be written into
 	 */
-	public void pre(final LongBuffer values);
+	public void pre(final long[] values, final int index);
 
 	
 	/**
-	 * Post call to the reader. The reader should place it's captured value in it's designated slot.
-	 * @param values The values buffer. At the begining of the call it will contain the starting value (if applicable). It should be overlayed
+	 * Post call to the reader. The reader should place it's captured value in the array slot with the passed index.
+	 * @param values The values array. At the begining of the call it will contain the starting value (if applicable). It should be overlayed
 	 * by the value emitted for collection
+	 * @param index the index of the slot the value should be written into
 	 */
-	public void post(final LongBuffer values);
+	public void post(final long[] values, final int index);
 	
 	
 }
