@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.aop;
+package com.heliosapm.opentsdb.client.opentsdb.opt;
 
 
 /**
@@ -21,9 +21,8 @@ package com.heliosapm.opentsdb.client.aop;
  * <p>Description: Defines a measurement taken from the execution of a defined progression of code</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.ThreadMetricReader</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader</code></p>
  */
-
 public interface ThreadMetricReader {
 
 	/**

@@ -31,15 +31,21 @@
 				<br>
 				<select id='measurements' multiple="multiple" size="12	">
 					<option value="1" selected="selected" >ELAPSED</option>
+					<option value="2048" selected="selected" >RETURN</option>
+					<option value="16384" selected="selected" >RETURNRATE</option>
 					<option value="2">CPU</option>
 					<option value="4">UCPU</option>
-					<option value="8">WAIT</option>
-					<option value="16">BLOCK</option>
-					<option value="32">WAITTIME</option>
-					<option value="64">BLOCKTIME</option>
-					<option value="128">COUNT</option>
-					<option value="256" selected="selected" >RETURN</option>
-					<option value="512" selected="selected" >ERROR</option>
+					<option value="8">TCPU</option>
+					<option value="16">WAIT</option>
+					<option value="32">BLOCK</option>
+					<option value="64">WAITRATE</option>
+					<option value="128">BLOCKRATE</option>
+					<option value="256">WAITTIME</option>
+					<option value="512">BLOCKTIME</option>
+					<option value="1024">INVOKE</option>
+					<option value="4096">ERROR</option>
+					<option value="8192">INVOKERATE</option>
+					<option value="32768">ERRORRATE</option>
 				</select>
 				<button onclick="calcBitMask('measurements')" >Calc</button>
 			</td>

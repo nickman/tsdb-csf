@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.aop;
+package com.heliosapm.opentsdb.client.opentsdb.opt;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -22,11 +22,13 @@ import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.Random;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.CachedGauge;
+import com.codahale.metrics.Metric;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -41,32 +43,47 @@ import com.heliosapm.opentsdb.client.util.Util;
  * <p>Description: Functional enumeration of thread execution metrics that can be collected</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.collector.Measurement</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.opentsdb.opt.Measurement</code></p>
+ * TODO:  For given Measurement bitmask:
+ * 		compute minimum required CHMetrics
+ * 		eliminate duplicate/redundant
  */
-
-public enum Measurement {
+public enum Measurement implements Measurers, ThreadMetricReader {
 	/** Elapsed time in ns.  */
-	ELAPSED(true, false, new ElapsedMeasurement()),
+	ELAPSED(true, false, CHMetric.TIMER, ELAPSED_MEAS),
 	/** Elapsed CPU time in ns. */
-	CPU(false, false, new CpuMeasurement()),
+	CPU(false, false, CHMetric.TIMER, CPU_MEAS),
 	/** Elapsed User Mode CPU time in ns. */
-	UCPU(false, false, new UserCpuMeasurement()),
+	UCPU(false, false, CHMetric.TIMER, UCPU_MEAS),
+	/** The Total Elapsed (User + System Mode) CPU time in ns. */
+	TCPU(false, false, CHMetric.TIMER, TCPU_MEAS),	
 	/** Number of thread waits */	
-	WAIT(false, true, new WaitCountMeasurement()),
+	WAIT(false, true, CHMetric.COUNTER, WAIT_MEAS),
 	/** Number of thread blocks */
-	BLOCK(false, true, new BlockCountMeasurement()),
+	BLOCK(false, true, CHMetric.COUNTER, BLOCK_MEAS),
+	/** Number of thread waits */	
+	WAITRATE(false, true, CHMetric.METER, WAIT_MEAS),
+	/** Number of thread blocks */
+	BLOCKRATE(false, true, CHMetric.METER, BLOCK_MEAS),	
 	/** Thread wait time in ms. */
-	WAITTIME(false, true, new WaitTimeMeasurement()),
+	WAITTIME(false, true, CHMetric.TIMER, WAIT_TIME_MEAS),
 	/** Thread block time in ms. */
-	BLOCKTIME(false, true, new BlockTimeMeasurement()),
+	BLOCKTIME(false, true, CHMetric.TIMER, BLOCK_TIME_MEAS),
 //	/** Concurrent threads with entry/exit block */
 //	CONCURRENT(false, null),  // FIXME: !!!
 	/** Total invocation count */
-	COUNT(false, false, new CountMeasurement()),
+	INVOKE(false, false, CHMetric.COUNTER, COUNT_MEAS),
 	/** Total return count */
-	RETURN(true, false, new ReturnMeasurement()),
+	RETURN(true, false, CHMetric.COUNTER, RETURN_MEAS),
 	/** Total exception count */
-	ERROR(true, false, new ErrorMeasurement());
+	ERROR(false, false, CHMetric.COUNTER, ERROR_MEAS),
+	/** The invocation rate */
+	INVOKERATE(false, false, CHMetric.METER, COUNT_MEAS),
+	/** The return rate */
+	RETURNRATE(true, false, CHMetric.METER, RETURN_MEAS),
+	/** The exception rate */
+	ERRORRATE(false, false, CHMetric.METER, ERROR_MEAS);
+	
 	
 	
 //	/** The elapsed system cpu time in microseconds */
@@ -75,9 +92,10 @@ public enum Measurement {
 //	USER_CPU(seed.next(), false, true, "CPU Time (\u00b5s)", "usercpu", "CPU Thread Execution Time In User Mode", new DefaultUserCpuMeasurer(1), DataStruct.getInstance(Primitive.LONG, 3, Long.MAX_VALUE, Long.MIN_VALUE, -1L), "Min", "Max", "Avg"),
 	
 	
-	private Measurement(final boolean isDefault, final boolean requiresTinfo, final ThreadMetricReader reader) {
+	private Measurement(final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader) {
 		this.mask = Util.pow2Index(ordinal());
 		this.isDefault = isDefault;
+		this.chMetric = chMetric;
 		this.reader = reader;
 		this.requiresTinfo = requiresTinfo;
 	}
@@ -86,10 +104,32 @@ public enum Measurement {
 	public final boolean isDefault;
 	/** The bit mask value for this Measurement member */
 	public final int mask;
+	/** The CodaHale metric type allocated to track this measurement */
+	public final CHMetric chMetric;
 	/** The thread metric reader instance */
 	public final ThreadMetricReader reader;
 	/** Indicates if this measurement requires a ThreadInfo */
 	public final boolean requiresTinfo;
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#pre(long[], int)
+	 */
+	@Override
+	public void pre(long[] values, int index) {
+		reader.pre(values, index);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#post(long[], int)
+	 */
+	@Override
+	public void post(long[] values, int index) {
+		post(values, index);
+	}
+	
+	
 	
 	/** The thread mx bean */
 	public static final ThreadMXBean TMX = ManagementFactory.getThreadMXBean();
@@ -121,8 +161,6 @@ public enum Measurement {
 		DISABLED_MASK = disabledMask;
 		ACTUAL_ALL_MASK = (ALL_MASK & ~DISABLED_MASK);
 	}
-	
-	
 	
 	
 	/** A cached gauge that periodically tests if thread cpu time is enabled */
@@ -214,6 +252,23 @@ public enum Measurement {
 		}		
 	};
 	
+	/**
+	 * Returns an array of the unique CHMetrics required to capture measurements for the passed measurement bit mask
+	 * @param mask The bit mask defining which measurements are to be captured
+	 * @return an array of CHMetrics
+	 */
+	public static CHMetric[] getRequiredCHMetrics(final int mask) {
+		final Set<CHMetric> set = EnumSet.noneOf(CHMetric.class);
+		for(Measurement m: getEnabled(mask)) {
+			set.add(m.chMetric);
+		}
+		return set.toArray(new CHMetric[set.size()]);
+	}
+	
+	public static Map<CHMetric, Map<Measurement, Metric>> getRequiredCHMetrics(final int mask) {
+		Map<CHMetric, Map<Measurement, Metric>>
+	}
+	
 	
 	/**
 	 * Called at the entry of a measured block
@@ -272,13 +327,20 @@ public enum Measurement {
 	
 	public static void main(String[] args) {
 		for(Measurement m: Measurement.values()) {
-			//System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()));
+//			System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()) + ", CHMetric:" + m.chMetric.name());
+		}
+		for(Measurement m: Measurement.values()) {
 			if(m.isDefault) {
-				System.out.println(String.format("\t\t<option value=\"%s\" selected=\"selected\" >%s</option>", m.mask, m.name()));
-			} else {
-				System.out.println(String.format("\t\t<option value=\"%s\">%s</option>", m.mask, m.name()));
+				System.out.println(String.format("\t\t\t\t\t<option value=\"%s\" selected=\"selected\" >%s</option>", m.mask, m.name()));
 			}
 		}
+		for(Measurement m: Measurement.values()) {
+			if(!m.isDefault) {
+				System.out.println(String.format("\t\t\t\t\t<option value=\"%s\">%s</option>", m.mask, m.name()));
+			}
+		}
+		
+		
 //		TMX.setThreadCpuTimeEnabled(false);
 //		TMX.setThreadContentionMonitoringEnabled(false);
 //		final CountDownLatch latch = new CountDownLatch(1);
@@ -379,7 +441,7 @@ public enum Measurement {
 	
 	public static class CountMeasurement extends IncrementMeasurement {
 		public CountMeasurement() {
-			super(COUNT);
+			super(INVOKE);
 		}
 	}
 	
@@ -444,6 +506,22 @@ public enum Measurement {
 			return CPUTIMEON.getValue() ? TMX.getCurrentThreadCpuTime()-pre : -1L;
 		}
 	}
+	
+	public static class TotalCpuMeasurement extends SimpleMeasurement {
+		public TotalCpuMeasurement() {
+			super(TCPU);
+		}
+		@Override
+		protected long pre() {
+			return CPUTIMEON.getValue() ? (TMX.getCurrentThreadCpuTime() + TMX.getCurrentThreadUserTime()) : -1L; 
+		}
+
+		@Override
+		protected long post(final long pre) {
+			return CPUTIMEON.getValue() ? (TMX.getCurrentThreadCpuTime() + TMX.getCurrentThreadUserTime())-pre : -1L;
+		}
+	}
+	
 	
 	public static class UserCpuMeasurement extends SimpleMeasurement {
 		public UserCpuMeasurement() {

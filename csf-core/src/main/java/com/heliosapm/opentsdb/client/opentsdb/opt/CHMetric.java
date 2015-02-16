@@ -28,6 +28,7 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Timer;
+import com.codahale.metrics.UniformReservoir;
 
 /**
  * <p>Title: CHMetric</p>
@@ -37,19 +38,19 @@ import com.codahale.metrics.Timer;
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.CHMetric</code></p>
  */
 
-public enum CHMetric {
+public enum CHMetric implements CHMetricFactory {
 	/** Not a CHMetric */
-	NOTAMETRIC(null, 0, EnumSet.noneOf(SubMetric.class)),
+	NOTAMETRIC(null, 0, EnumSet.noneOf(SubMetric.class)){@Override public Metric createNewMetric() {return null;}},
 	/** The {@link Gauge} metric */
-	GAUGE(Gauge.class, SubMetric.GAUGE_SUBMETRIC_MASK, SubMetric.GAUGE_SUBMETRICS),
+	GAUGE(Gauge.class, SubMetric.GAUGE_SUBMETRIC_MASK, SubMetric.GAUGE_SUBMETRICS){@Override public Metric createNewMetric() {return null;}},
 	/** The {@link Timer} metric */
-	TIMER(Timer.class, SubMetric.TIMER_SUBMETRIC_MASK, SubMetric.TIMER_SUBMETRICS),
+	TIMER(Timer.class, SubMetric.TIMER_SUBMETRIC_MASK, SubMetric.TIMER_SUBMETRICS){@Override public Timer createNewMetric() {return new Timer();}},
 	/** The {@link Meter} metric */
-	METER(Meter.class, SubMetric.METER_SUBMETRIC_MASK, SubMetric.METER_SUBMETRICS),
+	METER(Meter.class, SubMetric.METER_SUBMETRIC_MASK, SubMetric.METER_SUBMETRICS){@Override public Meter createNewMetric() {return new Meter();}},
 	/** The {@link Histogram} metric */
-	HISTOGRAM(Histogram.class, SubMetric.HISTOGRAM_SUBMETRIC_MASK, SubMetric.HISTOGRAM_SUBMETRICS),
+	HISTOGRAM(Histogram.class, SubMetric.HISTOGRAM_SUBMETRIC_MASK, SubMetric.HISTOGRAM_SUBMETRICS){@Override public Histogram createNewMetric() {return new Histogram(new UniformReservoir());}},
 	/** The {@link Counter} metric */
-	COUNTER(Counter.class, SubMetric.COUNTER_SUBMETRIC_MASK, SubMetric.COUNTER_SUBMETRICS);
+	COUNTER(Counter.class, SubMetric.COUNTER_SUBMETRIC_MASK, SubMetric.COUNTER_SUBMETRICS){@Override public Counter createNewMetric() {return new Counter();}};
 	
 	private CHMetric(final Class<? extends Metric> type, final int subMetricMask, final Set<SubMetric> subMetrics) {
 		this.type = type;
@@ -58,8 +59,6 @@ public enum CHMetric {
 		this.subMetrics = Collections.unmodifiableSet(subMetrics);
 	}
 	
-	/** The maximum bordinal */
-	private static final byte MAX_BORDINAL = values()[values().length].bordinal;
 	
 	/** The metric type */
 	public final Class<? extends Metric> type;
@@ -85,7 +84,7 @@ public enum CHMetric {
 	 * @return the CHMetric
 	 */
 	public static CHMetric valueOf(final byte bordinal) {
-		if(bordinal < 0 || bordinal > MAX_BORDINAL) throw new IllegalArgumentException("Invalid byte ordinal:" + bordinal);
+		if(bordinal < 0 || bordinal > values().length) throw new IllegalArgumentException("Invalid byte ordinal:" + bordinal);
 		return values()[bordinal];
 	}
 	
