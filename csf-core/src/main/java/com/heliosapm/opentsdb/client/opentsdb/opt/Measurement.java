@@ -21,6 +21,7 @@ import java.lang.management.ThreadMXBean;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.CachedGauge;
 import com.codahale.metrics.Metric;
+import com.google.common.base.Objects;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -153,6 +155,9 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public static final int DISABLED_MASK;
 	/** The maximum actual enabled measurements mask */
 	public static final int ACTUAL_ALL_MASK;
+	/** The default measurements mask */
+	public static final int DEFAULT_MASK;
+	
 	
 	static {
 		int disabledMask = 0;
@@ -160,6 +165,11 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		if(!CPUTIMEAVAIL) disabledMask = (disabledMask | CPU_CONDITIONAL_MASK);
 		DISABLED_MASK = disabledMask;
 		ACTUAL_ALL_MASK = (ALL_MASK & ~DISABLED_MASK);
+		int dm = 0;
+		for(Measurement m: values()) {
+			if(m.isDefault) dm = (dm | m.mask);
+		}
+		DEFAULT_MASK = dm;
 	}
 	
 	
@@ -265,10 +275,32 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		return set.toArray(new CHMetric[set.size()]);
 	}
 	
-	public static Map<CHMetric, Map<Measurement, Metric>> getRequiredCHMetrics(final int mask) {
-		Map<CHMetric, Map<Measurement, Metric>>
+	/**
+	 * Returns a map of Metric instances keyed by the Measurement that will write to the metric 
+	 * within a map keyed by the CHMetric type of the created Metric instances 
+	 * @param mask The bit mask defining which Measurements are enabled
+	 * @return the map of metrics
+	 */
+	public static Map<CHMetric, Map<Measurement, Metric>> getRequiredCHMetricInstances(final int mask) {
+		final Map<CHMetric, Map<Measurement, Metric>> map = new EnumMap<CHMetric, Map<Measurement, Metric>>(CHMetric.class);
+		for(CHMetric chm: getRequiredCHMetrics(mask)) {			
+			final Map<Measurement, Metric> instances = new EnumMap<Measurement, Metric>(Measurement.class);
+			map.put(chm, instances);			
+		}
+		for(Measurement m: getEnabled(mask)) {
+			map.get(m.chMetric).put(m, m.chMetric.createNewMetric());			
+		}
+		return map;
 	}
 	
+	/**
+	 * Returns a map of the default Metric instances keyed by the Measurement that will write to the metric 
+	 * within a map keyed by the CHMetric type of the created Metric instances 
+	 * @return the map of metrics
+	 */
+	public static Map<CHMetric, Map<Measurement, Metric>> getDefaultCHMetricInstances() {
+		return getRequiredCHMetricInstances(DEFAULT_MASK);
+	}
 	
 	/**
 	 * Called at the entry of a measured block
@@ -325,22 +357,42 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		}
 	}
 	
+	public static void log(final Object fmt, final Objects.ToStringHelper...args) {
+		System.out.println(String.format(fmt.toString(), args));
+	}
+	
 	public static void main(String[] args) {
 		for(Measurement m: Measurement.values()) {
+//			System.out.println(m);
 //			System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()) + ", CHMetric:" + m.chMetric.name());
 		}
-		for(Measurement m: Measurement.values()) {
-			if(m.isDefault) {
-				System.out.println(String.format("\t\t\t\t\t<option value=\"%s\" selected=\"selected\" >%s</option>", m.mask, m.name()));
+//		for(Measurement m: Measurement.values()) {
+//			if(m.isDefault) {
+//				System.out.println(String.format("\t\t\t\t\t<option value=\"%s\" selected=\"selected\" >%s</option>", m.mask, m.name()));
+//			}
+//		}
+//		for(Measurement m: Measurement.values()) {
+//			if(!m.isDefault) {
+//				System.out.println(String.format("\t\t\t\t\t<option value=\"%s\">%s</option>", m.mask, m.name()));
+//			}
+//		}
+		
+		final Map<CHMetric, Map<Measurement, Metric>> map = getDefaultCHMetricInstances();
+		int subMetricMask = 0;
+		for(Map.Entry<CHMetric, Map<Measurement, Metric>> entry: map.entrySet()) {
+			final CHMetric chm = entry.getKey();
+			log("CHMetric: %s", chm);
+			for(Map.Entry<Measurement, Metric> inst: entry.getValue().entrySet()) {
+				final Measurement m = inst.getKey();
+				final Metric metric = inst.getValue();
+				log("\tInstance:   for: %s  in: %s", m.name(), metric.getClass().getSimpleName());
+				for(SubMetric sm: m.chMetric.defaultSubMetrics) {
+					subMetricMask = subMetricMask | sm.mask;
+					log("\t\tSubMetric: %s", sm);
+				}
 			}
 		}
-		for(Measurement m: Measurement.values()) {
-			if(!m.isDefault) {
-				System.out.println(String.format("\t\t\t\t\t<option value=\"%s\">%s</option>", m.mask, m.name()));
-			}
-		}
-		
-		
+		log("SubMetricMask: %s  --->  %s", subMetricMask, Arrays.toString(SubMetric.getEnabled(subMetricMask)));
 //		TMX.setThreadCpuTimeEnabled(false);
 //		TMX.setThreadContentionMonitoringEnabled(false);
 //		final CountDownLatch latch = new CountDownLatch(1);

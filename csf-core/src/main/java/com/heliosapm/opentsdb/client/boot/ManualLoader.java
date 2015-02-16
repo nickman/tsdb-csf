@@ -72,8 +72,29 @@ public class ManualLoader {
 			observerClass.getDeclaredMethod("build", MBeanServer.class, long.class, TimeUnit.class)
 				.invoke(null, ManagementFactory.getPlatformMBeanServer(), 5, TimeUnit.SECONDS);
 			System.out.println("Initialized tsdb-csf MXBeanObserver");
+			try {
+				final Class<?> transformerClass = Class.forName("com.heliosapm.opentsdb.client.aoplite.RetransformerLite");
+				transformerClass.getDeclaredMethod("getInstance").invoke(null);
+			} catch (Exception ex) {
+				System.err.println("Failed to load Retransformer Lite. Stack Trace Follows....");
+				ex.printStackTrace(System.err);
+			}
 		}
 	}
+	
+	/**
+	 * Loads tsdb-csf into the current environment, registering with the platform MBeanServer, assuming the jar has been appended to the sys classpath
+	 * @throws ClassNotFoundException 
+	 * @throws SecurityException 
+	 * @throws NoSuchMethodException 
+	 * @throws InvocationTargetException 
+	 * @throws IllegalArgumentException 
+	 * @throws IllegalAccessException 
+	 */
+	public static void boot() throws ClassNotFoundException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
+		boot(ManagementFactory.getPlatformMBeanServer());
+	}
+	
 	
 	
 	/**

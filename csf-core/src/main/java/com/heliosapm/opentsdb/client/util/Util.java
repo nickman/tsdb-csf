@@ -28,14 +28,10 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Pattern;
 
+import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
+import javax.management.MBeanServerFactory;
 import javax.management.ObjectName;
-import javax.script.Bindings;
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.SimpleBindings;
-
-import com.heliosapm.opentsdb.client.opentsdb.Constants;
 
 /**
  * <p>Title: Util</p>
@@ -219,6 +215,24 @@ public class Util {
 		}		
 	}
 	
+	/**
+	 * Registers the passed MBean on all located MBeanServers
+	 * @param bean The bean to register
+	 * @param objectName The ObjectName to register the bean with
+	 * @return the number of MBeanServers registered with
+	 */
+	public static int registerMBeanEverywhere(final Object bean, final ObjectName objectName) {
+		int cnt = 0;
+		for(MBeanServer mbs: MBeanServerFactory.findMBeanServer(null)) {
+			if(!mbs.isRegistered(objectName)) {
+				try {
+					mbs.registerMBean(bean, objectName);
+					cnt++;
+				} catch (Exception ex) {/* No Op */}
+			}
+		}
+		return cnt;
+	}
 	
 	/**
 	 * Returns the agent properties

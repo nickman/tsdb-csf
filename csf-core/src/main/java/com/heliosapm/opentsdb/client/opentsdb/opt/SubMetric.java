@@ -21,6 +21,8 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -44,9 +46,9 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 	/** A {@link Gauge} value */
 	gauge(""){@SuppressWarnings("rawtypes")	@Override public double get(final Metric metric) {return ((Number)((Gauge)metric).getValue()).doubleValue();}},
 	/** A {@link Counter} count */
-	count{@Override public double get(final Metric metric) {return ((Number)((Counter)metric).getCount()).doubleValue();}},
+	count("count"){@Override public double get(final Metric metric) {return ((Number)((Counter)metric).getCount()).doubleValue();}},
 	/** A {@link Histogram} count */
-	hcount{@Override public double get(final Metric metric) {return ((CachedSnapshot)metric).getCount();}},
+	hcount("count"){@Override public double get(final Metric metric) {return ((CachedSnapshot)metric).getCount();}},
 	/** the lowest value in the snapshot of a  {@link Histogram}. */
 	min{@Override	public double get(final Metric metric) { return ((CachedSnapshot)metric).getMin(); }},
 	/** the highest value in the snapshot of a  {@link Histogram}. */
@@ -68,9 +70,9 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 	/** The value at the 99.9th percentile in the distribution. */
 	p999{@Override public double get(final Metric metric) { return ((CachedSnapshot)metric).get999thPercentile(); }},
 	/** A {@link Timer} count */
-	tcount{@Override public double get(final Metric metric) {return ((Timer)metric).getCount();}},
+	tcount("count"){@Override public double get(final Metric metric) {return ((Timer)metric).getCount();}},
 	/** The number of events which have been marked in a {@link Meter} */
-	mcount{@Override public double get(final Metric metric) { return ((Meter)metric).getCount(); }},
+	mcount("count"){@Override public double get(final Metric metric) { return ((Meter)metric).getCount(); }},
 	/** The mean rate at which events have occurred in a {@link Meter} since the meter was created */
 	mean_rate{@Override public double get(final Metric metric) { return ((Meter)metric).getMeanRate(); }},
 	/** The one-minute exponentially-weighted moving average rate at which events have occurred in a {@link Meter} since the meter was created */
@@ -81,27 +83,51 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 	m15{@Override public double get(final Metric metric) { return ((Meter)metric).getFifteenMinuteRate(); }};
 	
 	
+	/** The ordered set of count subMetrics. Since we only need one count per instrumentation definition, these are in order of precedence */
+	public static final SortedSet<SubMetric> countFilter = Collections.unmodifiableSortedSet(new TreeSet<SubMetric>(Arrays.asList(count, hcount, tcount, mcount)));
+	
+	
 	/** The {@link Gauge} SubMetrics */
 	public static final Set<SubMetric> GAUGE_SUBMETRICS = Collections.unmodifiableSet(EnumSet.of(gauge));
+	/** The default {@link Gauge} SubMetrics */
+	public static final Set<SubMetric> DEFAULT_GAUGE_SUBMETRICS = GAUGE_SUBMETRICS;
 	/** The {@link Counter} SubMetrics */
 	public static final Set<SubMetric> COUNTER_SUBMETRICS = Collections.unmodifiableSet(EnumSet.of(count));
+	/** The default {@link Counter} SubMetrics */
+	public static final Set<SubMetric> DEFAULT_COUNTER_SUBMETRICS = COUNTER_SUBMETRICS;	
 	/** The {@link Meter} SubMetrics */
 	public static final Set<SubMetric> METER_SUBMETRICS = Collections.unmodifiableSet(EnumSet.of(mcount, mean_rate, m1, m5, m15));
+	/** The default {@link Meter} SubMetrics */
+	public static final Set<SubMetric> DEFAULT_METER_SUBMETRICS = Collections.unmodifiableSet(EnumSet.of(mcount, mean_rate));	
 	/** The {@link Timer} SubMetrics */
 	public static final Set<SubMetric> TIMER_SUBMETRICS = Collections.unmodifiableSet(EnumSet.of(tcount, mean_rate, m1, m5, m15, min, max, mean, stddev, median, p75, p95, p98, p99, p999));
+	/** The default {@link Timer} SubMetrics */
+	public static final Set<SubMetric> DEFAULT_TIMER_SUBMETRICS = Collections.unmodifiableSet(EnumSet.of(tcount, mean_rate, median));
 	/** The {@link Histogram} SubMetrics */
 	public static final Set<SubMetric> HISTOGRAM_SUBMETRICS = Collections.unmodifiableSet(EnumSet.of(hcount, min, max, mean, stddev, median, p75, p95, p98, p99, p999));
+	/** The default {@link Histogram} SubMetrics */
+	public static final Set<SubMetric> DEFAULT_HISTOGRAM_SUBMETRICS = Collections.unmodifiableSet(EnumSet.of(hcount, median));
 	
 	/** The {@link Gauge} SubMetrics Mask */
 	public static final int GAUGE_SUBMETRIC_MASK = getMaskFor(gauge);
+	/** The default {@link Gauge} SubMetrics Mask */
+	public static final int DEFAULT_GAUGE_SUBMETRIC_MASK = GAUGE_SUBMETRIC_MASK;
 	/** The {@link Counter} SubMetrics Mask */
 	public static final int COUNTER_SUBMETRIC_MASK = getMaskFor(count);
+	/** The default {@link Counter} SubMetrics Mask */
+	public static final int DEFAULT_COUNTER_SUBMETRIC_MASK = COUNTER_SUBMETRIC_MASK;	
 	/** The {@link Meter} SubMetrics Mask */
-	public static final int METER_SUBMETRIC_MASK = getMaskFor(mcount, mean_rate, m1, m5, m15);
+	public static final int METER_SUBMETRIC_MASK = getMaskFor(METER_SUBMETRICS);
+	/** The default {@link Meter} SubMetrics Mask */
+	public static final int DEFAULT_METER_SUBMETRIC_MASK = getMaskFor(DEFAULT_METER_SUBMETRICS);	
 	/** The {@link Timer} SubMetrics Mask */
-	public static final int TIMER_SUBMETRIC_MASK = getMaskFor(tcount, mean_rate, m1, m5, m15, min, max, mean, stddev, median, p75, p95, p98, p99, p999);
+	public static final int TIMER_SUBMETRIC_MASK = getMaskFor(TIMER_SUBMETRICS);
+	/** The default {@link Timer} SubMetrics Mask */
+	public static final int DEFAULT_TIMER_SUBMETRIC_MASK = getMaskFor(DEFAULT_TIMER_SUBMETRICS);	
 	/** The {@link Histogram} SubMetrics Mask */
-	public static final int HISTOGRAM_SUBMETRIC_MASK = getMaskFor(hcount, min, max, mean, stddev, median, p75, p95, p98, p99, p999);
+	public static final int HISTOGRAM_SUBMETRIC_MASK = getMaskFor(HISTOGRAM_SUBMETRICS);
+	/** The default {@link Histogram} SubMetrics Mask */
+	public static final int DEFAULT_HISTOGRAM_SUBMETRIC_MASK = getMaskFor(DEFAULT_HISTOGRAM_SUBMETRICS);
 	
 
 	private SubMetric() {
@@ -127,7 +153,8 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 	public static void main(String[] args) {
 		for(SubMetric m: SubMetric.values()) {
 			//System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()));
-			System.out.println(String.format("\t<option value=\"%s\" selected=\"selected\" >%s</option>", m.mask, m.name()));
+//			System.out.println(String.format("\t<option value=\"%s\" selected=\"selected\" >%s</option>", m.mask, m.name()));
+			System.out.println(m);
 			
 		}
 	}
@@ -155,6 +182,17 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 		}
 		return bitMask;
 	}
+	
+	/**
+	 * Returns a bitmask enabled for all the passed subMetric members
+	 * @param ots the subMetric members to get a mask for
+	 * @return the mask
+	 */
+	public static int getMaskFor(final Set<SubMetric> ots) {
+		if(ots==null) return 0;
+		return getMaskFor(ots.toArray(new SubMetric[ots.size()]));
+	}
+
 
 	/**
 	 * Returns a bitmask enabled for all the passed subMetric member names

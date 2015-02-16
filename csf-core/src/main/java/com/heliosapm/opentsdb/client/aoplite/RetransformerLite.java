@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.aop;
+package com.heliosapm.opentsdb.client.aoplite;
 
 import java.io.File;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.security.ProtectionDomain;
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,6 +31,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.regex.Pattern;
 
 import javassist.ByteArrayClassPath;
 import javassist.ClassClassPath;
@@ -37,12 +42,20 @@ import javassist.CtMethod;
 import javassist.LoaderClassPath;
 import javassist.NotFoundException;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.heliosapm.attachme.agent.LocalAgentInstaller;
+import com.heliosapm.opentsdb.client.boot.JavaAgent;
 import com.heliosapm.opentsdb.client.name.AgentName;
-import com.heliosapm.opentsdb.client.opentsdb.*;
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
+import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
+import com.heliosapm.opentsdb.client.util.URLHelper;
+import com.heliosapm.opentsdb.client.util.Util;
 
 /**
  * <p>Title: RetransformerLite</p>
@@ -50,24 +63,26 @@ import com.heliosapm.opentsdb.client.opentsdb.*;
  * This is firmly on the roadmap to beef up.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.Retransformer</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.aoplite.RetransformerLite</code></p>
  */
-
-public class Retransformer {
+public class RetransformerLite implements RetransformerLiteMBean {
 	/** The singleton instance */
-	private static volatile Retransformer instance = null;
+	private static volatile RetransformerLite instance = null;
 	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
+	
+	/** The retransformer's JMX ObjectName */
+	public static final ObjectName OBJECT_NAME = Util.objectName("com.heliosapm.opentsdb:service=RetransformerLite");
 	
 	/**
 	 * Acquires the retransformer singleton instance
 	 * @return the retransformer singleton instance
 	 */
-	public static Retransformer getInstance() {
+	public static RetransformerLite getInstance() {
 		if(instance==null) {
 			synchronized(lock) {
 				if(instance==null) {
-					instance = new Retransformer();
+					instance = new RetransformerLite();
 				}
 			}
 		}
@@ -81,6 +96,10 @@ public class Retransformer {
 	/** The directory where the transient byte code will be written */
 	private final String byteCodeDir;
 	
+	/** The instrumented class names keyed by the instrumented class */
+	private final Map<Class<?>, String> instrumentedClasses = Collections.synchronizedMap(new WeakHashMap< Class<?>, String>()); 
+			
+	
 	/** The name of the directory within the agent home where we'll write the transient byte code to */
 	public static final String BYTE_CODE_DIR = ".bytecode";
 	/** The name of the directory where we'll write the transient byte code to if things don't work out with the agent home */
@@ -89,8 +108,32 @@ public class Retransformer {
 	/**
 	 * Creates a new RetransformerLite
 	 */
-	private Retransformer() {
-		instrumentation = TransformerManager.getInstrumentation();
+	private RetransformerLite() {
+		Instrumentation instr = null;
+		try {
+			Class<?> transformerManagerClass = Class.forName("com.heliosapm.opentsdb.client.aop.TransformerManager");
+			log.info("Loaded class [{}]", transformerManagerClass);
+			Object obj = transformerManagerClass.getDeclaredMethod("getInstrumentation").invoke(null);
+			if(obj==null) {
+				log.warn("Return value from getInstrumentation() was null");				
+			} else {
+				log.info("Returned value from getInstrumentation(): {}", obj);
+			}
+			instr = (Instrumentation)obj;
+			// TransformerManager.getInstrumentation();			
+		} catch (Throwable t) {
+			log.warn("Failed to load TransformerManager", t);
+			try {
+				instr = JavaAgent.INSTRUMENTATION;
+				if(instr!=null) {
+					log.info("JavaAgent saved the day. Instrumentation is: {}", instr);
+				} else {
+					instr = LocalAgentInstaller.getInstrumentation();		
+					log.info("LocalAgentInstaller saved the day. Instrumentation is: {}", instr);
+				}
+			} catch (Exception ex) {/* No Op */}
+		}
+		instrumentation = instr;
 		String _byteCodeDir = ConfigurationReader.conf(Constants.PROP_OFFLINE_DIR, Constants.DEFAULT_OFFLINE_DIR) + File.separator + AgentName.appName() + File.separator + BYTE_CODE_DIR;
 		File f = new File(_byteCodeDir);
 		boolean byteCodeDirReady = true;
@@ -115,6 +158,9 @@ public class Retransformer {
 		}
 		byteCodeDir = byteCodeDirReady ? f.getAbsolutePath() : null;
 		log.info("Transient ByteCode Directory: {}", byteCodeDir);
+		final int cnt = Util.registerMBeanEverywhere(this, OBJECT_NAME);
+		log.info("Registered RetransformerLite on [{}] MBeanServers", cnt);
+		
 	}
 	
 	
@@ -277,12 +323,159 @@ public class Retransformer {
 				target.writeFile(byteCodeDir);
 				log.debug("Saved transformed class [{}] to [{}]", target.getName(), byteCodeDir);
 			}
+			instrumentedClasses.put(clazz, clazz.getName());
 			//ByteCapturingClassTransform transformer = new ByteCapturingClassTransform(clazz, instrumentedByteCode);
 		} catch (Exception ex) {
 			log.error("Failed to instrument [{}]", clazz.getName(), ex);
 			throw new RuntimeException(ex);
 		}
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#instrument(java.lang.String, java.lang.String, java.lang.String)
+	 */
+	@Override
+	public void instrument(final String classLoaderName, final String className, final String methodExpr) {
+		try {
+			final ClassLoader classLoader = classLoaderFrom(classLoaderName);
+			// If this fails, do the scorched earth fallback and scan the Instrumentation's classes.
+			Class<?> clazz = null;
+			try {
+				clazz = Class.forName(className, true, classLoader);
+			} catch (Exception ex) {
+				log.info("Failed to find class {}. Taking stronger measures.....", className);
+				for(Class<?> c: instrumentation.getAllLoadedClasses()) {
+					if(className.equals(c.getName())) {
+						clazz = c;
+						log.info("Located class {}", className);
+						break;
+					}
+				}
+				if(clazz==null) {
+					log.error("Failed to find class {}", className);
+					throw ex;
+				}
+			}
+			
+			final Pattern p = Pattern.compile(methodExpr);
+			Set<String> targetMethods = new HashSet<String>();
+			for(Method m: clazz.getMethods()) {
+				if(p.matcher(m.getName()).matches()) {
+					targetMethods.add(m.getName());
+				}
+			}
+			for(Method m: clazz.getDeclaredMethods()) {
+				if(p.matcher(m.getName()).matches()) {
+					targetMethods.add(m.getName());
+				}
+			}
+			instrument(clazz, targetMethods.toArray(new String[targetMethods.size()]));
+		} catch (Throwable ex) {
+			final String msg = String.format("Failed to execute instrumentation directive [%s/%s/%s]", classLoaderName, className, methodExpr);
+			log.error(msg, ex);
+			throw new RuntimeException(msg, ex);
+		}
+	}
+	
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#uninstrumentClass(java.lang.String)
+	 */
+	@Override
+	public void uninstrumentClass(final String className) {
+		if(className==null || className.isEmpty()) throw new IllegalArgumentException("The passed class name was null or empty");
+		final String _cn = className.trim();
+		Class<?> clazz = null;
+		synchronized(instrumentedClasses) {
+			for(Map.Entry<Class<?>, String> entry: instrumentedClasses.entrySet()) {
+				if(entry.getValue().equals(_cn)) {
+					clazz = entry.getKey();
+					break;
+				}
+			}
+		}		
+		if(clazz==null) throw new IllegalArgumentException("The class [" + className + "] is not instrumented");
+		try {
+			instrumentation.retransformClasses(clazz);
+			instrumentedClasses.remove(clazz);
+			log.info("Uninstrumented class [{}]", className);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to uninstrument class [" + className + "]", ex);
+		}
+		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#getInstrumentedClassNames()
+	 */
+	@Override
+	public String[] getInstrumentedClassNames() {
+		return instrumentedClasses.keySet().toArray(new String[instrumentedClasses.size()]);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#getInstrumentedClassCount()
+	 */
+	@Override
+	public int getInstrumentedClassCount() {
+		return instrumentedClasses.size();
+	}
+	
+	
+	/**
+	 * Attempts to derive a classloader from the passed object.
+	 * @param obj The object to derive a classloader from
+	 * @return a classloader
+	 */
+	protected static ClassLoader classLoaderFrom(Object obj) {
+		if(obj==null) {
+			return Thread.currentThread().getContextClassLoader();
+		} else if(obj instanceof ClassLoader) {
+			return (ClassLoader)obj;
+		} else if(obj instanceof Class) {
+			return ((Class<?>)obj).getClassLoader();
+		} else if(obj instanceof URL) {
+			return new URLClassLoader(new URL[]{(URL)obj}); 
+		} else if(URLHelper.isValidURL(obj.toString())) {
+			URL url = URLHelper.toURL(obj.toString());
+			return new URLClassLoader(new URL[]{url});
+		} else if(obj instanceof ObjectName) {
+			return getClassLoader((ObjectName)obj);
+		} else if(Util.isObjectName(obj.toString())) {
+			return getClassLoader(Util.objectName(obj.toString()));
+		} else if(obj instanceof File) {
+			File f = (File)obj;
+			return new URLClassLoader(new URL[]{URLHelper.toURL(f)});
+		} else if(new File(obj.toString()).canRead()) {
+			File f = new File(obj.toString());
+			return new URLClassLoader(new URL[]{URLHelper.toURL(f)});			
+		} else {
+			return obj.getClass().getClassLoader();
+		}		
+	}
+	
+	
+	/**
+	 * Returns the classloader represented by the passed ObjectName
+	 * @param on The ObjectName to resolve the classloader from
+	 * @return a classloader
+	 */
+	protected static ClassLoader getClassLoader(ObjectName on) {
+		try {
+			MBeanServer server = ManagementFactory.getPlatformMBeanServer();
+			if(server.isInstanceOf(on, ClassLoader.class.getName())) {
+				return server.getClassLoader(on);
+			}
+			return server.getClassLoaderFor(on);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to get classloader for object name [" + on + "]", ex);
+		}
+	}	
+	
 
 }
 

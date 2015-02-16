@@ -278,7 +278,11 @@ public class VirtualMachine extends BaseWrappedClass {
 			} finally {
 				try { sw.close(); } catch (Exception x) { /* No Op */ }
 			}
-			invoke(delegate, null, "loadAgentSS", agent, agentProps);
+			if(options==null || options.trim().isEmpty()) {
+				invoke(delegate, null, "loadAgentSS", agent, agentProps);
+			} else {
+				invoke(delegate, null, "loadAgentSS", agent, options);
+			}
 		} finally {
 			popCl();
 		}				

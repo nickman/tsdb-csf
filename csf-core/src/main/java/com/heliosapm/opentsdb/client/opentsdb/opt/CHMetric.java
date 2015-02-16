@@ -40,23 +40,31 @@ import com.codahale.metrics.UniformReservoir;
 
 public enum CHMetric implements CHMetricFactory {
 	/** Not a CHMetric */
-	NOTAMETRIC(null, 0, EnumSet.noneOf(SubMetric.class)){@Override public Metric createNewMetric() {return null;}},
+	NOTAMETRIC(null, 0, Collections.unmodifiableSet(EnumSet.noneOf(SubMetric.class)), 0, Collections.unmodifiableSet(EnumSet.noneOf(SubMetric.class))){@Override public Metric createNewMetric() {return null;}},
 	/** The {@link Gauge} metric */
-	GAUGE(Gauge.class, SubMetric.GAUGE_SUBMETRIC_MASK, SubMetric.GAUGE_SUBMETRICS){@Override public Metric createNewMetric() {return null;}},
+	GAUGE(Gauge.class, SubMetric.GAUGE_SUBMETRIC_MASK, SubMetric.GAUGE_SUBMETRICS, SubMetric.DEFAULT_GAUGE_SUBMETRIC_MASK, SubMetric.DEFAULT_GAUGE_SUBMETRICS){@Override public Metric createNewMetric() {return null;}},
 	/** The {@link Timer} metric */
-	TIMER(Timer.class, SubMetric.TIMER_SUBMETRIC_MASK, SubMetric.TIMER_SUBMETRICS){@Override public Timer createNewMetric() {return new Timer();}},
+	TIMER(Timer.class, SubMetric.TIMER_SUBMETRIC_MASK, SubMetric.TIMER_SUBMETRICS, SubMetric.DEFAULT_TIMER_SUBMETRIC_MASK, SubMetric.DEFAULT_TIMER_SUBMETRICS){@Override public Timer createNewMetric() {return new Timer();}},
 	/** The {@link Meter} metric */
-	METER(Meter.class, SubMetric.METER_SUBMETRIC_MASK, SubMetric.METER_SUBMETRICS){@Override public Meter createNewMetric() {return new Meter();}},
+	METER(Meter.class, SubMetric.METER_SUBMETRIC_MASK, SubMetric.METER_SUBMETRICS, SubMetric.DEFAULT_METER_SUBMETRIC_MASK, SubMetric.DEFAULT_METER_SUBMETRICS){@Override public Meter createNewMetric() {return new Meter();}},
 	/** The {@link Histogram} metric */
-	HISTOGRAM(Histogram.class, SubMetric.HISTOGRAM_SUBMETRIC_MASK, SubMetric.HISTOGRAM_SUBMETRICS){@Override public Histogram createNewMetric() {return new Histogram(new UniformReservoir());}},
+	HISTOGRAM(Histogram.class, SubMetric.HISTOGRAM_SUBMETRIC_MASK, SubMetric.HISTOGRAM_SUBMETRICS, SubMetric.DEFAULT_HISTOGRAM_SUBMETRIC_MASK, SubMetric.DEFAULT_HISTOGRAM_SUBMETRICS){@Override public Histogram createNewMetric() {return new Histogram(new UniformReservoir());}},
 	/** The {@link Counter} metric */
-	COUNTER(Counter.class, SubMetric.COUNTER_SUBMETRIC_MASK, SubMetric.COUNTER_SUBMETRICS){@Override public Counter createNewMetric() {return new Counter();}};
+	COUNTER(Counter.class, SubMetric.COUNTER_SUBMETRIC_MASK, SubMetric.COUNTER_SUBMETRICS, SubMetric.DEFAULT_COUNTER_SUBMETRIC_MASK, SubMetric.DEFAULT_COUNTER_SUBMETRICS){@Override public Counter createNewMetric() {return new Counter();}};
 	
-	private CHMetric(final Class<? extends Metric> type, final int subMetricMask, final Set<SubMetric> subMetrics) {
+	private CHMetric(final Class<? extends Metric> type, final int subMetricMask, final Set<SubMetric> subMetrics, final int defaultSubMetricMask, final Set<SubMetric> defaultSubMetrics) {
 		this.type = type;
 		this.subMetricMask = subMetricMask;
 		this.bordinal = (byte)ordinal();		
-		this.subMetrics = Collections.unmodifiableSet(subMetrics);
+		this.subMetrics = subMetrics;
+		this.defaultSubMetricMask = defaultSubMetricMask;
+		this.defaultSubMetrics = defaultSubMetrics;
+	}
+	
+	public static void main(String[] args) {
+		for(CHMetric c: values()) {
+			System.out.println(c);
+		}
 	}
 	
 	
@@ -66,6 +74,10 @@ public enum CHMetric implements CHMetricFactory {
 	public final byte bordinal;
 	/** The bit mask of the default submetrics */
 	public final int subMetricMask;
+	/** The default sub-metric mask */
+	final int defaultSubMetricMask;
+	/** The default sub-metrics */
+	final Set<SubMetric> defaultSubMetrics;	
 	
 	/** A set of the submetrics used by this CHMetric */
 	public final Set<SubMetric> subMetrics;

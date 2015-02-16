@@ -243,7 +243,17 @@
                             <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
                             <includePluginDependencies>false</includePluginDependencies>
                             <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"></transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+				                  <manifestEntries>	
+				                      <Main-Class>com.heliosapm.opentsdb.client.boot.JavaAgentInstaller</Main-Class> 
+				                      <Premain-Class>com.heliosapm.opentsdb.client.boot.JavaAgent</Premain-Class>
+				                      <Agent-Class>com.heliosapm.opentsdb.client.boot.JavaAgent</Agent-Class>
+				                      <Can-Redefine-Classes>true</Can-Redefine-Classes>
+				                      <Can-Retransform-Classes>true</Can-Retransform-Classes>
+				                      <Can-Set-Native-Method-Prefix>true</Can-Set-Native-Method-Prefix>                   
+				                  </manifestEntries>
+                                </transformer>
+                                
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.DontIncludeResourceTransformer">
                                     <resource>.SF</resource>
                                     <resource>.DSA</resource>

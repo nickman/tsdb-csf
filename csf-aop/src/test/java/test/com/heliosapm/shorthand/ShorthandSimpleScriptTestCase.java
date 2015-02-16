@@ -35,9 +35,9 @@ import test.com.heliosapm.shorthand.testclasses.FunShorthandTypeAndMethodAnnotat
 import test.com.heliosapm.shorthand.testclasses.TypeOnlyAnnotated;
 
 import com.google.gson.annotations.Since;
-import com.heliosapm.opentsdb.client.aop.Measurement;
 import com.heliosapm.opentsdb.client.aop.ShorthandScript;
 import com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean;
+import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**

@@ -68,6 +68,17 @@ public class OTMetricTest extends BaseTest {
 		}
 	}
 	
+	@Test
+	public void longTestFlatNames() {
+		for(int i = 0; i < 10000; i++) {
+			for(String[] flatNameTest: flatNameTests) {
+				log("\n\tFlatNameTest:\n\t============\n\t" + flatNameTest[1] + "\n\t" + OTMetric.splitFlatName(flatNameTest[0]).toString() + "\n\t==========");
+				Assert.assertEquals("Flat name does not match", flatNameTest[1], OTMetric.splitFlatName(flatNameTest[0]).toString());
+			}
+			try { Thread.sleep(500); } catch (Exception ex) {}
+		}
+	}
+	
 	
 	/**
 	 * Tests some basic builder ops
