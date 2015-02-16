@@ -80,9 +80,10 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 * ===============================
 	 * References:
 	 * -----------
-	 * OTMetric / OTMetric ID
-	 * CHMetric / SubMetric BitMask
-	 * Measurement BitMask
+	 * OTMetric / OTMetric ID: Resolve from naming directives
+	 * CHMetric:  Derived ?
+	 * SubMetric BitMask:  Specified, Default to std bitmask
+	 * Measurement BitMask: Specified, Default to std bitmask
 	 * ===============================
 	 * Naming tags:
 	 * ------------

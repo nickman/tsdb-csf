@@ -36,6 +36,7 @@ import com.heliosapm.opentsdb.client.util.Util;
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.opt.SubMetric</code></p>
+ * FIXME: We have 4 different count sub-metrics:  count, hcount, tcount, mcount. If multiple are in effect, need to pick the most optimal.
  */
 
 @SuppressWarnings("unchecked")
@@ -120,6 +121,14 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 			for(Class<T> ct: types) {
 				this.types.add((Class<Metric>) ct);
 			}
+		}
+	}
+	
+	public static void main(String[] args) {
+		for(SubMetric m: SubMetric.values()) {
+			//System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()));
+			System.out.println(String.format("\t<option value=\"%s\" selected=\"selected\" >%s</option>", m.mask, m.name()));
+			
 		}
 	}
 	

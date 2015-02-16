@@ -1,0 +1,75 @@
+<html>
+	<head>
+		<title>TSDB CSF BitMask Helper</title>
+		<script type="text/javascript">
+			function calcBitMask(id) {
+				var mask = 0;
+				var sel = document.getElementById(id);
+				var opts = [];			    
+			    // loop through options in select list
+			    for (var i=0, len=sel.options.length; i<len; i++) {
+			        opt = sel.options[i];			        
+			        // check if selected
+			        if(opt.selected) {
+				        mask = mask | parseInt(opt.value);
+			        }
+			    }
+			    document.getElementById('bitmask').value = mask;
+			    				
+			}
+		</script>
+	</head>
+	<body>
+		<h3>TSDB CSF BitMask Helper</h3>
+		<label for="bitmask" >Bitmask:</label>
+		<input id='bitmask' disabled="disabled" >
+		<hr>
+		<table border="1">
+			<tr>
+			<td>
+				<label for="measurements" >Measurements:</label>
+				<br>
+				<select id='measurements' multiple="multiple" size="12	">
+					<option value="1" selected="selected" >ELAPSED</option>
+					<option value="2">CPU</option>
+					<option value="4">UCPU</option>
+					<option value="8">WAIT</option>
+					<option value="16">BLOCK</option>
+					<option value="32">WAITTIME</option>
+					<option value="64">BLOCKTIME</option>
+					<option value="128">COUNT</option>
+					<option value="256" selected="selected" >RETURN</option>
+					<option value="512" selected="selected" >ERROR</option>
+				</select>
+				<button onclick="calcBitMask('measurements')" >Calc</button>
+			</td>
+			<td>
+				<label for="submetrics" >SubMetrics:</label>
+				<br>
+				<select id='submetrics' multiple="multiple" size="12	">
+					<option value="1" selected="selected" >gauge</option>
+					<option value="2" selected="selected" >count</option>
+					<option value="4" selected="selected" >hcount</option>
+					<option value="8" selected="selected" >min</option>
+					<option value="16" selected="selected" >max</option>
+					<option value="32" selected="selected" >mean</option>
+					<option value="64" selected="selected" >stddev</option>
+					<option value="128" selected="selected" >median</option>
+					<option value="256" selected="selected" >p75</option>
+					<option value="512" selected="selected" >p95</option>
+					<option value="1024" selected="selected" >p98</option>
+					<option value="2048" selected="selected" >p99</option>
+					<option value="4096" selected="selected" >p999</option>
+					<option value="8192" selected="selected" >tcount</option>
+					<option value="16384" selected="selected" >mcount</option>
+					<option value="32768" selected="selected" >mean_rate</option>
+					<option value="65536" selected="selected" >m1</option>
+					<option value="131072" selected="selected" >m5</option>
+					<option value="262144" selected="selected" >m15</option>				
+				</select>
+				<button onclick="calcBitMask('submetrics')" >Calc</button>			
+			</td>
+			</tr>
+		</table>
+	</body>
+</html>

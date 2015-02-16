@@ -46,27 +46,27 @@ import com.heliosapm.opentsdb.client.util.Util;
 
 public enum Measurement {
 	/** Elapsed time in ns.  */
-	ELAPSED(false, new ElapsedMeasurement()),
+	ELAPSED(true, false, new ElapsedMeasurement()),
 	/** Elapsed CPU time in ns. */
-	CPU(false, new CpuMeasurement()),
+	CPU(false, false, new CpuMeasurement()),
 	/** Elapsed User Mode CPU time in ns. */
-	UCPU(false, new UserCpuMeasurement()),
+	UCPU(false, false, new UserCpuMeasurement()),
 	/** Number of thread waits */	
-	WAIT(true, new WaitCountMeasurement()),
+	WAIT(false, true, new WaitCountMeasurement()),
 	/** Number of thread blocks */
-	BLOCK(true, new BlockCountMeasurement()),
+	BLOCK(false, true, new BlockCountMeasurement()),
 	/** Thread wait time in ms. */
-	WAITTIME(true, new WaitTimeMeasurement()),
+	WAITTIME(false, true, new WaitTimeMeasurement()),
 	/** Thread block time in ms. */
-	BLOCKTIME(true, new BlockTimeMeasurement()),
+	BLOCKTIME(false, true, new BlockTimeMeasurement()),
 //	/** Concurrent threads with entry/exit block */
 //	CONCURRENT(false, null),  // FIXME: !!!
 	/** Total invocation count */
-	COUNT(false, new CountMeasurement()),
+	COUNT(false, false, new CountMeasurement()),
 	/** Total return count */
-	RETURN(false, new ReturnMeasurement()),
+	RETURN(true, false, new ReturnMeasurement()),
 	/** Total exception count */
-	ERROR(false, new ErrorMeasurement());
+	ERROR(true, false, new ErrorMeasurement());
 	
 	
 //	/** The elapsed system cpu time in microseconds */
@@ -75,13 +75,15 @@ public enum Measurement {
 //	USER_CPU(seed.next(), false, true, "CPU Time (\u00b5s)", "usercpu", "CPU Thread Execution Time In User Mode", new DefaultUserCpuMeasurer(1), DataStruct.getInstance(Primitive.LONG, 3, Long.MAX_VALUE, Long.MIN_VALUE, -1L), "Min", "Max", "Avg"),
 	
 	
-	private Measurement(final boolean requiresTinfo, final ThreadMetricReader reader) {
+	private Measurement(final boolean isDefault, final boolean requiresTinfo, final ThreadMetricReader reader) {
 		this.mask = Util.pow2Index(ordinal());
+		this.isDefault = isDefault;
 		this.reader = reader;
 		this.requiresTinfo = requiresTinfo;
 	}
 	
-	
+	/** Indicates if this is a default measurement */
+	public final boolean isDefault;
 	/** The bit mask value for this Measurement member */
 	public final int mask;
 	/** The thread metric reader instance */
@@ -269,35 +271,40 @@ public enum Measurement {
 	}
 	
 	public static void main(String[] args) {
-//		for(Measurement m: Measurement.values()) {
-//			System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()));
-//		}
-		TMX.setThreadCpuTimeEnabled(false);
-		TMX.setThreadContentionMonitoringEnabled(false);
-		final CountDownLatch latch = new CountDownLatch(1);
-		final Thread sleepThread = new Thread() {
-			public void run() {
-				dropLatchAndSleep(1347L, latch);
+		for(Measurement m: Measurement.values()) {
+			//System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()));
+			if(m.isDefault) {
+				System.out.println(String.format("\t\t<option value=\"%s\" selected=\"selected\" >%s</option>", m.mask, m.name()));
+			} else {
+				System.out.println(String.format("\t\t<option value=\"%s\">%s</option>", m.mask, m.name()));
 			}
-		};
-		
-		final long[] alloc = allocate(ACTUAL_ALL_MASK);
-		final Random r = new Random(System.currentTimeMillis());
-		enter(alloc);
-		
-		long t = 0;
-		for(int i = 0; i < 10000; i++) {
-			if(i%2==0) t+= r.nextLong();
-			else t-= r.nextLong();
 		}
-		log("Random T:%s", t);
-		sleepThread.start();
-		try { latch.await(); } catch (Exception ex) {}	
-		dropLatchAndSleep(200, latch);
-		try { Thread.sleep(200); } catch (Exception ex) {}		
-//		try { Thread.currentThread().join(500); } catch (Exception ex) {}
-		exit(alloc);
-		log(renderAlloc(alloc));		
+//		TMX.setThreadCpuTimeEnabled(false);
+//		TMX.setThreadContentionMonitoringEnabled(false);
+//		final CountDownLatch latch = new CountDownLatch(1);
+//		final Thread sleepThread = new Thread() {
+//			public void run() {
+//				dropLatchAndSleep(1347L, latch);
+//			}
+//		};
+//		
+//		final long[] alloc = allocate(ACTUAL_ALL_MASK);
+//		final Random r = new Random(System.currentTimeMillis());
+//		enter(alloc);
+//		
+//		long t = 0;
+//		for(int i = 0; i < 10000; i++) {
+//			if(i%2==0) t+= r.nextLong();
+//			else t-= r.nextLong();
+//		}
+//		log("Random T:%s", t);
+//		sleepThread.start();
+//		try { latch.await(); } catch (Exception ex) {}	
+//		dropLatchAndSleep(200, latch);
+//		try { Thread.sleep(200); } catch (Exception ex) {}		
+////		try { Thread.currentThread().join(500); } catch (Exception ex) {}
+//		exit(alloc);
+//		log(renderAlloc(alloc));		
 	}
 	
 	private static synchronized void dropLatchAndSleep(final long time, final CountDownLatch latch) {
