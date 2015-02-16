@@ -7,10 +7,10 @@
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.heliosapm.tsdb</groupId>
-  <artifactId>csf-core</artifactId>
-  <name>TSDB-CSF :: core</name>
+  <artifactId>csf-aop</artifactId>
+  <name>TSDB-CSF :: aop</name>
   <version>1.0-SNAPSHOT</version>
-  <description>OpenTSDB Java Agent for implementing Collect, Store and Forward for the JVM</description>
+  <description>OpenTSDB Java Agent for implementing runtime instrumentation of java classes to send metrics to OpenTSDB</description>
   <url>https://github.com/nickman/tsdb-csf</url>
   <build>
     <plugins>
@@ -113,12 +113,6 @@
     </profile>
   </profiles>
   <dependencies>
-    <dependency>
-      <groupId>io.dropwizard.metrics</groupId>
-      <artifactId>metrics-jvm</artifactId>
-      <version>3.1.0</version>
-      <scope>provided</scope>
-    </dependency>
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>

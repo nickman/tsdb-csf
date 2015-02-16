@@ -75,6 +75,22 @@ import com.heliosapm.opentsdb.client.util.Util;
  */
 public class ShorthandScript implements ShorthandScriptMBean {
 	/** The shorthand expression parser */
+	/*
+	 * TODO: Need to integrate:
+	 * ===============================
+	 * References:
+	 * -----------
+	 * OTMetric / OTMetric ID
+	 * CHMetric / SubMetric BitMask
+	 * Measurement BitMask
+	 * ===============================
+	 * Naming tags:
+	 * ------------
+	 * method:  simple method name, argument cardinality, provided
+	 * class  (simple class name)
+	 * package (optional)
+	 * 
+	 */
 	protected static final Pattern SH_PATTERN = Pattern.compile(
 	        		"(@)?" +                         	// The class annotation indicator
 	                "(.*?)" +                         	// The classname
