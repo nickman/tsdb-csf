@@ -20,6 +20,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.URL;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.Properties;
@@ -27,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Pattern;
 
+import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.script.Bindings;
 import javax.script.ScriptEngine;
@@ -95,7 +97,62 @@ public class Util {
 		});
 	}
 	
+	/**
+	 * Registers a new classloader MBean (an MLet) on the passed MBeanServer
+	 * @param server The MBeanServer on which to register
+	 * @param objectName The JMX object name of the new MBean
+	 * @param delegateToCLR True if, when a class is not found in either the parent ClassLoader or the URLs, the MLet should delegate to its containing MBeanServer's ClassLoaderRepository.
+	 * @param privateClassLoader If true, registers a private MLet, otherwise, registers a public one
+	 * @param urls The URLs from which to load classes and resources.
+	 * @return the ObjectName of the classloader
+	 */
+	public static ObjectName publishClassLoader(MBeanServerConnection server, CharSequence objectName, boolean delegateToCLR, boolean privateClassLoader, URL...urls) {
+		ObjectName on = objectName(objectName);
+		String className = privateClassLoader ? "javax.management.loading.PrivateMLet" : "javax.management.loading.MLet"; 
+		try {
+			server.createMBean(className, on, new Object[]{urls, delegateToCLR}, new String[]{URL[].class.getName(), "boolean"});
+			return on;
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to register classloader MBean [" + objectName + "]", ex);
+		}
+	}
 	
+	/**
+	 * Registers a new classloader MBean (an MLet) on the platform MBeanServer
+	 * @param objectName The JMX object name of the new MBean
+	 * @param delegateToCLR True if, when a class is not found in either the parent ClassLoader or the URLs, the MLet should delegate to its containing MBeanServer's ClassLoaderRepository.
+	 * @param privateClassLoader If true, registers a private MLet, otherwise, registers a public one
+	 * @param urls The URLs from which to load classes and resources.
+	 * @return the ObjectName of the classloader
+	 */
+	public static ObjectName publishClassLoader(CharSequence objectName, boolean delegateToCLR, boolean privateClassLoader, URL...urls) {
+		return publishClassLoader(ManagementFactory.getPlatformMBeanServer(), objectName, delegateToCLR, privateClassLoader, urls);
+	}
+	
+	
+	/**
+	 * Registers a new public classloader MBean (an MLet) on the default MBeanServer
+	 * @param objectName The JMX object name of the new MBean
+	 * @param delegateToCLR True if, when a class is not found in either the parent ClassLoader or the URLs, the MLet should delegate to its containing MBeanServer's ClassLoaderRepository.
+	 * @param urls The URLs from which to load classes and resources.
+	 * @return the ObjectName of the classloader
+	 */
+	public static ObjectName publishClassLoader(CharSequence objectName, boolean delegateToCLR, URL...urls) {
+		return publishClassLoader(ManagementFactory.getPlatformMBeanServer(), objectName, delegateToCLR, false, urls);
+	}
+	
+	/**
+	 * Registers a new public and CLR delegating classloader MBean (an MLet) on the default MBeanServer
+	 * @param objectName The JMX object name of the new MBean
+	 * @param urls The URLs from which to load classes and resources.
+	 * @return the ObjectName of the classloader 
+	 */
+	public static ObjectName publishClassLoader(CharSequence objectName, URL...urls) {
+		return publishClassLoader(ManagementFactory.getPlatformMBeanServer(), objectName, true, false, urls);
+	}
+	
+	
+
 	/**
 	 * Creates a JMX ObjectName from the passed stringy
 	 * @param cs The stringy to create an ObjectName from
@@ -107,6 +164,21 @@ public class Util {
 			return new ObjectName(cs.toString().trim());
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to create ObjectName from [" + cs + "]", ex);
+		}
+	}
+	
+	/**
+	 * Determines if the passed stringy is a valid object name
+	 * @param cs The stringy to test
+	 * @return true if the stringy is a valid object name, false otherwise
+	 */
+	public static boolean isObjectName(final CharSequence cs) {
+		if(cs==null || cs.toString().trim().isEmpty()) return false;
+		try {
+			objectName(cs);
+			return true;
+		} catch (Exception ex) {
+			return false;
 		}
 	}
 	

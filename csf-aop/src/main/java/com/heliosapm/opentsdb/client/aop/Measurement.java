@@ -68,6 +68,13 @@ public enum Measurement {
 	/** Total exception count */
 	ERROR(false, new ErrorMeasurement());
 	
+	
+//	/** The elapsed system cpu time in microseconds */
+//	SYS_CPU(seed.next(), false, true, "CPU Time (\u00b5s)", "syscpu", "CPU Thread Execution Time", new DefaultSysCpuMeasurer(0), DataStruct.getInstance(Primitive.LONG, 3, Long.MAX_VALUE, Long.MIN_VALUE, -1L), "Min", "Max", "Avg"),
+//	/** The elapsed user mode cpu time in microseconds */
+//	USER_CPU(seed.next(), false, true, "CPU Time (\u00b5s)", "usercpu", "CPU Thread Execution Time In User Mode", new DefaultUserCpuMeasurer(1), DataStruct.getInstance(Primitive.LONG, 3, Long.MAX_VALUE, Long.MIN_VALUE, -1L), "Min", "Max", "Avg"),
+	
+	
 	private Measurement(final boolean requiresTinfo, final ThreadMetricReader reader) {
 		this.mask = Util.pow2Index(ordinal());
 		this.reader = reader;
