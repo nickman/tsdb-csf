@@ -42,6 +42,10 @@ public interface Constants {
 	/** Indicates if we're running on Windows */
 	public static final boolean IS_WIN = System.getProperty("os.name", "").toLowerCase().contains("windows");
 	
+	/** The system property config name for the JMX domain where csf MBeans are registered */
+	public static final String PROP_JMX_DOMAIN = "tsdb.jmx.domain";
+	/** The default JMX domain where csf MBeans are registered */
+	public static final String DEFAULT_JMX_DOMAIN = "com.heliosapm.tsdb";
 	
 	/** The system property config name for pooling HTTP connections (i.e. enable KeepAlive) */
 	public static final String PROP_POOL_CONNS = "tsdb.http.connection.pooling";

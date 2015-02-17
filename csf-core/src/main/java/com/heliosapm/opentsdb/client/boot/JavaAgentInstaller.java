@@ -16,9 +16,13 @@
 package com.heliosapm.opentsdb.client.boot;
 
 import java.io.File;
-import java.net.URL;
+import java.lang.management.ManagementFactory;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 import com.heliosapm.attachme.VirtualMachine;
+import com.heliosapm.attachme.VirtualMachineDescriptor;
 
 /**
  * <p>Title: JavaAgentInstaller</p>
@@ -44,13 +48,28 @@ public class JavaAgentInstaller {
 	public static void loge(final Object fmt, final Object...args) {
 		System.err.println(String.format(fmt.toString(), args));
 	}
-	
+	private static boolean isPid(final String argZero) {
+		try {
+			Long.parseLong(argZero.trim());
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
 	
 	public static void main(final String[] args) {
 		if(args.length==0) {
-			loge("Usage: java com.heliosapm.opentsdb.client.boot.JavaAgentInstaller <PID>");
+			loge("Usage: java com.heliosapm.opentsdb.client.boot.JavaAgentInstaller <PID | Name to match>");
 		}
-		final long pid = Long.parseLong(args[0]);
+		final long pid;
+		if(isPid(args[0])) {
+			pid = Long.parseLong(args[0].trim());
+		} else {
+			pid = findPid(args[0]);
+		}
+		if(pid < 1) {
+			System.exit((int)pid);
+		}
 		
 		log("Installing JavaAgent to PID: %s from JAR: %s", pid, JavaAgentInstaller.class.getProtectionDomain().getCodeSource().getLocation());
 		VirtualMachine vm = null;
@@ -79,8 +98,38 @@ public class JavaAgentInstaller {
 			if(vm!=null) {
 				try { vm.detach(); log("Detached from process %s", pid); } catch (Exception ex) {}
 			}
+		}		
+	}
+	
+	// INSTALL SYSPROP !!
+	
+	private static long findPid(final String argZero) {
+		Pattern p = Pattern.compile(argZero.trim());
+		final Map<Long, String> matchedPids = new HashMap<Long, String>();
+		final Map<Long, String> allPids = new HashMap<Long, String>();
+		final long myPid = Long.parseLong(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
+		for(VirtualMachineDescriptor vmd: VirtualMachine.list()) {
+			long pid = Long.parseLong(vmd.id().trim());
+			if(pid==myPid) continue;
+			allPids.put(pid, vmd.displayName());
+			if(!p.matcher(vmd.displayName()).matches()) continue;
+			matchedPids.put(pid, vmd.displayName());
 		}
-		
+		if(matchedPids.isEmpty()) {
+			log("Failed to find any JVM processes matching [%s]\nAvailable JVMs are:", argZero);
+			for(Map.Entry<Long, String> entry: matchedPids.entrySet()) {
+				log("\n\tPID: [%s], Display: [%s]", entry.getKey(), entry.getValue());
+			}			
+			return -1L;
+		} else if(matchedPids.size() != 1) {
+			log("Matched more than one JVM process. Processes found were:");
+			for(Map.Entry<Long, String> entry: matchedPids.entrySet()) {
+				log("\n\tPID: [%s], Display: [%s]", entry.getKey(), entry.getValue());
+			}
+			return -2L;
+		} else {
+			return matchedPids.keySet().iterator().next();
+		}
 	}
 	
 	

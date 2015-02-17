@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
+import javax.management.ObjectName;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -51,6 +53,10 @@ public class OTMetricCache implements RemovalListener<String, OTMetric>, MetricR
 	private static volatile OTMetricCache instance = null;
 	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
+	
+	/** The cache stats JMX object name */
+	public final ObjectName OBJECT_NAME;
+
 	
 	/** An empty OTMetric array const */
 	private static final OTMetric[] EMPTY_OT_METRIC_ARR = {};
@@ -82,6 +88,7 @@ public class OTMetricCache implements RemovalListener<String, OTMetric>, MetricR
 	 */
 	private OTMetricCache() {
 		log = LogManager.getLogger(getClass());
+		OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=OTMetricCache");
 		CacheBuilderSpec spec = null;
 		String cacheSpec = ConfigurationReader.conf(Constants.PROP_OTMETRIC_CACHE_SPEC, Constants.DEFAULT_OTMETRIC_CACHE_SPEC);
 		try {	
@@ -103,7 +110,7 @@ public class OTMetricCache implements RemovalListener<String, OTMetric>, MetricR
 		if(cacheSpec.contains("recordStats")) {
 			OTMetricCacheStats stats = new OTMetricCacheStats(cache);
 			try {
-				Util.registerMBean(stats, OTMetricCacheStats.OBJECT_NAME);
+				Util.registerMBean(stats, OBJECT_NAME);
 			} catch (Exception ex) {
 				log.warn("Failed to register OTMetricCacheStats. Will Continue without");
 			}

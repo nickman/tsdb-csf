@@ -107,7 +107,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	/** Notification serial number source */
 	final AtomicLong notifSerial = new AtomicLong(0L);
 	/** The JMX ObjectName */
-	final ObjectName objectName = Util.objectName("com.heliosapm.opentsdb.client:service=AgentName");
+	public final ObjectName OBJECT_NAME;
 	
 	/**
 	 * Acquires the AgentName singleton instancecs
@@ -126,11 +126,12 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	
 	private AgentName() {
 		super(Threading.getInstance().getThreadPool(), NOTIF_INFOS);
+		OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=AgentName");
 		loadExtraTags();
 		getAppName();
 		getHostName();
 		initBufferized();
-		Util.registerMBean(this, objectName);
+		Util.registerMBean(this, OBJECT_NAME);
 		sendInitialNotif();
 		LoggingConfiguration.getInstance().initAppLogging(this);
 		log = LogManager.getLogger(getClass());
@@ -151,7 +152,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	}
 
 	private void sendInitialNotif() {
-		final Notification n = new Notification(NOTIF_ASSIGNED, objectName, notifSerial.incrementAndGet(), System.currentTimeMillis(), "AgentName assigned [" + appName + "@" + hostName + "]");
+		final Notification n = new Notification(NOTIF_ASSIGNED, OBJECT_NAME, notifSerial.incrementAndGet(), System.currentTimeMillis(), "AgentName assigned [" + appName + "@" + hostName + "]");
 		Map<String, String> userData = new HashMap<String, String>(2);
 		userData.put(Constants.APP_TAG, appName);
 		userData.put(Constants.HOST_TAG, hostName);
@@ -284,7 +285,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 				userData.put(Constants.APP_TAG, app);				
 			}
 		}
-		final Notification n = new Notification(notifType, objectName, notifSerial.incrementAndGet(), System.currentTimeMillis(), "AgentName reset. New Id: [" + appName + "@" + hostName + "]");		
+		final Notification n = new Notification(notifType, OBJECT_NAME, notifSerial.incrementAndGet(), System.currentTimeMillis(), "AgentName reset. New Id: [" + appName + "@" + hostName + "]");		
 		n.setUserData(userData);
 		sendNotification(n);
 		for(final AgentNameChangeListener listener: listeners) {

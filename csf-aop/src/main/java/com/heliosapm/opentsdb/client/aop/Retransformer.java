@@ -40,9 +40,10 @@ import javassist.NotFoundException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.heliosapm.attachme.agent.LocalAgentInstaller;
 import com.heliosapm.opentsdb.client.name.AgentName;
-import com.heliosapm.opentsdb.client.opentsdb.*;
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
+import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 
 /**
  * <p>Title: RetransformerLite</p>

@@ -16,13 +16,10 @@
 
 package com.heliosapm.opentsdb.client.opentsdb;
 
-import javax.management.ObjectName;
-
-import com.heliosapm.opentsdb.client.util.Util;
 
 /**
  * <p>Title: OTMetricCacheMBean</p>
- * <p>Description: </p> 
+ * <p>Description: JMX MBean interface for the OTMetricCache</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.OTMetricCacheMBean</code></p>
@@ -30,8 +27,6 @@ import com.heliosapm.opentsdb.client.util.Util;
 
 public interface OTMetricCacheStatsMBean {
 	
-	/** The cache stats JMX object name */
-	public static final ObjectName OBJECT_NAME = Util.objectName("com.heliosapm.opentsdb:service=OTMetricCache");
 
 	
 	/**

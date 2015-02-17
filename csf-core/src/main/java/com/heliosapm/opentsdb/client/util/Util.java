@@ -33,6 +33,9 @@ import javax.management.MBeanServerConnection;
 import javax.management.MBeanServerFactory;
 import javax.management.ObjectName;
 
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
+
 /**
  * <p>Title: Util</p>
  * <p>Description: Misc utility functions</p> 
@@ -91,6 +94,14 @@ public class Util {
 				}
 			}
 		});
+	}
+	
+	/**
+	 * Returns the JMX domain where csf MBeans are registered
+	 * @return the JMX domain where csf MBeans are registered
+	 */
+	public static String getJMXDomain() {
+		return ConfigurationReader.conf(Constants.PROP_JMX_DOMAIN, Constants.DEFAULT_JMX_DOMAIN);
 	}
 	
 	/**

@@ -58,27 +58,34 @@ public interface RetransformerLiteMBean {
 	public int instrument(final String className, final String methodExpr);
 	
 	/**
-	 * Attempts to uninstrument an instrumented class
+	 * Uninstruments an instrumented class
 	 * @param className The name of the instrumented class to uninstrument
 	 */
 	public void restoreClass(final String className);
 	
 	/**
-	 * @param pattern
-	 * @param segments
-	 * @param scanLimit
-	 * @param matchLimit
-	 * @return
+	 * Uninstruments all instrumented classes
+	 */
+	public void restoreAllClasses();
+	
+	/**
+	 * Searches the global class repository for matching classes
+	 * @param pattern A regex pattern to match against the fully qualified class name
+	 * @param segments The number of segments to report for matched classes. Values of less than 1 will report all segments.
+	 * @param scanLimit The maximum number of classes to scan
+	 * @param matchLimit The maximum number of classes to match
+	 * @return A set of matched class names
 	 */
 	public Set<String> searchClasses(final String pattern, final int segments, final int scanLimit, final int matchLimit);
 	
 	/**
-	 * @param classLoader
-	 * @param pattern
-	 * @param segments
-	 * @param scanLimit
-	 * @param matchLimit
-	 * @return
+	 * Searches the class repository identified by the passed classloader for matching classes
+	 * @param classLoader The classloader to search for classes in
+	 * @param pattern A regex pattern to match against the fully qualified class name
+	 * @param segments The number of segments to report for matched classes. Values of less than 1 will report all segments.
+	 * @param scanLimit The maximum number of classes to scan
+	 * @param matchLimit The maximum number of classes to match
+	 * @return A set of matched class names
 	 */
 	public Set<String> searchClasses(final String classLoader, final String pattern, final int segments, final int scanLimit, final int matchLimit);
 	

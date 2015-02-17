@@ -138,7 +138,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	
 	/** The ObjectName this instance is registered with */
-	protected final ObjectName objectName;
+	protected final ObjectName OBJECT_NAME;
 	
 	/** Indicates if OpenTSDB responses to metric HTTP posts should be tracked (or just fire-`n-forget) */
 	protected OpenTsdbPutResponseHandler putResponseHandler = confEnum(OpenTsdbPutResponseHandler.class, PROP_PUT_RESPONSE_HANDLER, DEFAULT_PUT_RESPONSE_HANDLER);
@@ -263,7 +263,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		// FIXME: move all this to OpenTsdb
 		heartbeat = new Heartbeat(heartbeatMetric, heartbeatPeriod).start();
 		log.info("AsyncHttpClient Created");
-		objectName = registerMBean();
+		OBJECT_NAME = registerMBean();
 		if(checker.syncCheck(true)) {
 			onConnected();
 		}
@@ -271,7 +271,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	private ObjectName registerMBean() {
 		try {
-			ObjectName on = new ObjectName(getClass().getPackage().getName() + ":service=" + getClass().getSimpleName());
+			ObjectName on = new ObjectName(Util.getJMXDomain() + ":service=" + getClass().getSimpleName());
 			ManagementFactory.getPlatformMBeanServer().registerMBean(this, on);
 			log.info("Registered management MBean for HttpMetricsPoster: [" + on + "]");
 			return on;
@@ -765,8 +765,8 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	public void onDisconnected(final Throwable t) {
 		log.warn("\n\t=================\n\tTSDB Disconnected\n\t[{}]\n\t=================\n", tsdbUrl);
 		if(hardDown.compareAndSet(false, true)) {
-			if(objectName!=null) {
-				final Notification notif = new Notification(NOTIF_DISCONNECTED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Disconnected from OpenTSDB@[" + tsdbUrl + "]");
+			if(OBJECT_NAME!=null) {
+				final Notification notif = new Notification(NOTIF_DISCONNECTED, OBJECT_NAME, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Disconnected from OpenTSDB@[" + tsdbUrl + "]");
 				sendNotification(notif);
 			}
 		}
@@ -781,8 +781,8 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	public void onConnected() {		
 		if(hardDown.compareAndSet(true, false)) {
 			log.info("\n\t=================\n\tTSDB Connected\n\t[{}]\n\t=================\n", tsdbUrl);			
-			if(objectName!=null) {
-				final Notification notif = new Notification(NOTIF_CONNECTED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Connected to OpenTSDB@[" + tsdbUrl + "]");
+			if(OBJECT_NAME!=null) {
+				final Notification notif = new Notification(NOTIF_CONNECTED, OBJECT_NAME, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Connected to OpenTSDB@[" + tsdbUrl + "]");
 				sendNotification(notif);
 			}
 			sendAnnotation(new AnnotationBuilder((int)(System.currentTimeMillis()/1000))
@@ -804,8 +804,8 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	public void onReconnected() {			
 		if(hardDown.compareAndSet(true, false)) {
 			log.info("\n\t=================\n\tTSDB Reconnected\n\t[{}]\n\t=================\n", tsdbUrl);			
-			if(objectName!=null) {
-				final Notification notif = new Notification(NOTIF_RECONNECTED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Reconnected to OpenTSDB@[" + tsdbUrl + "]");
+			if(OBJECT_NAME!=null) {
+				final Notification notif = new Notification(NOTIF_RECONNECTED, OBJECT_NAME, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Reconnected to OpenTSDB@[" + tsdbUrl + "]");
 				sendNotification(notif);
 			}
 			mpersistor.flushToServer(this);
@@ -1172,7 +1172,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 		if(enableCompression) {
 			enableCompression = false;
 			httpHeaders.remove(Names.CONTENT_ENCODING);
-			sendNotification(new Notification(NOTIF_GZIP_DISABLED, objectName, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Disabled GZip on HTTP posts to OpenTSDB@[" + tsdbUrl + "]"));
+			sendNotification(new Notification(NOTIF_GZIP_DISABLED, OBJECT_NAME, notificationSerial.incrementAndGet(), System.currentTimeMillis(), "Disabled GZip on HTTP posts to OpenTSDB@[" + tsdbUrl + "]"));
 		}
 	}
 	

@@ -20,6 +20,7 @@ import java.io.File;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
+import java.lang.instrument.UnmodifiableClassException;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.net.URL;
@@ -78,7 +79,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 	private static final Object lock = new Object();
 	
 	/** The retransformer's JMX ObjectName */
-	public static final ObjectName OBJECT_NAME = Util.objectName("com.heliosapm.opentsdb:service=RetransformerLite");
+	public final ObjectName OBJECT_NAME;
 	
 	/**
 	 * Acquires the retransformer singleton instance
@@ -117,6 +118,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 	 */
 	private RetransformerLite() {
 		super(RetransformerLiteMBean.class, false);
+		OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=RetransformerLite");
 		Instrumentation instr = null;
 		try {
 			Class<?> transformerManagerClass = Class.forName("com.heliosapm.opentsdb.client.aop.TransformerManager");
@@ -445,9 +447,23 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 			log.info("Uninstrumented class [{}]", className);
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to uninstrument class [" + className + "]", ex);
-		}
-		
+		}		
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#restoreAllClasses()
+	 */
+	@Override
+	public void restoreAllClasses() {
+		try {
+			instrumentation.retransformClasses(instrumentedClasses.keySet().toArray(new Class[instrumentedClasses.size()]));
+			instrumentedClasses.clear();
+		} catch (Exception e) {
+			log.error("Failed to restore all classes", e);
+		}
+	}
+
 	
 	/**
 	 * {@inheritDoc}
@@ -492,13 +508,16 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 		final Set<String> classNames = new HashSet<String>();
 		final Pattern p = Pattern.compile(pattern);
 		int scanned = 0;		
-		final String[] segmentSlots = new String[segments];
+		final String[] segmentSlots = new String[segments<1 ? 0 : segments];
 		final Class<?>[] classArray = (classLoader==null || classLoader.trim().isEmpty()) ? 
 				instrumentation.getAllLoadedClasses() : 
 					instrumentation.getInitiatedClasses("bootstrap".equalsIgnoreCase(classLoader) ? null : classLoaderFrom(classLoader)); 
 		for(Class<?> clazz: classArray) {
+			if(clazz.isArray()) continue;
 			scanned++;
-			if(p.matcher(clazz.getName()).matches()) {					
+			
+			if(p.matcher(clazz.getName()).matches()) {
+				if(segments<1) classNames.add(clazz.getName()); 
 				classNames.add(trunc(clazz.getName(), segmentSlots));
 			}
 			if(scanned==scanLimit || classNames.size()==matchLimit) break;
@@ -517,6 +536,12 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 		final String[] split = DOT_SPLITTER.split(className);
 		Arrays.fill(slots, "");
 		System.arraycopy(split, 0, slots, 0, Math.min(split.length, slots.length));
+		if(split.length < slots.length) {
+			StringBuilder b = new StringBuilder(Arrays.toString(slots).replace("[", "").replace("]", "").replace(", ", "."));
+			b.reverse();
+			while(b.charAt(0)=='.') b.deleteCharAt(0);
+			return b.reverse().toString();
+		}
 		return Arrays.toString(slots).replace("[", "").replace("]", "").replace(", ", ".");		
 	}
 	
@@ -546,6 +571,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 		}
 		return map;
 	}
+	
 	
 	/**
 	 * Attempts to derive a classloader from the passed object.
