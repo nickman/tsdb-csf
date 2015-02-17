@@ -104,59 +104,6 @@ public class Util {
 		return ConfigurationReader.conf(Constants.PROP_JMX_DOMAIN, Constants.DEFAULT_JMX_DOMAIN);
 	}
 	
-	/**
-	 * Registers a new classloader MBean (an MLet) on the passed MBeanServer
-	 * @param server The MBeanServer on which to register
-	 * @param objectName The JMX object name of the new MBean
-	 * @param delegateToCLR True if, when a class is not found in either the parent ClassLoader or the URLs, the MLet should delegate to its containing MBeanServer's ClassLoaderRepository.
-	 * @param privateClassLoader If true, registers a private MLet, otherwise, registers a public one
-	 * @param urls The URLs from which to load classes and resources.
-	 * @return the ObjectName of the classloader
-	 */
-	public static ObjectName publishClassLoader(MBeanServerConnection server, CharSequence objectName, boolean delegateToCLR, boolean privateClassLoader, URL...urls) {
-		ObjectName on = objectName(objectName);
-		String className = privateClassLoader ? "javax.management.loading.PrivateMLet" : "javax.management.loading.MLet"; 
-		try {
-			server.createMBean(className, on, new Object[]{urls, delegateToCLR}, new String[]{URL[].class.getName(), "boolean"});
-			return on;
-		} catch (Exception ex) {
-			throw new RuntimeException("Failed to register classloader MBean [" + objectName + "]", ex);
-		}
-	}
-	
-	/**
-	 * Registers a new classloader MBean (an MLet) on the platform MBeanServer
-	 * @param objectName The JMX object name of the new MBean
-	 * @param delegateToCLR True if, when a class is not found in either the parent ClassLoader or the URLs, the MLet should delegate to its containing MBeanServer's ClassLoaderRepository.
-	 * @param privateClassLoader If true, registers a private MLet, otherwise, registers a public one
-	 * @param urls The URLs from which to load classes and resources.
-	 * @return the ObjectName of the classloader
-	 */
-	public static ObjectName publishClassLoader(CharSequence objectName, boolean delegateToCLR, boolean privateClassLoader, URL...urls) {
-		return publishClassLoader(ManagementFactory.getPlatformMBeanServer(), objectName, delegateToCLR, privateClassLoader, urls);
-	}
-	
-	
-	/**
-	 * Registers a new public classloader MBean (an MLet) on the default MBeanServer
-	 * @param objectName The JMX object name of the new MBean
-	 * @param delegateToCLR True if, when a class is not found in either the parent ClassLoader or the URLs, the MLet should delegate to its containing MBeanServer's ClassLoaderRepository.
-	 * @param urls The URLs from which to load classes and resources.
-	 * @return the ObjectName of the classloader
-	 */
-	public static ObjectName publishClassLoader(CharSequence objectName, boolean delegateToCLR, URL...urls) {
-		return publishClassLoader(ManagementFactory.getPlatformMBeanServer(), objectName, delegateToCLR, false, urls);
-	}
-	
-	/**
-	 * Registers a new public and CLR delegating classloader MBean (an MLet) on the default MBeanServer
-	 * @param objectName The JMX object name of the new MBean
-	 * @param urls The URLs from which to load classes and resources.
-	 * @return the ObjectName of the classloader 
-	 */
-	public static ObjectName publishClassLoader(CharSequence objectName, URL...urls) {
-		return publishClassLoader(ManagementFactory.getPlatformMBeanServer(), objectName, true, false, urls);
-	}
 	
 	
 
@@ -212,7 +159,7 @@ public class Util {
 	}
 	
 	/**
-	 * Registers an MBean on the platform MBeanServer 
+	 * Registers an MBean on the default (helios) MBeanServer 
 	 * @param bean The mbean to register
 	 * @param objectName The ObjectName to register under
 	 */
@@ -220,7 +167,7 @@ public class Util {
 		if(bean==null) throw new IllegalArgumentException("The passed bean was null");
 		if(objectName==null) throw new IllegalArgumentException("The passed ObjectName was null");
 		try {
-			ManagementFactory.getPlatformMBeanServer().registerMBean(bean, objectName);
+			JMXHelper.getHeliosMBeanServer().registerMBean(bean, objectName);
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to register the bean under [" + objectName + "]", ex);
 		}		
@@ -337,7 +284,7 @@ public class Util {
 		if(index!=-1) {
 			s = s.substring(index+1);
 		}
-		return s.replace(" ", "");
+		return s.replace(" ", "").replace('$', 'S');
 	}
 
     /**

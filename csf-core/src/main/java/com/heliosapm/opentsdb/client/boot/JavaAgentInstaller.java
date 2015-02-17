@@ -42,6 +42,9 @@ public class JavaAgentInstaller {
 	public static final long myPid = Long.parseLong(ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
 	/** This JVMs PID as a String */
 	public static final String myId = Long.toString(myPid);
+	/** The property set in system and agent props to indicate the agent is installed */
+	public static final String AGENT_INSTALLED_PROP = "tsdb.csf.agent.installed"; 
+	
 	
 	/**
 	 * Creates a new JavaAgentInstaller
@@ -50,10 +53,20 @@ public class JavaAgentInstaller {
 		// TODO Auto-generated constructor stub
 	}
 	
+	/**
+	 * System out format logger
+	 * @param fmt The message format
+	 * @param args The message args
+	 */
 	public static void log(final Object fmt, final Object...args) {
 		System.out.println(String.format(fmt.toString(), args));
 	}
 	
+	/**
+	 * System err format logger
+	 * @param fmt The message format
+	 * @param args The message args
+	 */
 	public static void loge(final Object fmt, final Object...args) {
 		System.err.println(String.format(fmt.toString(), args));
 	}
@@ -68,7 +81,7 @@ public class JavaAgentInstaller {
 	
 	public static void main(final String[] args) {
 		if(args.length==0) {
-			loge("Usage: java com.heliosapm.opentsdb.client.boot.JavaAgentInstaller <PID | Name to match>");
+			loge("Usage: java com.heliosapm.opentsdb.client.boot.JavaAgentInstaller \n\t<PID | Name to match> \n\t[-list | -listjson] \n\t[-p k=v] \n\t[-config URL|File]");
 		}
 		final long pid;
 		if(isPid(args[0])) {

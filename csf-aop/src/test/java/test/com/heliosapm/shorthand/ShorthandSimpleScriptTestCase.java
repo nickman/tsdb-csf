@@ -38,7 +38,7 @@ import com.google.gson.annotations.Since;
 import com.heliosapm.opentsdb.client.aop.ShorthandScript;
 import com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
-import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 
 /**
  * <p>Title: ShorthandSimpleScriptTestCase</p>
@@ -358,7 +358,7 @@ public class ShorthandSimpleScriptTestCase extends BaseTest {
 	public void testLocateDynamicClassFromObjectName() throws Exception {
 		URL url = DynamicClassCompiler.generateClass("foo.snafu", HashMap.class);
 		log("Dynamic Class URL [%s]", url);
-		ObjectName on = Util.publishClassLoader("shorthand.classloaders:url=" + ObjectName.quote(url.toString()), url);
+		ObjectName on = JMXHelper.publishClassLoader("shorthand.classloaders:url=" + ObjectName.quote(url.toString()), url);
 		test("foo.snafu<-" + on.toString() + " put MethodInterceptor[0] 'foo/snafu/put'", 
 				"foo.snafu", false,		// target class, target class annot
 				false, false,  			// target class iface, target class inherritance

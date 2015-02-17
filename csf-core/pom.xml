@@ -17,6 +17,12 @@
     <description>OpenTSDB Java Agent for implementing Collect, Store and Forward for the JVM</description>
 
     <dependencies>
+    
+		<dependency>
+		  <groupId>com.sun.jdmk</groupId>
+		  <artifactId>jmx-optional</artifactId>
+		</dependency>
+    
 
          <dependency>
            <groupId>org.javassist</groupId>

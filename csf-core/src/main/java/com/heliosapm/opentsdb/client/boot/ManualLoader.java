@@ -25,6 +25,8 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.loading.MLet;
 
+import com.heliosapm.opentsdb.client.util.JMXHelper;
+
 /**
  * <p>Title: ManualLoader</p>
  * <p>Description: A manual or programatic loader</p> 
@@ -53,6 +55,15 @@ public class ManualLoader {
 		}
 	}
 	
+	public static void log(final Object fmt, final Object...args) {
+		System.out.println("[CSF-JavaAgent]" + String.format(fmt.toString(), args));
+	}
+	
+	public static void loge(final Object fmt, final Object...args) {
+		System.err.println("[CSF-JavaAgent]" + String.format(fmt.toString(), args));
+	}
+	
+	
 	/**
 	 * Loads tsdb-csf into the current environment, assuming the jar has been appended to the sys classpath
 	 * @param mbs The MBeanServer where the classloader will be registered
@@ -67,11 +78,11 @@ public class ManualLoader {
 		if(booted.compareAndSet(false, true)) {
 			final Class<?> logConfClazz = Class.forName("com.heliosapm.opentsdb.client.logging.LoggingConfiguration");
 			logConfClazz.getDeclaredMethod("getInstance").invoke(null);
-			System.out.println("Initialized tsdb-csf Logging");
+			log("Initialized tsdb-csf Logging");
 			final Class<?> observerClass = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet");
 			observerClass.getDeclaredMethod("build", MBeanServer.class, long.class, TimeUnit.class)
-				.invoke(null, ManagementFactory.getPlatformMBeanServer(), 5, TimeUnit.SECONDS);
-			System.out.println("Initialized tsdb-csf MXBeanObserver");
+				.invoke(null, JMXHelper.getHeliosMBeanServer(), 5, TimeUnit.SECONDS);
+			log("Initialized tsdb-csf MXBeanObserver");
 			try {
 				final Class<?> transformerClass = Class.forName("com.heliosapm.opentsdb.client.aoplite.RetransformerLite");
 				transformerClass.getDeclaredMethod("getInstance").invoke(null);
@@ -92,7 +103,7 @@ public class ManualLoader {
 	 * @throws IllegalAccessException 
 	 */
 	public static void boot() throws ClassNotFoundException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
-		boot(ManagementFactory.getPlatformMBeanServer());
+		boot(JMXHelper.getHeliosMBeanServer());
 	}
 	
 	
@@ -115,7 +126,7 @@ public class ManualLoader {
 				System.out.println("Initialized tsdb-csf Logging");
 				final Class<?> observerClass = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet", true, cl);
 				observerClass.getDeclaredMethod("build", MBeanServer.class, long.class, TimeUnit.class)
-					.invoke(null, ManagementFactory.getPlatformMBeanServer(), 5, TimeUnit.SECONDS);
+					.invoke(null, JMXHelper.getHeliosMBeanServer(), 5, TimeUnit.SECONDS);
 				System.out.println("Initialized tsdb-csf MXBeanObserver");						
 				// MBeanObserverSet build(final MBeanServer mbeanServer, final long period, final TimeUnit unit) {
 //				LoggingConfiguration.getInstance(); 
@@ -141,7 +152,7 @@ public class ManualLoader {
 import javax.management.loading.MLet;
 import javax.management.*;
 import java.lang.management.*;
-MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+MBeanServer mbs = JMXHelper.getHeliosMBeanServer();
 System.setProperty("tsdb.http.compression.enabled", "false");
 try {
     mbs.unregisterMBean(new ObjectName("com.heliosapm.opentsdb:service=TSDBCSF"));

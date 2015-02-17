@@ -27,6 +27,13 @@ import java.util.Set;
  */
 
 public interface RetransformerLiteMBean {
+	
+	/**
+	 * Returns the {@link #toString()} of the classloader for the passed name
+	 * @param name The class loader symbol
+	 * @return the classloader toString
+	 */
+	public String printClassLoaderFor(final String name);
 
 	/**
 	 * Returns an array of the instrumented class names

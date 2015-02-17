@@ -184,13 +184,17 @@ public class XMLHelper {
 	  /**
 	   * Helper Method. Searches through the child nodes of a node and returns the first node with a matching name.
 	   * Do we need this ?
-	   * @param element Element
-	   * @param name String
-	   * @param caseSensitive boolean
-	   * @return Node
+	   * @param element The node to read from
+	   * @param nodeName String The name of the node
+	   * @param caseSensitive If true, the node name searcher will be case sensitive
+	   * @return Node the located node or null if one was not found
 	   */
 
-	  public static Node getChildNodeByName(Node element, String name, boolean caseSensitive) {
+	  public static Node getChildNodeByName(Node element, CharSequence nodeName, boolean caseSensitive) {
+		if(element==null) return null;
+		if(nodeName==null) return null;
+		final String name = nodeName.toString().trim();
+		if(name.isEmpty()) return null;		
 	    NodeList list = element.getChildNodes();
 	    for(int i = 0; i < list.getLength(); i++) {
 	      Node node = list.item(i);
@@ -203,6 +207,17 @@ public class XMLHelper {
 	    return null;
 	  }
 
+	  /**
+	   * Helper Method. Case insensitive. Searches through the child nodes of a node and returns the first node with a matching name.
+	   * Do we need this ?
+	   * @param element The node to read from
+	   * @param name The name of the child node
+	   * @return Node the located node or null if one was not found
+	   */
+
+	  public static Node getChildNodeByName(Node element, CharSequence name) {
+		  return getChildNodeByName(element, name, false);
+	  }
 
 
 

@@ -40,6 +40,8 @@ import javax.management.MBeanServer;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 
+import com.heliosapm.opentsdb.client.util.JMXHelper;
+
 /**
  * <p>Title: AgentInstrumentation</p>
  * <p>Description: A JMX exposed java agent and instrumentation instance wrapper</p>
@@ -107,7 +109,7 @@ public class AgentInstrumentation extends NotificationBroadcasterSupport impleme
 		}
 		AgentInstrumentation ai = new AgentInstrumentation(inst, agentProps);
 		try {
-			MBeanServer server = ManagementFactory.getPlatformMBeanServer();
+			MBeanServer server = JMXHelper.getHeliosMBeanServer();
 			if(server.isRegistered(AGENT_INSTR_ON)) {
 				server.unregisterMBean(AGENT_INSTR_ON);
 			}

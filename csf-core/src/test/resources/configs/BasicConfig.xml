@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<csf-config>
+	<sysprops><![CDATA[
+		tsdb.http.compression.enabled=false
+		tsdb.http.tsdb.url=http://localhost:4242
+		tsdb.id.app=nexus
+	]]></sysprops>
+	<platform-mbeanobserver period="5" />
+	<lite-instrumentation>
+		<instr class="CLASSNAME" methods="METHOD-REGEX" classloader="CLASSLOADER_EXPR" />   <!-- classloader is optional -->
+	</lite-instrumentation>
+	<jmxmp>
+		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
+	</jmxmp>
+</csf-config>

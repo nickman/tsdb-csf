@@ -36,6 +36,7 @@ import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 
 /**
  * <p>Title: MBeanObserverSet</p>
@@ -72,7 +73,7 @@ public class MBeanObserverSet implements Runnable {
 		log("Testing MOS");
 		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4242");
 		System.setProperty("tsdb.http.compression.enabled", "false");
-		MBeanObserverSet mos = build(RuntimeMBeanServerConnection.newInstance(ManagementFactory.getPlatformMBeanServer()), 5, TimeUnit.SECONDS);
+		MBeanObserverSet mos = build(RuntimeMBeanServerConnection.newInstance(JMXHelper.getHeliosMBeanServer()), 5, TimeUnit.SECONDS);
 		log("MOS enabled with [" + mos.enabledObservers.size() + "] MBeanObservers");
 		try { Thread.currentThread().join(); } catch (Exception ex) {}
 	}

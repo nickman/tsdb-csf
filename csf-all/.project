@@ -4,6 +4,7 @@
   <comment>Aggregate OpenTSDB Java Agent. NO_M2ECLIPSE_SUPPORT: Project files created with the maven-eclipse-plugin are not supported in M2Eclipse.</comment>
   <projects>
     <project>csf-core</project>
+    <project>jmx-optional</project>
     <project>csf-aop</project>
   </projects>
   <buildSpec>

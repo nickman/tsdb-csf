@@ -59,6 +59,7 @@ import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.OffHeapFIFOFile;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -487,7 +488,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 			Bindings b = new SimpleBindings();
 			b.put("sysprops", System.getProperties());
 			b.put("envs", System.getenv());
-			b.put("mbs", ManagementFactory.getPlatformMBeanServer());
+			b.put("mbs", JMXHelper.getHeliosMBeanServer());
 			b.put("cla", ManagementFactory.getRuntimeMXBean().getInputArguments().toArray(new String[0]));
 			Properties p = Util.getAgentProperties();
 			if(p!=null) {
@@ -563,6 +564,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	 * found in <b><code>sun.misc.VMSupport.getAgentProperties()</code></b>.
 	 * Current properties are: <ul>
 	 * 	<li>sun.java.command</li>
+	 *  <li>sun.rt.javaCommand</li>
 	 * 	<li>program.name</li>
 	 * </ul>
 	 * @return an app name or null if the reflective invocation fails,
@@ -576,6 +578,11 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 			app = cleanAppName(app);			
 			if(app!=null && !app.trim().isEmpty()) return app;
 		}
+		app = p.getProperty("sun.rt.javaCommand", null);
+		if(app!=null && !app.trim().isEmpty()) {
+			app = cleanAppName(app);			
+			if(app!=null && !app.trim().isEmpty()) return app;				
+		}		
 		app = p.getProperty("program.name", null);
 		if(app!=null && !app.trim().isEmpty()) {
 			app = cleanAppName(app);			

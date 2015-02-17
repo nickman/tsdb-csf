@@ -20,8 +20,6 @@ import java.io.File;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
-import java.lang.instrument.UnmodifiableClassException;
-import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -61,6 +59,7 @@ import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.URLHelper;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -132,7 +131,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 			instr = (Instrumentation)obj;
 			// TransformerManager.getInstrumentation();			
 		} catch (Throwable t) {
-			log.warn("Failed to load TransformerManager", t);
+			log.warn("\n\t==============================\n\tFailed to load TransformerManager\n\t==============================\n");
 			try {
 				instr = JavaAgent.INSTRUMENTATION;
 				if(instr!=null) {
@@ -341,7 +340,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 			cp.importPackage("com.heliosapm.opentsdb.client.opentsdb");
 			final CtClass target = cp.get(clazz.getName());
 			for(Method mx: methods.values()) {
-				final String metricName = MetricBuilder.metric("method.elapsedns").tag("method", mx.getName()).tag("class", clazz.getSimpleName()).tag("package", clazz.getPackage().getName()).build().toString();
+				final String metricName = MetricBuilder.metric("method.elapsedns").tag("method", mx.getName()).tag("class", Util.clean(clazz.getSimpleName())).tag("package", Util.clean(clazz.getPackage().getName())).build().toString();
 				log.info("Adding metric name {}", metricName);
 				CtMethod ctm = target.getDeclaredMethod(mx.getName(), sig(cp, mx));
 				target.removeMethod(ctm);
@@ -397,7 +396,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 					}
 				}
 				if(clazz==null) {
-					log.error("Failed to find class {}", className);
+					log.error("Failed to find class {}", className); //, className);
 					throw ex;
 				}
 			}
@@ -572,6 +571,15 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 		return map;
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#printClassLoaderFor(java.lang.String)
+	 */
+	@Override
+	public String printClassLoaderFor(final String name) {
+		return classLoaderFrom(name).toString();
+	}
+	
 	
 	/**
 	 * Attempts to derive a classloader from the passed object.
@@ -613,11 +621,15 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 	 */
 	protected static ClassLoader getClassLoader(ObjectName on) {
 		try {
-			MBeanServer server = ManagementFactory.getPlatformMBeanServer();
-			if(server.isInstanceOf(on, ClassLoader.class.getName())) {
-				return server.getClassLoader(on);
+			for(MBeanServer server: MBeanServerFactory.findMBeanServer(null)) {
+				if(server.isRegistered(on)) {
+					if(server.isInstanceOf(on, ClassLoader.class.getName())) {
+						return server.getClassLoader(on);
+					}
+					return server.getClassLoaderFor(on);					
+				}
 			}
-			return server.getClassLoaderFor(on);
+			throw new RuntimeException("Failed to get classloader for object name [" + on + "]");
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to get classloader for object name [" + on + "]", ex);
 		}
@@ -630,7 +642,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 import javax.management.loading.MLet;
 import javax.management.*;
 import java.lang.management.*;
-MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+MBeanServer mbs = JMXHelper.getHeliosMBeanServer();
 ObjectName ON = new ObjectName("com.heliosapm.opentsdb:service=TSDBCSF");
 System.setProperty("tsdb.http.compression.enabled", "false");
 if(!mbs.isRegistered(ON)) {

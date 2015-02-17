@@ -52,6 +52,7 @@ import com.heliosapm.attachme.VirtualMachine;
 import com.heliosapm.attachme.VirtualMachineBootstrap;
 import com.heliosapm.attachme.jar.FileCleaner;
 import com.heliosapm.attachme.jar.JarBuilder;
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 
 /**
  * <p>Title: LocalAgentInstaller</p>
@@ -76,7 +77,7 @@ public class LocalAgentInstaller  {
 		VirtualMachineBootstrap.getInstance();
 		VirtualMachine vm = VirtualMachine.attach(pid);
 		vm.loadAgent(fileName);
-		System.out.println("Instrumentation Deployed:" + ManagementFactory.getPlatformMBeanServer().isRegistered(AgentInstrumentation.AGENT_INSTR_ON));
+		System.out.println("Instrumentation Deployed:" + JMXHelper.getHeliosMBeanServer().isRegistered(AgentInstrumentation.AGENT_INSTR_ON));
 		Instrumentation instr = getInstrumentation();
 		System.out.println("Instrumentation:" + instr);
 		try {
@@ -124,7 +125,7 @@ public class LocalAgentInstaller  {
 		instr = getAgentInstalledInstrumentation();
 		if(instr!=null) return instr;
 		try {
-			instr = (Instrumentation)ManagementFactory.getPlatformMBeanServer().getAttribute(AgentInstrumentation.AGENT_INSTR_ON, "Instrumentation");
+			instr = (Instrumentation)JMXHelper.getHeliosMBeanServer().getAttribute(AgentInstrumentation.AGENT_INSTR_ON, "Instrumentation");
 			if(instr!=null) {
 				return instr;
 			}
@@ -145,7 +146,7 @@ public class LocalAgentInstaller  {
 		};
 		try {
 			
-			ManagementFactory.getPlatformMBeanServer().addNotificationListener(MBeanServerDelegate.DELEGATE_NAME, listener, new NotificationFilter(){
+			JMXHelper.getHeliosMBeanServer().addNotificationListener(MBeanServerDelegate.DELEGATE_NAME, listener, new NotificationFilter(){
 				/**  */
 				private static final long serialVersionUID = -1772307207532733639L;
 
@@ -158,11 +159,11 @@ public class LocalAgentInstaller  {
 			if(!latch.await(timeout, TimeUnit.MILLISECONDS)) {
 				throw new Exception("Timed out after waiting [" + timeout + "] ms. for AgentInstrumentation MBean Deployment");
 			}
-			return (Instrumentation)ManagementFactory.getPlatformMBeanServer().getAttribute(AgentInstrumentation.AGENT_INSTR_ON, "Instrumentation");
+			return (Instrumentation)JMXHelper.getHeliosMBeanServer().getAttribute(AgentInstrumentation.AGENT_INSTR_ON, "Instrumentation");
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to acquire instrumentation", e);
 		} finally {
-			try { ManagementFactory.getPlatformMBeanServer().removeNotificationListener(AgentInstrumentation.AGENT_INSTR_ON, listener); } catch (Exception e) {/* No Op */}
+			try { JMXHelper.getHeliosMBeanServer().removeNotificationListener(AgentInstrumentation.AGENT_INSTR_ON, listener); } catch (Exception e) {/* No Op */}
 		}
 		
 	}

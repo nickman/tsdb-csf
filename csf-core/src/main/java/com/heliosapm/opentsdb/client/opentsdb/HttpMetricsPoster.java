@@ -64,6 +64,7 @@ import com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.HTTPMethod;
 import com.heliosapm.opentsdb.client.opentsdb.EmptyAsyncHandler.FinalHookAsyncHandler;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBuffer;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.Util;
 import com.ning.http.client.AsyncHandler;
 import com.ning.http.client.AsyncHttpClient;
@@ -272,7 +273,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	private ObjectName registerMBean() {
 		try {
 			ObjectName on = new ObjectName(Util.getJMXDomain() + ":service=" + getClass().getSimpleName());
-			ManagementFactory.getPlatformMBeanServer().registerMBean(this, on);
+			JMXHelper.getHeliosMBeanServer().registerMBean(this, on);
 			log.info("Registered management MBean for HttpMetricsPoster: [" + on + "]");
 			return on;
 		} catch (Exception ex) {

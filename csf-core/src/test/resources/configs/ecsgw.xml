@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<csf-config>
+	<sysprops><![CDATA[
+		tsdb.http.compression.enabled=false
+		tsdb.http.tsdb.url=http://pdk-pt-cetsd-01:8080
+		tsdb.id.app=ecsgw
+	]]></sysprops>
+	<lite-instrumentation>
+		<instr class="com.cpex.ecs.gateway.jms.JmsListenerRunner" methods="handleMessage"/>
+		<instr class="com.cpex.ecs.gateway.processor.BatchedMessageProcessorImpl" methods="processMessage"/>
+		<instr class="com.cpex.ecs.gateway.processor.BatchedMessageProcessorImpl$1" methods="afterCommit"/>
+		<instr class="com.cpex.ecs.gateway.processor.BatchedMessageProcessorImpl$1$1" methods="run"/>
+		<instr class="com.cpex.ecs.gateway.processor.dao.MessageDAOImpl" methods="batchInsert"/>
+		<instr class="org.springframework.transaction.support.TransactionSynchronizationManager" methods="registerSynchronization"/>
+	</lite-instrumentation>
+	<platform-mbeanobserver period="5" />
+</csf-config>
+
+
+
+

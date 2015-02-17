@@ -56,6 +56,7 @@ import javax.management.remote.JMXServiceURL;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -193,7 +194,7 @@ public class RuntimeMBeanServerConnection implements MBeanServerConnection, Noti
 	 */
 	private RuntimeMBeanServerConnection(final MBeanServerConnection delegate, final JMXConnector jmxConnector) {
 		this.delegate = delegate;
-		localPlatform = ManagementFactory.getPlatformMBeanServer() == delegate;
+		localPlatform = JMXHelper.getHeliosMBeanServer() == delegate;
 		this.mbeanServerId = getMBeanServerId(delegate);
 		String[] rtsplit = getRuntimeName(delegate).split("@");
 		pid = Integer.parseInt(rtsplit[0]);
@@ -235,7 +236,7 @@ public class RuntimeMBeanServerConnection implements MBeanServerConnection, Noti
 	 */
 	public static boolean isSameJVM(final MBeanServerConnection mbsc) {
 		if(mbsc==null) throw new IllegalArgumentException("The passed MBeanServerConnection was null");
-		final MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
+		final MBeanServer platformMBeanServer = JMXHelper.getHeliosMBeanServer();
 		if(mbsc==platformMBeanServer) return true;
 		final String UID = UUID.randomUUID().toString();
 		final NotificationListener testNotifListener = new NotificationListener() {
