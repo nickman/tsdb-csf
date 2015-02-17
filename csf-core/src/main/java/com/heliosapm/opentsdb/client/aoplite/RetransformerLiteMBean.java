@@ -15,6 +15,9 @@
  */
 package com.heliosapm.opentsdb.client.aoplite;
 
+import java.util.Map;
+import java.util.Set;
+
 /**
  * <p>Title: RetransformerLiteMBean</p>
  * <p>Description: JMX MBean interface for {@link RetransformerLite} instances</p> 
@@ -38,17 +41,50 @@ public interface RetransformerLiteMBean {
 	public int getInstrumentedClassCount();
 	
 	/**
-	 * Instruments the classes meetig the passed criteria
+	 * Instruments the classes meeting the passed criteria
 	 * @param classLoaderName An optional class loader name
 	 * @param className The name of the class to instrument
 	 * @param methodExpr A regular expression to match against the method names of the methods in the target class
+	 * @return the number of methods instrumented at the end of this procedure
 	 */
-	public void instrument(final String classLoaderName, final String className, final String methodExpr);
+	public int instrument(final String classLoaderName, final String className, final String methodExpr);
+	
+	/**
+	 * Instruments the classes meeting the passed criteria using the system classloader or a straight class array search (slower...)
+	 * @param className The name of the class to instrument
+	 * @param methodExpr A regular expression to match against the method names of the methods in the target class
+	 * @return the number of methods instrumented at the end of this procedure
+	 */
+	public int instrument(final String className, final String methodExpr);
 	
 	/**
 	 * Attempts to uninstrument an instrumented class
 	 * @param className The name of the instrumented class to uninstrument
 	 */
-	public void uninstrumentClass(final String className);
-
+	public void restoreClass(final String className);
+	
+	/**
+	 * @param pattern
+	 * @param segments
+	 * @param scanLimit
+	 * @param matchLimit
+	 * @return
+	 */
+	public Set<String> searchClasses(final String pattern, final int segments, final int scanLimit, final int matchLimit);
+	
+	/**
+	 * @param classLoader
+	 * @param pattern
+	 * @param segments
+	 * @param scanLimit
+	 * @param matchLimit
+	 * @return
+	 */
+	public Set<String> searchClasses(final String classLoader, final String pattern, final int segments, final int scanLimit, final int matchLimit);
+	
+	/**
+	 * Returns sets of classloader object names keyed by the default domain of the MBeanServer they were found in
+	 * @return a map of sets of classloader object names
+	 */
+	public Map<String, Set<String>> listClassLoaders();
 }

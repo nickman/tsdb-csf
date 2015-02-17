@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -43,7 +44,12 @@ import javassist.LoaderClassPath;
 import javassist.NotFoundException;
 
 import javax.management.MBeanServer;
+import javax.management.MBeanServerFactory;
 import javax.management.ObjectName;
+import javax.management.Query;
+import javax.management.QueryExp;
+import javax.management.StandardMBean;
+import javax.management.StringValueExp;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,7 +71,7 @@ import com.heliosapm.opentsdb.client.util.Util;
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.aoplite.RetransformerLite</code></p>
  */
-public class RetransformerLite implements RetransformerLiteMBean {
+public class RetransformerLite extends StandardMBean implements RetransformerLiteMBean {
 	/** The singleton instance */
 	private static volatile RetransformerLite instance = null;
 	/** The singleton instance ctor lock */
@@ -96,19 +102,21 @@ public class RetransformerLite implements RetransformerLiteMBean {
 	/** The directory where the transient byte code will be written */
 	private final String byteCodeDir;
 	
-	/** The instrumented class names keyed by the instrumented class */
-	private final Map<Class<?>, String> instrumentedClasses = Collections.synchronizedMap(new WeakHashMap< Class<?>, String>()); 
+	/** The instrumented class method names in a set keyed by the instrumented class */
+	private final Map<Class<?>, Set<String>> instrumentedClasses = Collections.synchronizedMap(new WeakHashMap< Class<?>, Set<String>>()); 
 			
 	
 	/** The name of the directory within the agent home where we'll write the transient byte code to */
 	public static final String BYTE_CODE_DIR = ".bytecode";
 	/** The name of the directory where we'll write the transient byte code to if things don't work out with the agent home */
 	public static final String STANDBY_BYTE_CODE_DIR = System.getProperty("java.io.tmpdir") + File.separator + ".tsdb-aop" + File.separator + Constants.SPID; 
-	
+	/** Class and package name splitter */
+	public static final Pattern DOT_SPLITTER = Pattern.compile("\\.");
 	/**
 	 * Creates a new RetransformerLite
 	 */
 	private RetransformerLite() {
+		super(RetransformerLiteMBean.class, false);
 		Instrumentation instr = null;
 		try {
 			Class<?> transformerManagerClass = Class.forName("com.heliosapm.opentsdb.client.aop.TransformerManager");
@@ -283,20 +291,44 @@ public class RetransformerLite implements RetransformerLiteMBean {
 	}
 	
 	/**
+	 * Instruments the specified class, discarding any instrumentation on the class
+	 * @param clazz The class to instrument
+	 * Otherwise the existing instrumentation will be discarded and replaced with this new definition
+	 * @param methodNames The method names to instrument
+	 * @return the number of methods instrumented at the end of this procedure
+	 */
+	public int instrument(final Class<?> clazz, String...methodNames) {
+		return instrument(clazz, false, methodNames);
+	}
+	
+	
+	/**
 	 * Instruments the specified class
 	 * @param clazz The class to instrument
+	 * @param merge If true, if the class is already instrumented, the additions will be merged to the existing instrumentation.
+	 * Otherwise the existing instrumentation will be discarded and replaced with this new definition
 	 * @param methodNames The method names to instrument
+	 * @return the number of methods instrumented at the end of this procedure
 	 */
-	public void instrument(final Class<?> clazz, String...methodNames) {
+	public int instrument(final Class<?> clazz, final boolean merge, String...methodNames) {
 		log.info("Retransforming {} / {}", clazz.getName(), methodNames);
 		Set<String> mNames = new HashSet<String>(Arrays.asList(methodNames));
 		final Map<String, Method> methods = new HashMap<String, Method>();
-		for(Method m: clazz.getMethods()) {
-			if(m.getDeclaringClass().equals(Object.class)) continue;
-			if(mNames.contains(m.getName())) methods.put(m.getName(), m);
-		}
+//		for(Method m: clazz.getMethods()) {
+//			if(m.getDeclaringClass().equals(Object.class)) continue;
+//			if(mNames.contains(m.getName())) methods.put(m.getName(), m);
+//		}
+		final Set<String> existingInstrMethods = instrumentedClasses.get(clazz);
 		for(Method m: clazz.getDeclaredMethods()) {			
-			if(mNames.contains(m.getName())) methods.put(m.getName(), m);
+			if(mNames.contains(m.getName())) {
+				methods.put(m.getName(), m);
+			} else {
+				if(merge && existingInstrMethods!=null && !existingInstrMethods.isEmpty()) {
+					if(existingInstrMethods.contains(m.getName())) {
+						methods.put(m.getName(), m);
+					}
+				}
+			}
 		}
 		try {
 			final byte[] byteCode = getByteCodeFor(clazz);
@@ -323,7 +355,8 @@ public class RetransformerLite implements RetransformerLiteMBean {
 				target.writeFile(byteCodeDir);
 				log.debug("Saved transformed class [{}] to [{}]", target.getName(), byteCodeDir);
 			}
-			instrumentedClasses.put(clazz, clazz.getName());
+			instrumentedClasses.put(clazz, methods.keySet());
+			return methods.size();
 			//ByteCapturingClassTransform transformer = new ByteCapturingClassTransform(clazz, instrumentedByteCode);
 		} catch (Exception ex) {
 			log.error("Failed to instrument [{}]", clazz.getName(), ex);
@@ -333,10 +366,19 @@ public class RetransformerLite implements RetransformerLiteMBean {
 	
 	/**
 	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#instrument(java.lang.String, java.lang.String)
+	 */
+	@Override
+	public int instrument(final String className, final String methodExpr) {
+		return instrument(null, className, methodExpr);
+	}
+	
+	/**
+	 * {@inheritDoc}
 	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#instrument(java.lang.String, java.lang.String, java.lang.String)
 	 */
 	@Override
-	public void instrument(final String classLoaderName, final String className, final String methodExpr) {
+	public int instrument(final String classLoaderName, final String className, final String methodExpr) {
 		try {
 			final ClassLoader classLoader = classLoaderFrom(classLoaderName);
 			// If this fails, do the scorched earth fallback and scan the Instrumentation's classes.
@@ -370,7 +412,7 @@ public class RetransformerLite implements RetransformerLiteMBean {
 					targetMethods.add(m.getName());
 				}
 			}
-			instrument(clazz, targetMethods.toArray(new String[targetMethods.size()]));
+			return instrument(clazz, targetMethods.toArray(new String[targetMethods.size()]));
 		} catch (Throwable ex) {
 			final String msg = String.format("Failed to execute instrumentation directive [%s/%s/%s]", classLoaderName, className, methodExpr);
 			log.error(msg, ex);
@@ -381,18 +423,18 @@ public class RetransformerLite implements RetransformerLiteMBean {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#uninstrumentClass(java.lang.String)
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#restoreClass(java.lang.String)
 	 */
-	@Override
-	public void uninstrumentClass(final String className) {
+	@Override	
+	public void restoreClass(final String className) {
 		if(className==null || className.isEmpty()) throw new IllegalArgumentException("The passed class name was null or empty");
 		final String _cn = className.trim();
 		Class<?> clazz = null;
 		synchronized(instrumentedClasses) {
-			for(Map.Entry<Class<?>, String> entry: instrumentedClasses.entrySet()) {
-				if(entry.getValue().equals(_cn)) {
+			for(Map.Entry<Class<?>, ?> entry: instrumentedClasses.entrySet()) {
+				if(entry.getKey().getName().equals(_cn)) {
 					clazz = entry.getKey();
-					break;
+					break;					
 				}
 			}
 		}		
@@ -413,7 +455,12 @@ public class RetransformerLite implements RetransformerLiteMBean {
 	 */
 	@Override
 	public String[] getInstrumentedClassNames() {
-		return instrumentedClasses.keySet().toArray(new String[instrumentedClasses.size()]);
+		Set<Class<?>> clazzes = new HashSet<Class<?>>(instrumentedClasses.keySet());
+		Set<String> classNames = new HashSet<String>(clazzes.size());
+		for(Class<?> clazz: clazzes) {
+			classNames.add(clazz.getName());
+		}
+		return classNames.toArray(new String[classNames.size()]);
 	}
 	
 	/**
@@ -425,6 +472,80 @@ public class RetransformerLite implements RetransformerLiteMBean {
 		return instrumentedClasses.size();
 	}
 	
+	
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#searchClasses(java.lang.String, int, int, int)
+	 */
+	@Override
+	public Set<String> searchClasses(final String pattern, final int segments, final int scanLimit, final int matchLimit) {
+		return searchClasses(null, pattern, segments, scanLimit, matchLimit);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#searchClasses(java.lang.String, java.lang.String, int, int, int)
+	 */
+	@Override
+	public Set<String> searchClasses(final String classLoader, final String pattern, final int segments, final int scanLimit, final int matchLimit) {		
+		final Set<String> classNames = new HashSet<String>();
+		final Pattern p = Pattern.compile(pattern);
+		int scanned = 0;		
+		final String[] segmentSlots = new String[segments];
+		final Class<?>[] classArray = (classLoader==null || classLoader.trim().isEmpty()) ? 
+				instrumentation.getAllLoadedClasses() : 
+					instrumentation.getInitiatedClasses("bootstrap".equalsIgnoreCase(classLoader) ? null : classLoaderFrom(classLoader)); 
+		for(Class<?> clazz: classArray) {
+			scanned++;
+			if(p.matcher(clazz.getName()).matches()) {					
+				classNames.add(trunc(clazz.getName(), segmentSlots));
+			}
+			if(scanned==scanLimit || classNames.size()==matchLimit) break;
+		}
+		return classNames;
+	}
+	
+	/**
+	 * Splits the passed class name, truncates to the size of the slots array, then concats the result
+	 * back to a dot separated string.
+	 * @param className The class name to split
+	 * @param slots The slots array to write into
+	 * @return the truncated class name
+	 */
+	protected static String trunc(final String className, final String[] slots) {
+		final String[] split = DOT_SPLITTER.split(className);
+		Arrays.fill(slots, "");
+		System.arraycopy(split, 0, slots, 0, Math.min(split.length, slots.length));
+		return Arrays.toString(slots).replace("[", "").replace("]", "").replace(", ", ".");		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aoplite.RetransformerLiteMBean#listClassLoaders()
+	 */
+	@Override
+	public Map<String, Set<String>> listClassLoaders() {
+		final List<MBeanServer> mbservers = MBeanServerFactory.findMBeanServer(null);
+		final Map<String, Set<String>> map = new HashMap<String, Set<String>>(mbservers.size());
+		for(MBeanServer mbs: mbservers) {
+			String dd = mbs.getDefaultDomain();
+			if(dd==null || dd.trim().isEmpty()) dd = "DefaultDomain";
+			map.put(dd, new HashSet<String>());
+		}
+		final QueryExp classLoaderExp = Query.isInstanceOf(new StringValueExp(ClassLoader.class.getName()));
+		for(MBeanServer mbs: mbservers) {
+			String dd = mbs.getDefaultDomain();
+			if(dd==null || dd.trim().isEmpty()) dd = "DefaultDomain";
+			final Set<String> set = map.get(dd);
+			try {
+				for(ObjectName on: mbs.queryNames(null, classLoaderExp)) {
+					set.add(on.toString());
+				}
+			} catch (Exception ex) {/* No Op */}
+		}
+		return map;
+	}
 	
 	/**
 	 * Attempts to derive a classloader from the passed object.
