@@ -16,6 +16,7 @@
 
 package com.heliosapm.opentsdb.client.jvmjmx;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.management.MBeanServerConnection;
 import javax.management.Notification;
@@ -39,6 +41,7 @@ import com.codahale.metrics.Clock;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricSet;
+import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
@@ -46,6 +49,7 @@ import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.EpochClock;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -57,7 +61,7 @@ import com.heliosapm.opentsdb.client.util.Util;
  * FIXME:  need standard helpers to build unique delta keys so we don't have collisions between different instances.
  */
 
-public abstract class BaseMBeanObserver implements NotificationListener, NotificationFilter, Runnable, MetricSet {
+public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, NotificationListener, NotificationFilter, Runnable, MetricSet {
 	/**  */
 	private static final long serialVersionUID = -8583616842316152417L;
 	/** Instance logger */
@@ -72,6 +76,8 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 	protected final Map<String, String> tags = new LinkedHashMap<String, String>();
 	/** A refresh timer */
 	protected final Timer timer = new Timer();
+	/** The refresh timer's snapshot */
+	protected final AtomicReference<Snapshot> snapshot = new AtomicReference<Snapshot>(null);
 	/** A meter of collection exceptions */
 	protected final Meter collectExceptions = new Meter();
 	/** Indicates if this observer is actively polling */
@@ -84,12 +90,14 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 	protected final Set<OTMetric> groupMetrics = new HashSet<OTMetric>();
 	
 	
+	
 	/** The attribute mask */
 	protected int attributeMask = -1;
 	/** The attribute names we're collecting */
-	protected String[] attributeNames = null;
+	protected final String[] attributeNames;
 	
-	
+	/** Empty string array const */
+	private static final String[] EMPTY_STR_ARR = {};
 	
 	
 	/**
@@ -122,12 +130,25 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 		}
 		Set<ObjectName> objectNames = mbs.queryNames(mbeanObserver.objectName, null);
 		objectNamesAttrs = new HashMap<ObjectName, String[]>(objectNames.size());
+		final Set<String> allAttrNames = new HashSet<String>(); 
 		for(ObjectName on: objectNames) {
 			int attributeMask = mbeanObserver.getMaskFor(mbs.getMBeanInfo(on).getAttributes());
-			objectNamesAttrs.put(on, mbeanObserver.getAttributeNames(attributeMask));
+			final String[] mbeanAttrs = mbeanObserver.getAttributeNames(attributeMask);
+			Collections.addAll(allAttrNames, mbeanAttrs);
+			objectNamesAttrs.put(on, mbeanAttrs);
 		}
+		attributeNames = allAttrNames.toArray(new String[allAttrNames.size()]);
 		initializeAgentName();
 		clock = ConfigurationReader.confBool(Constants.PROP_TIME_IN_SEC, Constants.DEFAULT_TIME_IN_SEC) ? EpochClock.INSTANCE : Clock.defaultClock();
+		String objName = mbeanObserver.objectName.toString();
+		if(objName.endsWith(",*")) {
+			objName.replaceFirst(",\\*$", "");
+		}
+		try {
+			JMXHelper.registerMBean(this, JMXHelper.objectName("csf.observer." + objName));
+		} catch (Exception ex) {
+			log.warn("Failed to register ObserverMBean for [{}]", objName, ex);
+		}
 	}
 	
 	/**
@@ -177,6 +198,7 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 		try {
 			refresh();
 			ctx.stop();
+			snapshot.set(timer.getSnapshot());
 		} catch (Exception ex) {
 			log.error("Collection Failure", ex);
 			collectExceptions.mark();
@@ -189,12 +211,50 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 	 */
 	protected void refresh() {
 		final Map<ObjectName, Map<String, Object>> map = new HashMap<ObjectName, Map<String, Object>>(objectNamesAttrs.size());
-		for(Map.Entry<ObjectName, String[]> entry: objectNamesAttrs.entrySet()) {
-			map.put(entry.getKey(), mbs.getAttributeMap(entry.getKey(), entry.getValue()));
+		for(Map.Entry<ObjectName, String[]> entry: objectNamesAttrs.entrySet()) {			
+			map.put(entry.getKey(), mbs.getAttributeMap(entry.getKey(), entry.getValue()));			
 		}
-		active.set(accept(map, clock.getTime(), elapsed("BaseElapsedTime")));
-		
+		active.set(accept(map, clock.getTime(), elapsed("BaseElapsedTime")));	
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getEnabledAttributeNames()
+	 */
+	@Override
+	public Set<String> getEnabledAttributeNames() {		
+		return new HashSet<String>(Arrays.asList(attributeNames==null ? EMPTY_STR_ARR : attributeNames ));
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getOneTimeAttributeNames()
+	 */
+	@Override
+	public Set<String> getOneTimeAttributeNames() {		
+		return Collections.emptySet();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getTargetApp()
+	 */
+	@Override
+	public String getTargetApp() {		
+		return tags.get(Constants.APP_TAG);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getTargetHost()
+	 */
+	@Override
+	public String getTargetHost() {
+		return tags.get(Constants.HOST_TAG);
+	}
+	
+	
+
 	
 	/**
 	 * Callback to the concrete observer when data has been collected
@@ -354,4 +414,75 @@ public abstract class BaseMBeanObserver implements NotificationListener, Notific
 		double p = part/whole*100;
 		return (int) Math.round(p);
 	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getCount()
+	 */
+	@Override
+	public long getCount() {
+		return timer.getCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getMedian()
+	 */
+	@Override
+	public double getMedian() {
+		if(snapshot.get()==null) {
+			return -1d;
+		}
+		return snapshot.get().getMedian();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#get99thPercentile()
+	 */
+	@Override
+	public double get99thPercentile() {
+		if(snapshot.get()==null) {
+			return -1d;
+		}
+		return snapshot.get().get99thPercentile();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getMax()
+	 */
+	@Override
+	public long getMax() {
+		if(snapshot.get()==null) {
+			return -1L;
+		}		
+		return snapshot.get().getMax();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getMean()
+	 */
+	@Override
+	public double getMean() {
+		if(snapshot.get()==null) {
+			return -1d;
+		}		
+		return snapshot.get().getMean();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getMin()
+	 */
+	@Override
+	public long getMin() {
+		if(snapshot.get()==null) {
+			return -1L;
+		}
+		return snapshot.get().getMin();
+	}
+	
+	
 }

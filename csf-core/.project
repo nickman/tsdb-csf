@@ -2,9 +2,7 @@
 <projectDescription>
   <name>csf-core</name>
   <comment>OpenTSDB Java Agent for implementing Collect, Store and Forward for the JVM. NO_M2ECLIPSE_SUPPORT: Project files created with the maven-eclipse-plugin are not supported in M2Eclipse.</comment>
-  <projects>
-    <project>jmx-optional</project>
-  </projects>
+  <projects/>
   <buildSpec>
     <buildCommand>
       <name>org.eclipse.jdt.core.javabuilder</name>

@@ -59,6 +59,9 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 	/** A map of the one-timer values keyed by the OS attribute enum member */
 	protected final Map<OperatingSystemAttribute, Long> oneTimerValues = new EnumMap<OperatingSystemAttribute, Long>(OperatingSystemAttribute.class);
 	
+	/** The enabled one-timer attributes */
+	protected final EnumSet<OperatingSystemAttribute> enabledOneTimers;
+	
 	
 	/** A map of derived metrics where the key is the attribute name of the derived metric and the value is a set of dependencies of attributes
 	 * that must be available to calculate the derived value */
@@ -94,11 +97,10 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 	 * @param tags The tags common to all metrics submitted from this observer
 	 */
 	public OperatingSystemCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
-		super(mbeanServerConn, OPERATING_SYSTEM_MXBEAN, tags);
-		final String[] attrs = objectNamesAttrs.values().iterator().next();
-		final EnumSet<OperatingSystemAttribute> enabled = OperatingSystemAttribute.getEnabledNonOneTimers(attrs);
+		super(mbeanServerConn, OPERATING_SYSTEM_MXBEAN, tags);		
+		final EnumSet<OperatingSystemAttribute> enabled = OperatingSystemAttribute.getEnabledNonOneTimers(attributeNames);
 				
-		final EnumSet<OperatingSystemAttribute> enabledOneTimers = OperatingSystemAttribute.getEnabledOneTimers(attrs);
+		enabledOneTimers = OperatingSystemAttribute.getEnabledOneTimers(attributeNames);
 		final EnumSet<OperatingSystemAttribute> allEnabled = EnumSet.copyOf(enabled);
 		allEnabled.addAll(enabledOneTimers);
 		
@@ -118,6 +120,16 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 		}
 		traceOneTimes();
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserverMBean#getOneTimeAttributeNames()
+	 */
+	@Override
+	public Set<String> getOneTimeAttributeNames() {		
+		return Collections.emptySet();
+	}
+
 	
 	/**
 	 * Records and traces the one-time attribute values

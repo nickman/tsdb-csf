@@ -4,7 +4,6 @@
   <comment>OpenTSDB Java Agent for implementing runtime instrumentation of java classes to send metrics to OpenTSDB. NO_M2ECLIPSE_SUPPORT: Project files created with the maven-eclipse-plugin are not supported in M2Eclipse.</comment>
   <projects>
     <project>csf-core</project>
-    <project>jmx-optional</project>
   </projects>
   <buildSpec>
     <buildCommand>

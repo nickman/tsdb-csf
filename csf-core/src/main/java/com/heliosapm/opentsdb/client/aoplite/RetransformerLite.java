@@ -129,7 +129,9 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 				log.info("Returned value from getInstrumentation(): {}", obj);
 			}
 			instr = (Instrumentation)obj;
-			// TransformerManager.getInstrumentation();			
+			try {
+				TransformerManagerLite.switchTransformers(instr);
+			} catch (Exception ex) {/* No Op */}
 		} catch (Throwable t) {
 			log.warn("\n\t==============================\n\tFailed to load TransformerManager\n\t==============================\n");
 			try {

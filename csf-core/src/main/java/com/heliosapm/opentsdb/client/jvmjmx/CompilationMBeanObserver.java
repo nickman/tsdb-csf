@@ -18,6 +18,7 @@ package com.heliosapm.opentsdb.client.jvmjmx;
 
 import static com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.COMPILATION_MXBEAN;
 
+import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.ClassLoadingAttribute;
 import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.CompilationAttribute;
 
 import java.lang.management.ManagementFactory;
@@ -66,7 +67,7 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 	 * @param tags The tags common to all metrics submitted from this observer
 	 */
 	public CompilationMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
-		super(mbeanServerConn, COMPILATION_MXBEAN, tags);		
+		super(mbeanServerConn, COMPILATION_MXBEAN, tags);	
 		totalCompileTime = MetricBuilder.metric(objectName).ext("compiler.time").tags(tags).build();
 		compileRate = MetricBuilder.metric(objectName).ext("compiler.rate").tags(tags).build();
 	}

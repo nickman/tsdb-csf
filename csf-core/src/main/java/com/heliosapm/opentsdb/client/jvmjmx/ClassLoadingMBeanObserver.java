@@ -72,7 +72,6 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 		unloadedClassCount = MetricBuilder.metric(on).ext("classloading.totalUnloaded").tags(tags).build();
 		classUnloadRate = MetricBuilder.metric(on).ext("classloading.unloadRate").tags(tags).build();
 		classLoadRate = MetricBuilder.metric(on).ext("classloading.loadRate").tags(tags).build();
-
 	}
 	
 	/**
