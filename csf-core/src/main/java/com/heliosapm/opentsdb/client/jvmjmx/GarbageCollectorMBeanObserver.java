@@ -48,6 +48,8 @@ import com.heliosapm.opentsdb.client.util.Util;
  */
 
 public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
+	/**  */
+	private static final long serialVersionUID = -2013582586073292763L;
 	/** The garbage collector MBeans */
 	protected final Set<ObjectName> garbageCollectors;
 	/** The total collection time metric */
@@ -99,9 +101,10 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 * Creates a new GarbageCollectorMBeanObserver
 	 * @param jmxConnector The JMXConnector that will supply an MBeanServerConnection
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public GarbageCollectorMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags) {
-		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags);
+	public GarbageCollectorMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags, final boolean publishObserverMBean) {
+		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags, publishObserverMBean);
 		
 	}
 
@@ -109,9 +112,10 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 * Creates a new GarbageCollectorMBeanObserver
 	 * @param mbeanServerConn The MBeanServerConnection to monitor
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public GarbageCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
-		super(mbeanServerConn, GARBAGE_COLLECTOR_MXBEAN, tags);
+	public GarbageCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
+		super(mbeanServerConn, GARBAGE_COLLECTOR_MXBEAN, tags, publishObserverMBean);
 		garbageCollectors = objectNamesAttrs.keySet();
 		boolean tmp = false;
 		try {

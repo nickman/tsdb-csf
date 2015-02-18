@@ -21,6 +21,7 @@ import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.security.ProtectionDomain;
@@ -129,9 +130,6 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 				log.info("Returned value from getInstrumentation(): {}", obj);
 			}
 			instr = (Instrumentation)obj;
-			try {
-				TransformerManagerLite.switchTransformers(instr);
-			} catch (Exception ex) {/* No Op */}
 		} catch (Throwable t) {
 			log.warn("\n\t==============================\n\tFailed to load TransformerManager\n\t==============================\n");
 			try {
@@ -172,6 +170,19 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 		final int cnt = Util.registerMBeanEverywhere(this, OBJECT_NAME);
 		log.info("Registered RetransformerLite on [{}] MBeanServers", cnt);
 		
+	}
+	
+	/**
+	 * Re-registers specific known problematic class file tranformers
+	 * from non-retransform to retransform.
+	 * @return The number of switched transformers
+	 */
+	public int switchTransformers() {
+		try {
+			return TransformerManagerLite.switchTransformers(instrumentation);			
+		} catch (Exception ex) {
+			return 0;
+		}
 	}
 	
 	
@@ -322,7 +333,8 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 //			if(mNames.contains(m.getName())) methods.put(m.getName(), m);
 //		}
 		final Set<String> existingInstrMethods = instrumentedClasses.get(clazz);
-		for(Method m: clazz.getDeclaredMethods()) {			
+		for(Method m: clazz.getDeclaredMethods()) {
+//			if(Modifier.isPrivate(m.getModifiers())) continue;
 			if(mNames.contains(m.getName())) {
 				methods.put(m.getName(), m);
 			} else {

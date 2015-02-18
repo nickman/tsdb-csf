@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -40,6 +41,8 @@ import com.google.common.hash.PrimitiveSink;
 import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder.CapturingPrimitiveSink;
 import com.heliosapm.opentsdb.client.opentsdb.opt.CHMetric;
+import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
+import com.heliosapm.opentsdb.client.opentsdb.opt.SubMetric;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -62,9 +65,11 @@ public class OTMetric implements Serializable {
 	static final short HAS_APP_TAG = LAST_TRACE_TIME + 8;		// 1 byte
 	static final short HAS_HOST_TAG = HAS_APP_TAG + 1;			// 1 byte
 	static final short IS_EXT_TAG = HAS_HOST_TAG + 1;			// 1 byte
-	static final short CHMETRIC_TAG = IS_EXT_TAG + 1;			// 1 byte
-	static final short SUB_METRIC_TAG = CHMETRIC_TAG + 1;		// 1 byte
-	static final short TOTAL_SIZE_OFFSET = SUB_METRIC_TAG + 1; 	// 4 bytes
+	static final short PARENT_TAG = IS_EXT_TAG + 1;				// 1 byte
+	static final short CHMETRIC_TAG = PARENT_TAG + 8;			// 1 byte
+	static final short MEASURMENT_TAG = CHMETRIC_TAG + 1;		// 4 byte
+	static final short SUB_METRIC_TAG = MEASURMENT_TAG + 4;		// 4 byte
+	static final short TOTAL_SIZE_OFFSET = SUB_METRIC_TAG + 4; 	// 4 bytes
 	static final short MN_SIZE_OFFSET = TOTAL_SIZE_OFFSET + 4; 	// 4 bytes
 	static final short TAG_COUNT_OFFSET = MN_SIZE_OFFSET + 4;	// 4 bytes
 	// ------  then metric name bytes  ----------
@@ -72,7 +77,7 @@ public class OTMetric implements Serializable {
 	static final short TOTAL_SIZE = FTAG_SIZE_OFFSET +4; 
 	
 	
-	
+	// IS_EXT_TAG || PARENT_TAG(8), CHMETRIC_TAG(1),  MEASUREMENT_TAG(4),  SUB_METRIC_TAG(4)
 	
 	
 	static final byte ZERO_BYTE = 1;
@@ -181,20 +186,24 @@ public class OTMetric implements Serializable {
 		//hasher.putBytes(metricName);
 		ByteBuffer buff = null;
 		try {
-			buff = ByteBuffer.allocateDirect((metricName.length + sfn.estimateSize())*2);
+			buff = ByteBuffer.allocateDirect((metricName.length + sfn.estimateSize())*3);   // FIXME: Need a closer estimate
 			buff	
-			.putLong(0)							// the long hash code, Zero for now
-			.putInt(0)							// the java hash code, Zero for now
-			.putLong(0)							// the last trace time, Zero
-			.put(sfn.hasAppTag() ? ONE_BYTE : ZERO_BYTE)						// App Tag
-			.put(sfn.hasHostTag() ? ONE_BYTE : ZERO_BYTE)						// Host Tag
-			.put(isext ? ONE_BYTE : ZERO_BYTE)	// Ext flag
-			.put(ZERO_BYTE)						// CHMetric type flag
-			.put(ZERO_BYTE)						// SubMetric type flag
-			.putInt(0)							// Total Length, Zero for now
-			.putInt(metricName.length)			// Length of the prefix
-			.putInt(sfn.getTags().size())		// Tag count
-			.put(metricName);					// The metric name bytes
+			.putLong(0)											// the long hash code, Zero for now
+			.putInt(0)											// the java hash code, Zero for now
+			.putLong(0)											// the last trace time, Zero
+			.put(sfn.hasAppTag() ? ONE_BYTE : ZERO_BYTE)		// App Tag
+			.put(sfn.hasHostTag() ? ONE_BYTE : ZERO_BYTE)		// Host Tag
+			.put(isext ? ONE_BYTE : ZERO_BYTE)					// Ext flag
+			.putLong(0L) 										// Parent long hash code
+			.put(ZERO_BYTE)										// CHMetric type mask
+			.putInt(0) 											// The measurement mask
+			.putInt(0) 											// SubMetric type flag
+			.putInt(0)											// Total Length, Zero for now
+			.putInt(metricName.length)							// Length of the prefix
+			.putInt(sfn.getTags().size())						// Tag count
+			.put(metricName);									// The metric name bytes
+			
+			// IS_EXT_TAG || PARENT_TAG(8), CHMETRIC_TAG(1),  MEASUREMENT_TAG(4),  SUB_METRIC_TAG(4)		
 			
 			int totalLength = metricName.length;
 			if(!sfn.getTags().isEmpty()) {
@@ -405,6 +414,13 @@ public class OTMetric implements Serializable {
 		printDetails(otm);
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX", null, "p75");
 		printDetails(otm);
+		
+		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX")
+			.setMeasurement(Measurement.DEFAULT_MASK)
+			.setSubMetric(SubMetric.DEFAULT_SUBMETRICS_MASK);
+		
+		printDetails(otm);
+		
 //		
 		
 
@@ -423,11 +439,19 @@ public class OTMetric implements Serializable {
 		b.append("\n\tisExtension:").append(otm.isExtension());
 		b.append("\n\tPrefix:").append(otm.getMetricName());
 		b.append("\n\tTagCount:").append(otm.getTagCount());
-		b.append("\n\tCHMetric:").append(otm.getCHMetricType());
-		b.append("\n\tSubMetric:").append(otm.isSubMetric());
+		
+		
 		b.append("\n\tTags:").append(otm.getTags());
 		b.append("\n\thashCode:").append(otm.hashCode());
 		b.append("\n\tlongHashCode:").append(otm.longHashCode());
+		b.append("\n\tSubMetric:").append(otm.isSubMetric());
+		if(otm.isSubMetric()) {
+			b.append("\n\tCHMetric:").append(otm.getCHMetricType());
+			b.append("\n\tparentId:").append(otm.getParentId());
+		} else {
+			b.append("\n\tmeasurements:").append(Arrays.toString(otm.getMeasurements()));
+			b.append("\n\tsubMetrics:").append(Arrays.toString(otm.getSubMetrics()));			
+		}
 		b.append("\n\tJSON:").append(otm.toJSON(System.currentTimeMillis(), 0));
 		log(b);
 	}
@@ -501,15 +525,24 @@ public class OTMetric implements Serializable {
 	 * @return true if this is a sub-metric, false otherwise
 	 */
 	public boolean isSubMetric() {
-		return nameBuffer.get(SUB_METRIC_TAG)==ZERO_BYTE;
+		return nameBuffer.get(PARENT_TAG)!=0L;
 	}
 	
 	/**
-	 * Marks this OTMetric as a sub-metric
+	 * Returns this OTMetric's parent id
+	 * @return the id of the parent metric
+	 */
+	public long getParentId() {
+		return nameBuffer.getLong(PARENT_TAG);
+	}
+	
+	/**
+	 * Sets the parent id for this metric
+	 * @param parentId The id of the parent metric
 	 * @return this OTMetric
 	 */
-	public OTMetric setSubMetric() {
-		nameBuffer.put(SUB_METRIC_TAG, ONE_BYTE);
+	public OTMetric setParentMetric(final long parentId) {
+		nameBuffer.putLong(PARENT_TAG, parentId);
 		return this;
 	}
 
@@ -523,17 +556,74 @@ public class OTMetric implements Serializable {
 		nameBuffer.put(CHMETRIC_TAG, chMetric.bordinal);
 		return this;
 	}
-	
+		
+
 	/**
-	 * Sets the CHMetric type for this OTMetric and marks it as a sub-metric
-	 * @param chMetric the CHMetric type for this OTMetric
+	 * Sets the measurement mask for this OTMetric
+	 * @param mask The measurement mask
 	 * @return this OTMetric
 	 */
-	public OTMetric setSubCHMetricType(final CHMetric chMetric) {
-		if(chMetric==null) throw new IllegalArgumentException("The passed chMetric was null");
-		setCHMetricType(chMetric);
-		setSubMetric();
+	public OTMetric setMeasurement(final int mask) {
+		nameBuffer.putInt(MEASURMENT_TAG, mask);
 		return this;
+	}
+
+	/**
+	 * Sets the measurement mask for this OTMetric
+	 * @param measurements The measurements enabled
+	 * @return this OTMetric
+	 */
+	public OTMetric setMeasurement(final Measurement...measurements) {
+		setMeasurement(Measurement.getMaskFor(measurements));
+		return this;
+	}
+
+	/**
+	 * Returns an array of the enabled measurements
+	 * @return an array of the enabled measurements
+	 */
+	public Measurement[] getMeasurements() {
+		return Measurement.getEnabled(nameBuffer.getInt(MEASURMENT_TAG));
+	}
+	
+	/**
+	 * Sets the sub-metric mask for this OTMetric
+	 * @param mask The sub-metric mask
+	 * @return this OTMetric
+	 */
+	public OTMetric setSubMetric(final int mask) {
+		nameBuffer.putInt(SUB_METRIC_TAG, mask);
+		return this;
+	}
+
+	/**
+	 * Sets the sub-metric mask for this OTMetric
+	 * @param subMetrics The sub-metrics enabled
+	 * @return this OTMetric
+	 */
+	public OTMetric setSubMetric(final SubMetric...subMetrics) {
+		setMeasurement(SubMetric.getMaskFor(subMetrics));
+		return this;
+	}
+	
+	/**
+	 * Sets the measurement and submetric masks
+	 * @param measurementMask The measurement mask
+	 * @param subMetricMask The sub-metric mask
+	 * @return this OTMetric
+	 */
+	public OTMetric setSub(final int measurementMask, final int subMetricMask) {
+		nameBuffer.putInt(SUB_METRIC_TAG, subMetricMask);
+		nameBuffer.putInt(MEASURMENT_TAG, measurementMask);
+		return this;
+	}
+
+	/**
+	 * Returns an array of the enabled sub-metrics
+	 * @return an array of the enabled sub-metric
+	 */
+	public SubMetric[] getSubMetrics() {
+		return SubMetric.getEnabled(nameBuffer.getInt(SUB_METRIC_TAG));
 	}
 	
 	
@@ -631,6 +721,12 @@ public class OTMetric implements Serializable {
 	
 	private static final DynamicByteBufferBackedChannelBufferFactory factory = new DynamicByteBufferBackedChannelBufferFactory();
 	
+	/**
+	 * Renders this metric into a submittable JSON string
+	 * @param timestamp The timestamp to associate to the metric
+	 * @param value The value to associate to the metric
+	 * @return A JSON rendering of a submission for this metric
+	 */
 	public String toJSON(final long timestamp, final Object value) {
 		final ChannelBuffer cbuff = factory.getBuffer(16);
 		System.out.println("BUFF INITIAL CAP:" + cbuff.capacity());

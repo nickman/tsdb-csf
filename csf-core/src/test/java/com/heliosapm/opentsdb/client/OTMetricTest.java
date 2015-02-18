@@ -16,6 +16,7 @@
 
 package com.heliosapm.opentsdb.client;
 
+import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -52,6 +53,8 @@ public class OTMetricTest extends BaseTest {
 				     "KitchenSink.resultCounts{op=cache-lookup, service=cacheservice, host=AA.com, app=XX}"},
 				     // just a dot name
 						new String[]{"KitchenSink.resultCounts", "KitchenSink.resultCounts"}, 
+					// From an Object Name
+						new String[]{ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME, "java.lang{type=OperatingSystem}"}
 
 			}
 			//new String[]{}
@@ -68,7 +71,7 @@ public class OTMetricTest extends BaseTest {
 		}
 	}
 	
-	@Test
+	//@Test
 	public void longTestFlatNames() {
 		for(int i = 0; i < 10000; i++) {
 			for(String[] flatNameTest: flatNameTests) {

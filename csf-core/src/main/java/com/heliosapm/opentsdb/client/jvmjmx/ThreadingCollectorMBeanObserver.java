@@ -41,6 +41,8 @@ import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
  */
 
 public class ThreadingCollectorMBeanObserver extends BaseMBeanObserver {
+	/**  */
+	private static final long serialVersionUID = -4665443252849651807L;
 	/** OTMetrics for all the enabled attributes */
 	protected final EnumMap<ThreadingAttribute, OTMetric> otMetrics = new EnumMap<ThreadingAttribute, OTMetric>(ThreadingAttribute.class);
 	/** OTMetrics for each thread state */
@@ -50,18 +52,20 @@ public class ThreadingCollectorMBeanObserver extends BaseMBeanObserver {
 	 * Creates a new ThreadingCollectorMBeanObserver
 	 * @param jmxConnector The JMXConnector that will supply an MBeanServerConnection
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public ThreadingCollectorMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags) {
-		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags);
+	public ThreadingCollectorMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags, final boolean publishObserverMBean) {
+		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags, publishObserverMBean);
 	}
 
 	/**
 	 * Creates a new ThreadingCollectorMBeanObserver
 	 * @param mbeanServerConn The MBeanServerConnection to monitor
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public ThreadingCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
-		super(mbeanServerConn, THREAD_MXBEAN, tags);
+	public ThreadingCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
+		super(mbeanServerConn, THREAD_MXBEAN, tags, publishObserverMBean);
 		for(ThreadingAttribute ta: ThreadingAttribute.values()) {
 			otMetrics.put(ta, MetricBuilder.metric(THREAD_MXBEAN.objectName).ext("threading." + ta.attributeName).build());
 		}

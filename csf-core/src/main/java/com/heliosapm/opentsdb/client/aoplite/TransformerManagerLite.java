@@ -60,9 +60,10 @@ public class TransformerManagerLite {
 		try {
 			tmClass = Class.forName("sun.instrument.TransformerManager");
 			iClass = Class.forName("sun.instrument.InstrumentationImpl");
-			tmField = iClass.getDeclaredField("mTransformerManager");
+			tmField = iClass.getDeclaredField("mTransformerManager");			
 			tListField = tmClass.getDeclaredField("mTransformerList");
 			tmField.setAccessible(true);
+			tListField.setAccessible(true);
 		} catch (Exception ex) {
 			tmClass = null; iClass = null; tmField = null; tListField = null;
 		}
@@ -82,24 +83,27 @@ public class TransformerManagerLite {
 	/**
 	 * Rarely needed hack to unregister class transformers and reregister with retransform enabled 
 	 * @param instrumentation The optional instrumentation instance to use. 
+	 * @return the number of transformers switched
 	 */
-	public static void switchTransformers(Instrumentation instrumentation) {
+	public static int switchTransformers(Instrumentation instrumentation) {
 		if(instrClass==null) {
 			LOG.warn("switchTransformers disabled. Failed to load instrumentation");
-			return;
+			return 0;
 		}		
 		if(instrumentation==null) {
 			LOG.warn("No instrumentation instance available. Cannot switch transformers");
-			return;				
+			return 0;				
 		}
+		int switchCount = 0;
 		try {
 			final Object transformerManager = transformManagerField.get(instrumentation);
 			final Object transformersArray = transformerList.get(transformerManager);
 			final int tCount = Array.getLength(transformersArray);
 			if(tCount==0) {
 				LOG.info("No transformer found");
-				return;
+				return 0;
 			}
+			
 			for(int i = 0; i < tCount; i++) {
 				Object transformer = Array.get(transformersArray, i);
 				if(transformer==null || !(transformer instanceof ClassFileTransformer)) continue;
@@ -112,6 +116,7 @@ public class TransformerManagerLite {
 					try {
 						instrumentation.addTransformer(cft, true);
 						LOG.info("Transformer {} Switched", transformer.getClass().getName());
+						switchCount++;
 					} catch (Exception ex) {
 						LOG.error("Failed to re-register transformer {}. Adding back to original slot.", transformer.getClass().getName());
 						try {
@@ -123,8 +128,10 @@ public class TransformerManagerLite {
 					}
 				}
 			}
+			return switchCount;
 		} catch (Exception ex) {
 			LOG.error("switchTransformers failed", ex);
+			return switchCount;
 		}
 	}
 	

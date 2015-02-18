@@ -126,23 +126,12 @@ public class XMLLoader {
 	public static void jmxmpServer(final Node rootConfigNode) {
 		final Node jmxmpNode = XMLHelper.getChildNodeByName(rootConfigNode, "jmxmp");
 		if(jmxmpNode!=null) {
-			for(Node jmxmp: XMLHelper.getChildNodesByName(jmxmpNode, "server", false)) {
-				String iface = XMLHelper.getAttributeByName(jmxmp, "iface", "127.0.0.1");
-				int port = XMLHelper.getAttributeByName(jmxmp, "port", -1);
-				if(port==-1) continue;
-				String jmxDomain = XMLHelper.getAttributeByName(jmxmp, "jmxdomain", "DefaultDomain");
-				try {
-					JMXServiceURL surl = new JMXServiceURL("jmxmp", iface, port);
-					MBeanServer mbs = JMXHelper.getLocalMBeanServer(true, jmxDomain);
-					if(mbs==null) continue;
-					JMXMPConnectorServer jmxmpServer = new JMXMPConnectorServer(surl, null, mbs);
-					jmxmpServer.start();
-					log("Started JMXMP Server on [%s]", surl);
-				} catch (Exception ex) {
-					loge("Failed to load JMXMP Server. Stack trace follows:");
-					ex.printStackTrace(System.err);								
-				}
-				
+			try {
+				final Class<?> installerClass = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.JMXMPInstaller");
+				installerClass.getDeclaredMethod("installJMXMPServer", Node.class).invoke(null, jmxmpNode);
+			} catch (Exception ex) {
+				loge("Failed to install JMXMP Connector Servers. Stack trace follows:");
+				ex.printStackTrace(System.err);							
 			}
 		}
 	}
@@ -159,6 +148,14 @@ public class XMLLoader {
 				final Class<?> transformerClass = Class.forName("com.heliosapm.opentsdb.client.aoplite.RetransformerLite");
 				Object retransformer = transformerClass.getDeclaredMethod("getInstance").invoke(null);
 				if(retransformer!=null) {
+					if(XMLHelper.getChildNodeByName(liteNode, "cftransformerfix")!=null) {
+						try {
+							Object result = retransformer.getClass().getDeclaredMethod("switchTransformers").invoke(retransformer);
+							log("Switched %s class file transformers", result);
+						} catch (Exception ex) {
+							loge("Failed to install cftransformerfix: %s", ex);
+						}
+					}
 					loadAop(retransformer, liteNode);
 				} else {
 					loge("Failed to load transformations. Retransformer was null.");
@@ -178,10 +175,11 @@ public class XMLLoader {
 		try {
 			final Node platformNode = XMLHelper.getChildNodeByName(rootConfigNode, "platform-mbeanobserver");
 			if(platformNode!=null) {
-				long period = XMLHelper.getLongAttributeByName(platformNode, "period", 15L);
+				final long period = XMLHelper.getLongAttributeByName(platformNode, "period", 15L);
+				final boolean installMBeans = XMLHelper.getAttributeByName(platformNode, "mbeans", false);
 				final Class<?> observerClass = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet");
-				observerClass.getDeclaredMethod("build", MBeanServer.class, long.class, TimeUnit.class)
-					.invoke(null, JMXHelper.getHeliosMBeanServer(), period, TimeUnit.SECONDS);
+				observerClass.getDeclaredMethod("build", MBeanServer.class, long.class, TimeUnit.class, boolean.class)
+					.invoke(null, JMXHelper.getHeliosMBeanServer(), period, TimeUnit.SECONDS, installMBeans);
 				log("Initialized tsdb-csf MXBeanObserver");				
 			}
 		} catch (Exception ex) {

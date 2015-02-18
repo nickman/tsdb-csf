@@ -85,7 +85,8 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 	
 	/** The ordered set of count subMetrics. Since we only need one count per instrumentation definition, these are in order of precedence */
 	public static final SortedSet<SubMetric> countFilter = Collections.unmodifiableSortedSet(new TreeSet<SubMetric>(Arrays.asList(count, hcount, tcount, mcount)));
-	
+
+
 	
 	/** The {@link Gauge} SubMetrics */
 	public static final Set<SubMetric> GAUGE_SUBMETRICS = Collections.unmodifiableSet(EnumSet.of(gauge));
@@ -128,6 +129,12 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 	public static final int HISTOGRAM_SUBMETRIC_MASK = getMaskFor(HISTOGRAM_SUBMETRICS);
 	/** The default {@link Histogram} SubMetrics Mask */
 	public static final int DEFAULT_HISTOGRAM_SUBMETRIC_MASK = getMaskFor(DEFAULT_HISTOGRAM_SUBMETRICS);
+	
+	/** All the SubMetrics mask */
+	public static final int ALL_SUBMETRICS_MASK = getMaskFor(values());
+	/** The default SubMetrics mask */
+	public static final int DEFAULT_SUBMETRICS_MASK = (DEFAULT_GAUGE_SUBMETRIC_MASK | DEFAULT_COUNTER_SUBMETRIC_MASK | DEFAULT_METER_SUBMETRIC_MASK | DEFAULT_HISTOGRAM_SUBMETRIC_MASK);
+
 	
 
 	private SubMetric() {

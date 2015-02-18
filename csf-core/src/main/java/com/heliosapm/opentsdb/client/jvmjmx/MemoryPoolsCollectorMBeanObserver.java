@@ -64,18 +64,20 @@ public class MemoryPoolsCollectorMBeanObserver extends BaseMBeanObserver {
 	 * Creates a new MemoryPoolsCollectorMBeanObserver
 	 * @param jmxConnector The JMXConnector that will supply an MBeanServerConnection
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public MemoryPoolsCollectorMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags) {
-		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags);
+	public MemoryPoolsCollectorMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags, final boolean publishObserverMBean) {
+		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags, publishObserverMBean);
 	}
 
 	/**
 	 * Creates a new MemoryPoolsCollectorMBeanObserver
 	 * @param mbeanServerConn The MBeanServerConnection to monitor
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public MemoryPoolsCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
-		super(mbeanServerConn, MEMORY_POOL_MXBEAN, tags);
+	public MemoryPoolsCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
+		super(mbeanServerConn, MEMORY_POOL_MXBEAN, tags, publishObserverMBean);
 		poolMetrics = new HashMap<String, Map<MUsage, OTMetric>>(objectNamesAttrs.size());
 		poolMaxes = new HashMap<String, Long>(objectNamesAttrs.size());
 		for(ObjectName on: objectNamesAttrs.keySet()) {

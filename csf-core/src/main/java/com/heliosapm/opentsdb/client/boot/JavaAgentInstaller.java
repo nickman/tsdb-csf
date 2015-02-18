@@ -96,7 +96,7 @@ public class JavaAgentInstaller {
 			pid = findPid(args[0]);
 		}
 		if(pid < 1) {
-			System.exit((int)pid);
+			System.exit(-1);
 		}
 		
 		log("Installing JavaAgent to PID: %s from JAR: %s", pid, JavaAgentInstaller.class.getProtectionDomain().getCodeSource().getLocation());
@@ -118,7 +118,7 @@ public class JavaAgentInstaller {
 				vm.loadAgent(loc);
 			}
 			log("Agent loaded to process %s", vm.id());
-			System.exit(0);
+			System.exit((int)pid);
 		} catch (Exception ex) {
 			loge("Failed to attach to process %s. Stack trace follows...", pid);
 			ex.printStackTrace(System.err);

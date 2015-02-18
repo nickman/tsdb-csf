@@ -73,7 +73,7 @@ public class MBeanObserverSet implements Runnable {
 		log("Testing MOS");
 		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4242");
 		System.setProperty("tsdb.http.compression.enabled", "false");
-		MBeanObserverSet mos = build(RuntimeMBeanServerConnection.newInstance(JMXHelper.getHeliosMBeanServer()), 5, TimeUnit.SECONDS);
+		MBeanObserverSet mos = build(RuntimeMBeanServerConnection.newInstance(JMXHelper.getHeliosMBeanServer()), 5, TimeUnit.SECONDS, true);
 		log("MOS enabled with [" + mos.enabledObservers.size() + "] MBeanObservers");
 		try { Thread.currentThread().join(); } catch (Exception ex) {}
 	}
@@ -82,21 +82,37 @@ public class MBeanObserverSet implements Runnable {
 		System.out.println(msg);
 	}
 	
-	public static MBeanObserverSet build(final MBeanServer mbeanServer, final long period, final TimeUnit unit) {
-		return build(RuntimeMBeanServerConnection.newInstance(mbeanServer), period, unit);
+	/**
+	 * Builds an MBeanObserver set for the platform mbeans
+	 * @param mbeanServer The target MBeanServer
+	 * @param period The polling period
+	 * @param unit The polling period unit
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
+	 * @return the built MBeanObserverSet
+	 */
+	public static MBeanObserverSet build(final MBeanServer mbeanServer, final long period, final TimeUnit unit, final boolean publishObserverMBean) {
+		return build(RuntimeMBeanServerConnection.newInstance(mbeanServer), period, unit, publishObserverMBean);
 	}
 	
-	public static MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final long period, final TimeUnit unit) {
+	/**
+	 * Builds an MBeanObserver set for the platform mbeans
+	 * @param mbeanServer The target MBeanServer
+	 * @param period The polling period
+	 * @param unit The polling period unit
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
+	 * @return the built MBeanObserverSet
+	 */
+	public static MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final long period, final TimeUnit unit, final boolean publishObserverMBean) {
 		final MBeanObserverSet mos = new MBeanObserverSet(mbeanServer, period, unit);		
-		BaseMBeanObserver observer = new ClassLoadingMBeanObserver(mbeanServer, null);
+		BaseMBeanObserver observer = new ClassLoadingMBeanObserver(mbeanServer, null, publishObserverMBean);
 		mos.enabledObservers.add(observer);
 		final Map<String, String> tags = observer.getTags();
-		mos.enabledObservers.add(new CompilationMBeanObserver(mbeanServer, tags));
-		mos.enabledObservers.add(new GarbageCollectorMBeanObserver(mbeanServer, tags));
-		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags));
-		mos.enabledObservers.add(new MemoryPoolsCollectorMBeanObserver(mbeanServer, tags));
-		mos.enabledObservers.add(new OperatingSystemCollectorMBeanObserver(mbeanServer, tags));
-		mos.enabledObservers.add(new ThreadingCollectorMBeanObserver(mbeanServer, tags));
+		mos.enabledObservers.add(new CompilationMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new GarbageCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new MemoryPoolsCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new OperatingSystemCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new ThreadingCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
 		mos.start();
 		final MetricRegistry reg = new MetricRegistry();
 		for(MetricSet ms: mos.enabledObservers) {

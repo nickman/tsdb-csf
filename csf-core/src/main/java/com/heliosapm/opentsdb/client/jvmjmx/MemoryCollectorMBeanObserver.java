@@ -70,18 +70,20 @@ public class MemoryCollectorMBeanObserver extends BaseMBeanObserver {
 	 * Creates a new MemoryCollectorMBeanObserver
 	 * @param jmxConnector The JMXConnector that will supply an MBeanServerConnection
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public MemoryCollectorMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags) {
-		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags);
+	public MemoryCollectorMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags, final boolean publishObserverMBean) {
+		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags, publishObserverMBean);
 	}
 
 	/**
 	 * Creates a new MemoryCollectorMBeanObserver
 	 * @param mbeanServerConn The MBeanServerConnection to monitor
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public MemoryCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
-		super(mbeanServerConn, MEMORY_MXBEAN, tags);
+	public MemoryCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
+		super(mbeanServerConn, MEMORY_MXBEAN, tags, publishObserverMBean);
 		objectName = objectNamesAttrs.keySet().iterator().next();
 		for(MemoryType mt: MemoryType.values()) {
 			final Map<MUsage, OTMetric> otmap = new EnumMap<MUsage, OTMetric>(MUsage.class);

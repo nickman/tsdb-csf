@@ -56,18 +56,20 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 	 * Creates a new CompilationMBeanObserver
 	 * @param jmxConnector The JMXConnector that will supply an MBeanServerConnection
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered 
 	 */
-	public CompilationMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags) {
-		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags);
+	public CompilationMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags, final boolean publishObserverMBean) {
+		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags, publishObserverMBean);
 	}
 
 	/**
 	 * Creates a new CompilationMBeanObserver
 	 * @param mbeanServerConn The MBeanServerConnection to monitor
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public CompilationMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
-		super(mbeanServerConn, COMPILATION_MXBEAN, tags);	
+	public CompilationMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
+		super(mbeanServerConn, COMPILATION_MXBEAN, tags, publishObserverMBean);	
 		totalCompileTime = MetricBuilder.metric(objectName).ext("compiler.time").tags(tags).build();
 		compileRate = MetricBuilder.metric(objectName).ext("compiler.rate").tags(tags).build();
 	}

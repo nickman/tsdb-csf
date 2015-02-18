@@ -54,18 +54,20 @@ public class ClassLoadingMBeanObserver extends BaseMBeanObserver {
 	 * Creates a new ClassLoadingMBeanObserver
 	 * @param jmxConnector The JMXConnector that will supply an MBeanServerConnection
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public ClassLoadingMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags) {
-		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags);
+	public ClassLoadingMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags, final boolean publishObserverMBean) {
+		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags, publishObserverMBean);
 	}
 
 	/**
 	 * Creates a new ClassLoadingMBeanObserver
 	 * @param mbeanServerConn The MBeanServerConnection to monitor
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	public ClassLoadingMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags) {
-		super(mbeanServerConn, CLASSLOADING_MXBEAN, tags);
+	public ClassLoadingMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
+		super(mbeanServerConn, CLASSLOADING_MXBEAN, tags, publishObserverMBean);
 		final ObjectName on = objectNamesAttrs.keySet().iterator().next();
 		loadedClassCount = MetricBuilder.metric(on).ext("classloading.loaded").tags(tags).build();
 		totalLoadedClassCount = MetricBuilder.metric(on).ext("classloading.totalLoaded").tags(tags).build();

@@ -172,6 +172,22 @@ public class JMXHelper {
 	}
 	
 	/**
+	 * Inspects all local MBeanServers and returns the first one found that has the passed ObjectName registered
+	 * @param objectName The object name to look for
+	 * @return the first MBeanServer that has the object name registered, or null if not found
+	 */
+	public static MBeanServer getMBeanServerFor(final ObjectName objectName) {
+		if(objectName==null) throw new IllegalArgumentException("The passed ObjectName was null");
+		if(objectName.isPattern()) throw new IllegalArgumentException("The passed ObjectName [" + objectName + "] is a pattern");
+		for(MBeanServer mbs: MBeanServerFactory.findMBeanServer(null)) {
+			if(mbs.isRegistered(objectName)) {
+				return mbs;
+			}
+		}
+		return null;
+	}
+	
+	/**
 	 * Returns an array of matching ObjectNames
 	 * @param server The MBeanServer to query
 	 * @param pattern The ObjectName pattern

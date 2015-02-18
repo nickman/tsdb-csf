@@ -89,6 +89,8 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 	/** The metrics that belong to this observer */
 	protected final Set<OTMetric> groupMetrics = new HashSet<OTMetric>();
 	
+	/** If true, an observer management MBean will be registered */
+	public final boolean publishObserverMBean;
 	
 	
 	/** The attribute mask */
@@ -105,20 +107,24 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 	 * @param jmxConnector The JMXConnector that will supply an MBeanServerConnection
 	 * @param mbeanObserver The MBeanObserver defining what we're collecting
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	protected BaseMBeanObserver(final JMXConnector jmxConnector, final MBeanObserver mbeanObserver, final Map<String, String> tags) {
-		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), mbeanObserver, tags);
+	protected BaseMBeanObserver(final JMXConnector jmxConnector, final MBeanObserver mbeanObserver, final Map<String, String> tags, final boolean publishObserverMBean) {
+		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), mbeanObserver, tags, publishObserverMBean);
 	}
+	
 	
 	/**
 	 * Creates a new BaseMBeanObserver
 	 * @param mbeanServerConn The MBeanServerConnection to monitor
 	 * @param mbeanObserver The MBeanObserver defining what we're collecting
 	 * @param tags The tags common to all metrics submitted from this observer
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 */
-	protected BaseMBeanObserver(final MBeanServerConnection mbeanServerConn, final MBeanObserver mbeanObserver, final Map<String, String> tags) {
+	protected BaseMBeanObserver(final MBeanServerConnection mbeanServerConn, final MBeanObserver mbeanObserver, final Map<String, String> tags, final boolean publishObserverMBean) {
 		mbs = RuntimeMBeanServerConnection.newInstance(mbeanServerConn);
 		this.mbeanObserver = mbeanObserver;
+		this.publishObserverMBean = publishObserverMBean;
 		if(tags!=null && !tags.isEmpty()) {
 			for(Map.Entry<String, String> entry: tags.entrySet()) {
 				String key = Util.clean(entry.getKey());
@@ -142,12 +148,14 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 		clock = ConfigurationReader.confBool(Constants.PROP_TIME_IN_SEC, Constants.DEFAULT_TIME_IN_SEC) ? EpochClock.INSTANCE : Clock.defaultClock();
 		String objName = mbeanObserver.objectName.toString();
 		if(objName.endsWith(",*")) {
-			objName.replaceFirst(",\\*$", "");
+			objName = objName.replaceFirst(",\\*$", "");
 		}
-		try {
-			JMXHelper.registerMBean(this, JMXHelper.objectName("csf.observer." + objName));
-		} catch (Exception ex) {
-			log.warn("Failed to register ObserverMBean for [{}]", objName, ex);
+		if(publishObserverMBean) {
+			try {
+				JMXHelper.registerMBean(this, JMXHelper.objectName("csf.observer." + objName));
+			} catch (Exception ex) {
+				log.warn("Failed to register ObserverMBean for [{}]", objName, ex);
+			}
 		}
 	}
 	
