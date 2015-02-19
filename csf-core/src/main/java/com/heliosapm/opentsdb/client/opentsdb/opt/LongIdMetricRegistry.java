@@ -156,7 +156,7 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
         	}
         	if(ext!=null) {
         		otm = subMetric(otMetric, ext);
-        		otMetric.setSubCHMetricType(CHMetric.getCHMetricType(metric));
+        		otMetric.setCHMetricType(CHMetric.getCHMetricType(metric));
         		return otm;
         	}        	
         }    
@@ -173,7 +173,7 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
      * @return the new sub-metric OTMetric
      */
     protected OTMetric subMetric(final OTMetric parentOTMetric, final String ext) {
-    	final OTMetric otm = MetricBuilder.metric(parentOTMetric).ext(ext).optBuild();
+    	final OTMetric otm = MetricBuilder.metric(parentOTMetric).ext(ext).optBuild().setParentMetric(parentOTMetric.longHashCode());
     	Set<OTMetric> subs = submetrics.get(parentOTMetric.longHashCode());
     	if(subs==null) {
     		synchronized(submetrics) {

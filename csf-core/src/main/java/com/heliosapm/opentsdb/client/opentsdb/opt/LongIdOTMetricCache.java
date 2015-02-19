@@ -127,6 +127,40 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	}
 	
 	
+	
+	/**
+	 * Returns the counter for the passed OTMetric
+	 * @param otMetric the OTMetric to get the counter for
+	 * @return the counter
+	 */
+	public AtomicInteger getCounter(final OTMetric otMetric) {
+		try {
+			return this.counters.get(otMetric, new Callable<AtomicInteger>() {
+				@Override
+				public AtomicInteger call() throws Exception {					
+					return new AtomicInteger(0);
+				}			
+			});
+		} catch (Exception ex) {
+			// this should never happen
+			this.log.error("Unexpected exception getting counter", ex);
+			throw new RuntimeException(ex);
+		}		
+	}
+	
+	/**
+	 * Returns the counter for the passed OTMetric id
+	 * @param otMetricId the OTMetric id to get the counter for
+	 * @return the counter
+	 */
+	public AtomicInteger getCounter(final long otMetricId) {
+		final OTMetric metric =  cache.get(otMetricId);
+		if(metric==null) throw new RuntimeException("No otmeric for id [" + otMetricId + "]");
+		return getCounter(metric);
+	}
+
+	
+	
 	/**
 	 * Increments a counter for the passed OTMetric and returns the new value
 	 * @param otMetric the OTMetric 

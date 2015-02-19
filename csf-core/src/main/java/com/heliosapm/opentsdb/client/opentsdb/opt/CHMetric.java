@@ -29,6 +29,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.UniformReservoir;
+import com.heliosapm.opentsdb.client.util.Util;
 
 /**
  * <p>Title: CHMetric</p>
@@ -55,7 +56,7 @@ public enum CHMetric implements CHMetricFactory {
 	private CHMetric(final Class<? extends Metric> type, final int subMetricMask, final Set<SubMetric> subMetrics, final int defaultSubMetricMask, final Set<SubMetric> defaultSubMetrics) {
 		this.type = type;
 		this.subMetricMask = subMetricMask;
-		this.bordinal = (byte)ordinal();		
+		this.bordinal = Util.pow2ByteIndex(ordinal());
 		this.subMetrics = subMetrics;
 		this.defaultSubMetricMask = defaultSubMetricMask;
 		this.defaultSubMetrics = defaultSubMetrics;
@@ -136,4 +137,33 @@ public enum CHMetric implements CHMetricFactory {
 		if(metric==null) throw new IllegalArgumentException("The passed metric was null");
 		return getCHMetricType(metric.getClass());
 	}
+	
+	/**
+	 * Returns an array of the CHMetrics enabled by the passed mask 
+	 * @param mask The mask
+	 * @return an array of CHMetrics
+	 */
+	public static CHMetric[] getEnabled(final int mask) {
+		final EnumSet<CHMetric> set = EnumSet.noneOf(CHMetric.class);
+		for(CHMetric ch: values()) {
+			if((mask & ch.bordinal) != 0) set.add(ch);
+		}
+		return set.toArray(new CHMetric[set.size()]);
+	}
+	
+	/**
+	 * Returns a bitmask enabled for all the passed CHMetric members
+	 * @param chMetrics the CHMetric members to get a mask for
+	 * @return the mask
+	 */
+	public static byte getMaskFor(final CHMetric...chMetrics) {
+		if(chMetrics==null || chMetrics.length==0) return 0;
+		byte bitMask = 0;
+		for(CHMetric ch: chMetrics) {
+			if(chMetrics==null) continue;
+			bitMask = (byte) (bitMask | ch.bordinal);
+		}
+		return bitMask;
+	}	
+
 }

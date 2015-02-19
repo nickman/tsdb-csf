@@ -446,7 +446,7 @@ public class OTMetric implements Serializable {
 		b.append("\n\tlongHashCode:").append(otm.longHashCode());
 		b.append("\n\tSubMetric:").append(otm.isSubMetric());
 		if(otm.isSubMetric()) {
-			b.append("\n\tCHMetric:").append(otm.getCHMetricType());
+			b.append("\n\tCHMetrics:").append(Arrays.toString(otm.getCHMetricTypes()));
 			b.append("\n\tparentId:").append(otm.getParentId());
 		} else {
 			b.append("\n\tmeasurements:").append(Arrays.toString(otm.getMeasurements()));
@@ -513,11 +513,11 @@ public class OTMetric implements Serializable {
 	}
 	
 	/**
-	 * Returns the CHMetric type of this OTMetric
-	 * @return the CHMetric type of this OTMetric
+	 * Returns the CHMetrics enabled for this OTMetric
+	 * @return the CHMetrics enabled for this OTMetric
 	 */
-	public CHMetric getCHMetricType() {
-		return CHMetric.valueOf(nameBuffer.get(CHMETRIC_TAG)); 
+	public CHMetric[] getCHMetricTypes() {
+		return CHMetric.getEnabled(nameBuffer.get(CHMETRIC_TAG));		
 	}
 	
 	/**
@@ -548,14 +548,24 @@ public class OTMetric implements Serializable {
 
 	/**
 	 * Sets the CHMetric type for this OTMetric
-	 * @param chMetric the CHMetric type for this OTMetric
+	 * @param chMetrics the CHMetric members to build a mask from
 	 * @return this OTMetric
 	 */
-	public OTMetric setCHMetricType(final CHMetric chMetric) {
-		if(chMetric==null) throw new IllegalArgumentException("The passed chMetric was null");
-		nameBuffer.put(CHMETRIC_TAG, chMetric.bordinal);
+	public OTMetric setCHMetricType(final CHMetric...chMetrics) {
+		nameBuffer.put(CHMETRIC_TAG, CHMetric.getMaskFor(chMetrics));
 		return this;
 	}
+	
+	/**
+	 * Sets the CHMetric type for this OTMetric
+	 * @param chMetricMask the CHMetric bit mask to set
+	 * @return this OTMetric
+	 */
+	public OTMetric setCHMetricType(final byte chMetricMask) {
+		nameBuffer.put(chMetricMask);
+		return this;
+	}
+	
 		
 
 	/**

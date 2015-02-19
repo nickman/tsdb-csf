@@ -298,10 +298,18 @@ public class Util {
     
     private static final int[] POW2 = new int[]{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576, 2097152, 4194304, 8388608, 16777216, 33554432, 67108864, 134217728, 268435456, 536870912, 1073741824};
     
+    private static final byte[] BYTEPOW2 = new byte[]{1, 2, 4, 8, 16, 32, 64};
+    
     public static int pow2Index(final int x) {
     	if(x<0 || x > 30) throw new IllegalArgumentException("Unsupported Value [" + x + "]. Only supported for values between 0 and 30 inclusive");
     	return POW2[x];
     }
+    
+    public static byte pow2ByteIndex(final int x) {
+    	if(x<0 || x > 7) throw new IllegalArgumentException("Unsupported Value [" + x + "]. Only supported for values between 0 and 30 inclusive");
+    	return BYTEPOW2[x];
+    }
+    
     
 	/**
 	 * Calculates a percent

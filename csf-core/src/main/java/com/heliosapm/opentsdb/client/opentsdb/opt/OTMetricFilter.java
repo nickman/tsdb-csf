@@ -50,7 +50,10 @@ public interface OTMetricFilter {
     public static abstract class BaseOTMetricFilter implements OTMetricFilter {
         @Override
         public boolean matches(final String name, final Metric metric) {
-            return matches(MetricBuilder.metric(name).chMetric(CHMetric.getCHMetricType(metric)).buildNoCache(), metric);
+            return matches(
+            		MetricBuilder.metric(name)
+            		.chMetricType(CHMetric.getCHMetricType(metric).bordinal)
+            		.buildNoCache(), metric);
         }
     	
     }

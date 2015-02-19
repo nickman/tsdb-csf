@@ -20,7 +20,6 @@ import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
-import java.security.acl.LastOwnerException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -39,6 +38,8 @@ import com.google.common.hash.PrimitiveSink;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric.SplitFlatName;
 import com.heliosapm.opentsdb.client.opentsdb.opt.CHMetric;
 import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache;
+import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
+import com.heliosapm.opentsdb.client.opentsdb.opt.SubMetric;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -58,13 +59,24 @@ public class MetricBuilder {
 	private String prefix = null;
 	/** An optional metric name suffix */
 	private String extension = null;
-	/** An optional CHMetric type */
-	private CHMetric chm = null;
 	/** An existing OTMetric to base a new Metric on */
 	private OTMetric otMetricBase = null;
 	/** Optional tags to be appended */
 	private Map<String, String> tags = null;
 	
+	/** The parent id of the metric to build */
+	private long parentId = 0L;
+	/** The measurement mask of the metric to build */
+	private int measurementMask = 0;
+	/** The sub-metric mask of the metric to build */
+	private int subMetricMask = 0;
+	/** The CHMetric type of the metric to build */
+	private byte chMetric = 0;
+	
+
+	
+	
+
 	/** The buffer factory for allocating buffers to stream metrics out to the tracer */
     private static final DynamicByteBufferBackedChannelBufferFactory bufferFactory = new DynamicByteBufferBackedChannelBufferFactory(128);
     
@@ -302,6 +314,79 @@ public class MetricBuilder {
 		return this;
 	}
 	
+	// parentId = 0L; 	measurementMask = 0; subMetricMask = 0; chMetric = 0;
+	
+	/**
+	 * Sets the CHMetric type of the metric to build
+	 * @param chMetrics The chMetric members to build the mask with
+	 * @return this builder
+	 */
+	public MetricBuilder chMetricType(final CHMetric...chMetrics) {
+		this.chMetric = CHMetric.getMaskFor(chMetrics);
+		return this;
+	}
+
+	
+	/**
+	 * Sets the CHMetric type of the metric to build
+	 * @param chMetric The chMetric byte
+	 * @return this builder
+	 */
+	public MetricBuilder chMetricType(final byte chMetric) {
+		this.chMetric = chMetric;
+		return this;
+	}
+	
+	/**
+	 * Sets the sub-metric mask of the metric to build
+	 * @param subMetricMask The sub-metric mask
+	 * @return this builder
+	 */
+	public MetricBuilder subMetric(final int subMetricMask) {
+		this.subMetricMask = subMetricMask;
+		return this;
+	}
+	
+	/**
+	 * Sets the sub-metric mask of the metric to build
+	 * @param subMetrics The sub-metrics to build a mask from
+	 * @return this builder
+	 */
+	public MetricBuilder subMetric(final SubMetric...subMetrics) {
+		this.subMetricMask = SubMetric.getMaskFor(subMetrics);
+		return this;
+	}
+
+	/**
+	 * Sets the measurement mask of the metric to build
+	 * @param measurementMask The measurement mask
+	 * @return this builder
+	 */
+	public MetricBuilder measurement(final int measurementMask) {
+		this.measurementMask = measurementMask;
+		return this;
+	}
+
+	/**
+	 * Sets the measurement mask of the metric to build
+	 * @param measurements The measurements to build a mask from
+	 * @return this builder
+	 */
+	public MetricBuilder measurement(final Measurement...measurements) {
+		this.measurementMask = Measurement.getMaskFor(measurements);
+		return this;
+	}
+	
+	/**
+	 * Sets the parentId of the metric to build
+	 * @param parentId The parent id
+	 * @return this builder
+	 */
+	public MetricBuilder parent(final long parentId) {
+		this.parentId = parentId;
+		return this;
+	}
+	
 	/**
 	 * Adds a suffix to the metric name builder
 	 * @param extension A suffix to append to the base metric name
@@ -309,18 +394,6 @@ public class MetricBuilder {
 	 */
 	public MetricBuilder ext(final String extension) {
 		this.extension = nvl(extension, "extension");
-		return this;
-	}
-	
-	/**
-	 * Adds a CHMetric type to the metric name builder
-	 * @param chMetric The CHMetric type to set
-	 * @return this builder
-	 */
-	public MetricBuilder chMetric(final CHMetric chMetric) {
-		if(chMetric!=null) {
-			this.chm = chMetric;
-		}
 		return this;
 	}
 	
@@ -413,6 +486,8 @@ public class MetricBuilder {
 		return buildNoCache(null);
 	}
 	
+	// parentId = 0L; 	measurementMask = 0; subMetricMask = 0; chMetric = 0;
+	
 	/**
 	 * Builds the OTMeric but does not add it to the OTMetricCache
 	 * @param groupName An optional group name that groups all the created metrics into a set 
@@ -421,7 +496,7 @@ public class MetricBuilder {
 	 */
 	public OTMetric buildNoCache(final String groupName) {
 		final OTMetric otm = new OTMetric(name, prefix, extension, tags);
-		if(chm!=null) otm.setCHMetricType(chm);
+		setMasks(otm);
 		if(groupName!=null) {
 			Set<OTMetric> groupSet = groups.get(groupName);
 			if(groupSet==null) {
@@ -437,6 +512,18 @@ public class MetricBuilder {
 		}		
 		return otm;
 	}
+
+	/**
+	 * @param otm
+	 */
+	private void setMasks(final OTMetric otm) {
+		if(parentId!=0) {
+			otm.setParentMetric(parentId);
+			if(measurementMask!=0) otm.setMeasurement(measurementMask);
+			if(subMetricMask!=0) otm.setSubMetric(subMetricMask);
+		}
+		if(chMetric!=0) otm.setCHMetricType(chMetric);
+	}
 	
 	/**
 	 * Builds an OTMetric from this builder
@@ -446,7 +533,7 @@ public class MetricBuilder {
 	 */
 	public OTMetric build(final String groupName) {
 		final OTMetric otMetric = OTMetricCache.getInstance().getOTMetric(name, prefix, extension, tags);
-		if(chm!=null) otMetric.setCHMetricType(chm);
+		setMasks(otMetric);
 		if(groupName!=null) {
 			Set<OTMetric> groupSet = groups.get(groupName);
 			if(groupSet==null) {
@@ -479,7 +566,7 @@ public class MetricBuilder {
 	 */
 	public OTMetric optBuild(final String groupName) {
 		final OTMetric otMetric = LongIdOTMetricCache.getInstance().getOTMetric(this);
-		if(chm!=null) otMetric.setCHMetricType(chm);
+		setMasks(otMetric);
 		if(groupName!=null) {
 			Set<OTMetric> groupSet = groups.get(groupName);
 			if(groupSet==null) {
