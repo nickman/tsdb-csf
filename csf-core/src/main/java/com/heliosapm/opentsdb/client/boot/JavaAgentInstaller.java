@@ -17,6 +17,7 @@ package com.heliosapm.opentsdb.client.boot;
 
 import java.io.File;
 import java.lang.management.ManagementFactory;
+import java.net.URL;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +28,7 @@ import org.json.JSONObject;
 
 import com.heliosapm.attachme.VirtualMachine;
 import com.heliosapm.attachme.VirtualMachineDescriptor;
+import com.heliosapm.opentsdb.client.util.URLHelper;
 
 /**
  * <p>Title: JavaAgentInstaller</p>
@@ -109,6 +111,11 @@ public class JavaAgentInstaller {
 				StringBuilder b = new StringBuilder();
 				for(int i = 1; i < args.length; i++) {
 					b.append(args[i]).append("|~");
+					if("-config".equalsIgnoreCase(args[i])) {
+						i++;
+						final URL url = URLHelper.toURL(args[i]);
+						b.append(url).append("|~");
+					}
 				}
 				b.deleteCharAt(b.length()-1); b.deleteCharAt(b.length()-1);
 				log("Loading with options [%s]", b);

@@ -30,6 +30,12 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.heliosapm.opentsdb.instrumentation.DefaultInstrumentationProvider;
+import com.heliosapm.opentsdb.instrumentation.InstrumentationProvider;
+import com.heliosapm.opentsdb.instrumentation.JBossAOPInstrumentationProvider;
+import com.heliosapm.opentsdb.instrumentation.JMXAttributeInstrumentationProvider;
+import com.heliosapm.opentsdb.instrumentation.StaticFieldInstrumentationProvider;
+
 /**
  * <p>Title: TransformerManager</p>
  * <p>Description: Special hack for when we want to shift around registered transformers.</p> 

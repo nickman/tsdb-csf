@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.aop;
+package com.heliosapm.opentsdb.instrumentation;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Field;
@@ -27,7 +27,7 @@ import com.heliosapm.opentsdb.client.opentsdb.Constants;
  * <p>Description: Acquires an {@link Instrumentation} instance from a static field</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.StaticFieldInstrumentationProvider</code></p>
+ * <p><code>com.heliosapm.opentsdb.instrumentation.StaticFieldInstrumentationProvider</code></p>
  * FIXME: A customized class loader might be a good idea here.
  */
 
@@ -44,7 +44,7 @@ public class StaticFieldInstrumentationProvider implements InstrumentationProvid
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aop.InstrumentationProvider#getInstrumentation()
+	 * @see com.heliosapm.opentsdb.instrumentation.InstrumentationProvider#getInstrumentation()
 	 */
 	@Override
 	public Instrumentation getInstrumentation() {

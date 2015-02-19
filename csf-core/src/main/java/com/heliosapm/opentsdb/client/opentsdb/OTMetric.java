@@ -398,28 +398,36 @@ public class OTMetric implements Serializable {
 		log("Creating OTM for [" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME + "] (" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME.getBytes(UTF8).length + ")");
 		OTMetric otm = new OTMetric(ManagementFactory.CLASS_LOADING_MXBEAN_NAME);
 		printDetails(otm);
+		log("TS:" + otm.toString());
 		for(GarbageCollectorMXBean gc: ManagementFactory.getGarbageCollectorMXBeans()) {
 			otm = new OTMetric(ManagementFactory.GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",name=" + gc.getName());
 			printDetails(otm);
 		}
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice");
 		printDetails(otm);
+		log("TS:" + otm.toString());
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice", null, "p75");
 		printDetails(otm);
+		log("TS:" + otm.toString());
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA");
 		printDetails(otm);
+		log("TS:" + otm.toString());
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,app=XX");
 		printDetails(otm);
+		log("TS:" + otm.toString());
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX");
 		printDetails(otm);
+		log("TS:" + otm.toString());
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX", null, "p75");
 		printDetails(otm);
+		log("TS:" + otm.toString());
 		
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX")
 			.setMeasurement(Measurement.DEFAULT_MASK)
 			.setSubMetric(SubMetric.DEFAULT_SUBMETRICS_MASK);
 		
 		printDetails(otm);
+		log("TS:" + otm.toString());
 		
 //		
 		

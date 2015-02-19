@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.aop;
+package com.heliosapm.opentsdb.instrumentation;
 
 import java.lang.instrument.Instrumentation;
 
@@ -23,7 +23,7 @@ import java.lang.instrument.Instrumentation;
  * <p>Description: {@link InstrumentationProvider} that uses a static field in JBossAOP to get the instrumentation instance</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.JBossAOPInstrumentationProvider</code></p>
+ * <p><code>com.heliosapm.opentsdb.instrumentation.JBossAOPInstrumentationProvider</code></p>
  */
 
 public class JBossAOPInstrumentationProvider extends StaticFieldInstrumentationProvider {
@@ -43,11 +43,10 @@ public class JBossAOPInstrumentationProvider extends StaticFieldInstrumentationP
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aop.InstrumentationProvider#getInstrumentation()
+	 * @see com.heliosapm.opentsdb.instrumentation.StaticFieldInstrumentationProvider#getInstrumentation()
 	 */
 	@Override
 	public Instrumentation getInstrumentation() {
-		
 		Object instr = getFromClass(className, fieldName);
 		if(instr==null) throw new RuntimeException("Instrumentation from [" + className + "." + fieldName + "] was null");
 		if(!(instr instanceof Instrumentation)) throw new RuntimeException("Value in field [" + className + "." + fieldName + "] was not an Instrumentation. It was a [" + instr.getClass().getName() + "]");

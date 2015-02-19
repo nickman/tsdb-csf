@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.aop;
+package com.heliosapm.opentsdb.instrumentation;
 
 import java.lang.instrument.Instrumentation;
+
 
 /**
  * <p>Title: InstrumentationProvider</p>
  * <p>Description: Defines a class that can acquire an instrumentation instance.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.InstrumentationProvider</code></p>
+ * <p><code>com.heliosapm.opentsdb.instrumentation.InstrumentationProvider</code></p>
  */
-
 public interface InstrumentationProvider {
 	/**
 	 * Acquires an {@link Instrumentation} instance

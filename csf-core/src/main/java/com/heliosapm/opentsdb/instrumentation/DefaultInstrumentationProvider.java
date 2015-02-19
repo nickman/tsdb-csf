@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.heliosapm.opentsdb.client.aop;
+package com.heliosapm.opentsdb.instrumentation;
 
 import java.lang.instrument.Instrumentation;
 
@@ -25,7 +25,7 @@ import com.heliosapm.attachme.agent.LocalAgentInstaller;
  * <p>Description: Acquires an {@link Instrumentation} instance using the Attach API.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.DefaultInstrumentationProvider</code></p>
+ * <p><code>com.heliosapm.opentsdb.instrumentation.DefaultInstrumentationProvider</code></p>
  */
 
 public class DefaultInstrumentationProvider implements InstrumentationProvider {
@@ -41,7 +41,7 @@ public class DefaultInstrumentationProvider implements InstrumentationProvider {
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aop.InstrumentationProvider#getInstrumentation()
+	 * @see com.heliosapm.opentsdb.instrumentation.InstrumentationProvider#getInstrumentation()
 	 */
 	@Override
 	public Instrumentation getInstrumentation() {		

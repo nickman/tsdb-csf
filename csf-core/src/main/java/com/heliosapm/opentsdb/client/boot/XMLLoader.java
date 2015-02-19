@@ -16,6 +16,7 @@
 package com.heliosapm.opentsdb.client.boot;
 
 import java.io.StringReader;
+import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -23,8 +24,6 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
-import javax.management.remote.JMXServiceURL;
-import javax.management.remote.jmxmp.JMXMPConnectorServer;
 
 import org.w3c.dom.Node;
 
@@ -44,6 +43,9 @@ public class XMLLoader {
 	
 	/** The UTF8 char set */
 	public static final Charset UTF8 = Charset.forName("UTF8");
+	
+	/** The default instrumentation provider package */
+	public static final String DEFAULT_INSTR_PACKAGE = "com.heliosapm.opentsdb.instrumentation";
 	
 	/**
 	 * Boots the XMLConfig
@@ -145,6 +147,23 @@ public class XMLLoader {
 		try {
 			final Node liteNode = XMLHelper.getChildNodeByName(rootConfigNode, "lite-instrumentation");
 			if(liteNode!=null) {
+				// instrumentation // class
+				final Node instrumentationNode = XMLHelper.getChildNodeByName(liteNode, "instrumentation");
+				if(instrumentationNode!=null) {
+					String provider = XMLHelper.getAttributeByName(instrumentationNode, "class", null);
+					try {
+						Class<?> providerClass = Class.forName(provider);
+						Object instr = providerClass.getDeclaredMethod("getInstrumentation").invoke(providerClass.getDeclaredField("INSTANCE").get(null));
+						if(instr!=null && instr instanceof Instrumentation) {
+							Instrumentation oldInstr = JavaAgent.INSTRUMENTATION;
+							JavaAgent.INSTRUMENTATION = (Instrumentation)instr;
+							log("Replaced [%s] with [%s]", oldInstr, instr);
+						}
+					} catch (Exception ex) {
+						log("Failed to run InstrumentationProvider [%s] : %s", provider, ex);
+						ex.printStackTrace(System.err);
+					}
+				}
 				final Class<?> transformerClass = Class.forName("com.heliosapm.opentsdb.client.aoplite.RetransformerLite");
 				Object retransformer = transformerClass.getDeclaredMethod("getInstance").invoke(null);
 				if(retransformer!=null) {

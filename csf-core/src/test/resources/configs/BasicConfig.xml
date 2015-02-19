@@ -2,13 +2,13 @@
 <csf-config>
 	<sysprops><![CDATA[
 		tsdb.http.compression.enabled=false
-		tsdb.http.tsdb.url=http://localhost:4242
-		tsdb.id.app=nexus
+		tsdb.http.tsdb.url=http://pdk-pt-cetsd-01:8080
+		tsdb.id.app=ecs
 	]]></sysprops>
 	<platform-mbeanobserver period="5" mbeans="true" />
 	<lite-instrumentation>
+		<instrumentation class="com.heliosapm.opentsdb.instrumentation.JBossAOPInstrumentationProvider"/>
 		<cftransformerfix/>
-		<instr class="org.sonatype.nexus.plugins.siesta.SiestaModule" methods=".*" classloader="CLASSLOADER_EXPR" />   <!-- classloader is optional -->
 	</lite-instrumentation>
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>

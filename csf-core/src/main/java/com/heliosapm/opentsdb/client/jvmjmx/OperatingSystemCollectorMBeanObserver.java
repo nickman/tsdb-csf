@@ -112,7 +112,9 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 		otMetrics = new HashMap<String, OTMetric>(enabled.size());
 		otDerivedMetrics = new HashMap<String, OTMetric>(DERIVED_OT_METRICS.size());
 		for(OperatingSystemAttribute attr: enabled) {
-			otMetrics.put(attr.attributeName, MetricBuilder.metric(OPERATING_SYSTEM_MXBEAN.objectName).ext("os." + attr.attributeName).build());
+			OTMetric otm = MetricBuilder.metric(OPERATING_SYSTEM_MXBEAN.objectName).ext("os." + attr.attributeName).build();
+			otMetrics.put(attr.attributeName, otm);
+			log.info("Built Metric: [{}]", otm.toString());
 		}
 		
 		for(Map.Entry<String, Set<OperatingSystemAttribute>> entry: DERIVED_OT_METRICS.entrySet()) {
@@ -153,44 +155,53 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 	@Override
 	protected boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime) {
 		final Map<String, Object> osValues = data.get(OPERATING_SYSTEM_MXBEAN.objectName);
+		log.trace("OS MBean Attrs: {}", osValues.keySet());
 		attributeValues.clear();
 		attributeValues.putAll(oneTimerValues);
 		for(Map.Entry<String, Object> entry: osValues.entrySet()) {			
 			attributeValues.put(OperatingSystemAttribute.getEnum(entry.getKey()), (Number)entry.getValue());
 		}
+		log.trace("OS MBean Metric Keys: {}", otMetrics.keySet());
 		for(Map.Entry<String, OTMetric> entry: otMetrics.entrySet()) {
+			OTMetric otm = entry.getValue();
+			Object value = osValues.get(entry.getKey());
+			log.info("Tracing [{}] for metric [{}]  with key [{}]", value, otm, entry.getKey());
 			entry.getValue().trace(currentTime, osValues.get(entry.getKey()));
 		}
-		// calc the supported derived metrics
-		if(otDerivedMetrics.containsKey("UsedPhysicalMemorySize")) {
-			final long totalPhys = attributeValues.get(OperatingSystemAttribute.TOTAL_PHYSICAL_MEMORY_SIZE).longValue();
-			final long freePhys = attributeValues.get(OperatingSystemAttribute.FREE_PHYSICAL_MEMORY_SIZE).longValue();
-			final long usedPhys = totalPhys - freePhys;
-			otDerivedMetrics.get("UsedPhysicalMemorySize").trace(currentTime, usedPhys);
-			otDerivedMetrics.get("PctUsedPhysicalMemory").trace(currentTime, percent(usedPhys, totalPhys));
-			otDerivedMetrics.get("PctFreePhysicalMemory").trace(currentTime,percent(freePhys, totalPhys));
-		}
-		if(otDerivedMetrics.containsKey("UsedSwapSpace")) {
-			final long totalSwap = attributeValues.get(OperatingSystemAttribute.TOTAL_SWAP_SPACE_SIZE).longValue();
-			final long freeSwap = attributeValues.get(OperatingSystemAttribute.FREE_SWAP_SPACE_SIZE).longValue();
-			final long usedSwap = totalSwap - freeSwap;
-			otDerivedMetrics.get("UsedSwapSpace").trace(currentTime, usedSwap);
-			otDerivedMetrics.get("PctUsedSwap").trace(currentTime, percent(usedSwap, totalSwap));
-			otDerivedMetrics.get("PctFreeSwap").trace(currentTime,percent(freeSwap, totalSwap));
-		}
-		if(otDerivedMetrics.containsKey("PctFDCapacity")) {
-			final long openFds = attributeValues.get(OperatingSystemAttribute.OPEN_FILE_DESCRIPTOR_COUNT).longValue();
-			final long maxFds = attributeValues.get(OperatingSystemAttribute.MAX_FILE_DESCRIPTOR_COUNT).longValue();
-			otDerivedMetrics.get("PctFDCapacity").trace(currentTime,percent(openFds, maxFds));
-		}
-		if(otDerivedMetrics.containsKey("PctProcessCpuLoad")) {
-			final double processCpu = attributeValues.get(OperatingSystemAttribute.PROCESS_CPU_LOAD).doubleValue();
-			final double systemCpu = attributeValues.get(OperatingSystemAttribute.SYSTEM_CPU_LOAD).doubleValue();
-			otDerivedMetrics.get("PctProcessCpuLoad").trace(currentTime,percent(processCpu, systemCpu));
-		} 
-		if(otDerivedMetrics.containsKey("PctProcessCpuTime")) {
-			final long processCpuTime = attributeValues.get(OperatingSystemAttribute.PROCESS_CPU_TIME).longValue();			
-			otDerivedMetrics.get("PctProcessCpuTime").trace(currentTime,percent(processCpuTime, elapsedTime));
+		try {
+			// calc the supported derived metrics
+			if(otDerivedMetrics.containsKey("UsedPhysicalMemorySize")) {
+				final long totalPhys = attributeValues.get(OperatingSystemAttribute.TOTAL_PHYSICAL_MEMORY_SIZE).longValue();
+				final long freePhys = attributeValues.get(OperatingSystemAttribute.FREE_PHYSICAL_MEMORY_SIZE).longValue();
+				final long usedPhys = totalPhys - freePhys;
+				otDerivedMetrics.get("UsedPhysicalMemorySize").trace(currentTime, usedPhys);
+				otDerivedMetrics.get("PctUsedPhysicalMemory").trace(currentTime, percent(usedPhys, totalPhys));
+				otDerivedMetrics.get("PctFreePhysicalMemory").trace(currentTime,percent(freePhys, totalPhys));
+			}
+			if(otDerivedMetrics.containsKey("UsedSwapSpace")) {
+				final long totalSwap = attributeValues.get(OperatingSystemAttribute.TOTAL_SWAP_SPACE_SIZE).longValue();
+				final long freeSwap = attributeValues.get(OperatingSystemAttribute.FREE_SWAP_SPACE_SIZE).longValue();
+				final long usedSwap = totalSwap - freeSwap;
+				otDerivedMetrics.get("UsedSwapSpace").trace(currentTime, usedSwap);
+				otDerivedMetrics.get("PctUsedSwap").trace(currentTime, percent(usedSwap, totalSwap));
+				otDerivedMetrics.get("PctFreeSwap").trace(currentTime,percent(freeSwap, totalSwap));
+			}
+			if(otDerivedMetrics.containsKey("PctFDCapacity")) {
+				final long openFds = attributeValues.get(OperatingSystemAttribute.OPEN_FILE_DESCRIPTOR_COUNT).longValue();
+				final long maxFds = attributeValues.get(OperatingSystemAttribute.MAX_FILE_DESCRIPTOR_COUNT).longValue();
+				otDerivedMetrics.get("PctFDCapacity").trace(currentTime,percent(openFds, maxFds));
+			}
+			if(otDerivedMetrics.containsKey("PctProcessCpuLoad")) {
+				final double processCpu = attributeValues.get(OperatingSystemAttribute.PROCESS_CPU_LOAD).doubleValue();
+				final double systemCpu = attributeValues.get(OperatingSystemAttribute.SYSTEM_CPU_LOAD).doubleValue();
+				otDerivedMetrics.get("PctProcessCpuLoad").trace(currentTime,percent(processCpu, systemCpu));
+			} 
+			if(otDerivedMetrics.containsKey("PctProcessCpuTime")) {
+				final long processCpuTime = attributeValues.get(OperatingSystemAttribute.PROCESS_CPU_TIME).longValue();			
+				otDerivedMetrics.get("PctProcessCpuTime").trace(currentTime,percent(processCpuTime, elapsedTime));
+			}
+		} catch (Exception ex) {
+			log.warn("OS MBean Collection Failure", ex);
 		}
 		
 		return true;

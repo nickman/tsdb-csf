@@ -337,7 +337,7 @@ public class URLHelper {
 	public static URL toURL(final CharSequence urlStr) {
 		if(urlStr==null || urlStr.toString().trim().isEmpty()) throw new IllegalArgumentException("The passed URL stringy was null or empty");
 		try {
-			if(isFile(urlStr)) return toURL(new File(urlStr.toString()));
+			if(isFile(urlStr)) return toURL(new File(urlStr.toString()).getAbsoluteFile());
 			return new URL(nvl(urlStr, "Passed string was null").toString());
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to create URL from string [" + urlStr + "]", e);
