@@ -15,12 +15,11 @@
  */
 package com.heliosapm.opentsdb.client.aop;
 
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_COLLECTORNAME;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.*;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_INHERRIT;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_INSTOPTIONS;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD_ANNOT;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD_ANNOT_CL;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METRICNAME;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_SIGNATURE;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS;
@@ -39,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -93,26 +93,36 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 * 
 	 */
 	protected static final Pattern SH_PATTERN = Pattern.compile(
-	        		"(@)?" +                         	// The class annotation indicator
-	                "(.*?)" +                         	// The classname
-	                "(\\+)?" +                         	// The classname options (+ for inherritance) 
-	                "(?:<\\-(.*?))?" + 					// The optional classloader expression for the target class name
+	        		"(@)?" +                         	// (0)	The class annotation indicator
+	                "(.*?)" +                         	// (1)	The classname (MANDATORY)
+	                "(\\+)?" +                         	// (2)	The classname options (+ for inherritance) 
+	                "(?:<\\-(.*?))?" + 					// (3)	The optional classloader expression for the target class name
 					"\\s" + 							// spacer
-	                "(?:\\((.*?)\\)\\s)?" +         	// The optional method accessibilities. Defaults to "pub"
-	                "(@)?" +                         	// The method annotation indicator
-	                "(.*?)" +                         	// The method name expression, wrapped in "[ ]" if a regular expression
-	                "(?:\\((.*)\\))?" +            		// The optional method signature
-	                "(?:\\[(.*)\\])?" +         		// The optional method attributes
-	                "(?:<\\-(.*?))?" + 					// The optional classloader expression for the method level annotation
-	                "\\s" +                             // spacer
-	                "(?:\\-(\\w+))?" +                 	// The method instrumentation options (-dr)
-	                "(.*?)" +                         	// The collector name
-	                "(?:\\[(.*)\\])?" +         		// The bitmask option. [] is mandatory. It may contain the bitmask int, or comma separated MetricCollection names
-	                "(?:<\\-(.*?))?" + 					// The optional classloader expression for the enum collector
+	                "(?:\\((.*?)\\)\\s)?" +         	// (4)	The optional method accessibilities. Defaults to "pub"
+	                "(@)?" +                         	// (5)	The method annotation indicator
+	                "(.*?)" +                         	// (6)	The method name expression, wrapped in "[ ]" if a regular expression  (MANDATORY)
+	                "(?:\\((.*)\\))?" +            		// (7)	The optional method signature
+	                "(?:\\[(.*)\\])?" +         		// (8)	The optional method attributes
+//	                "\\s" +                             // spacer
+	                "(?:\\-(\\w+))?" +                 	// (9)	The method instrumentation options (-dr)
+	                "(?:\\[(.*)\\])?" +         		// (10)	The measurement bitmask option. [] is mandatory if specified. It may contain the bitmask int, or comma separated Measurement names
+//					"\\s+?" + 							// optional spacer
+	                "(?:\\[(.*)\\])?" +         		// (11)	The sub-metric bitmask option. [] is mandatory if specified. It may contain the bitmask int, or comma separated SubMetric names	                
 	                "\\s" +                            	// spacer
-	                "(?:'(.*)')"                    	// The metric name format      
-	);
+	                "(?:'(.*)')"                    	// (12)	The metric name format      
+	);	
+	
+	//	"java.lang.Object+ equals 'java/lang/Object'"
 
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		log("Pattern:%s", SH_PATTERN.pattern());
+		log("Pattern Groups:%s", SH_PATTERN.matcher("").groupCount());
+		log(parse("java.lang.Object+ equals 'java/lang/Object'").toString());
+	}
+	
 	/** The whitespace cleaner */
 	public static final Pattern WH_CLEANER = Pattern.compile("\\s+");
 	/** The single quote cleaner */
@@ -225,15 +235,96 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	protected static final Map<String, String> EMPTY_CL_MAP = Collections.unmodifiableMap(new HashMap<String, String>(0));
 	
 	/**
-	 * @param args
+	 * System out pattern logger
+	 * @param fmt The message format
+	 * @param args The tokens
 	 */
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-
+	public static void log(final Object fmt, final Object...args) {
+		System.out.println(String.format(fmt.toString(), args));
 	}
 	
+	
 	/**
-	 * Returns a parsed ShorthandScript instance for the passed source
+	 * {@inheritDoc}
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString() {
+		final int maxLen = 10;
+		StringBuilder builder = new StringBuilder();
+		builder.append("ShorthandScript [\n\ttargetClass=");
+		builder.append(targetClass);
+		builder.append("\n\ttargetClassAnnotation:");
+		builder.append(targetClassAnnotation);
+		builder.append("\n\ttargetClassLoader:");
+		builder.append(targetClassLoader);
+		builder.append("\n\ttargetClassInterface:");
+		builder.append(targetClassInterface);
+		builder.append("\n\tinherritanceEnabled:");
+		builder.append(inherritanceEnabled);
+		builder.append("\n\tmethodName:");
+		builder.append(methodName);
+		builder.append("\n\tmethodNameExpression:");
+		builder.append(methodNameExpression);
+		builder.append("\n\tmethodSignature:");
+		builder.append(methodSignature);
+		builder.append("\n\tmethodSignatureExpression:");
+		builder.append(methodSignatureExpression);
+		builder.append("\n\ttargetMethodAnnotation:");
+		builder.append(targetMethodAnnotation);
+		builder.append("\n\tmethodAnnotationClass:");
+		builder.append(methodAnnotationClass);
+		builder.append("\n\tmethodAnnotationClassLoader:");
+		builder.append(methodAnnotationClassLoader);
+		builder.append("\n\tmethodAttribute:");
+		builder.append(methodAttribute);
+		builder.append("\n\tmethodInvocationOption:");
+		builder.append(methodInvocationOption);
+		builder.append("\n\tenumIndex:");
+		builder.append(enumIndex);
+		builder.append("\n\tenumCollectorClassLoader:");
+		builder.append(enumCollectorClassLoader);
+		builder.append("\n\tbitMask:");
+		builder.append(bitMask);
+		builder.append("\n\tmetricNameTemplate:");
+		builder.append(metricNameTemplate);
+		builder.append("\n\tallowReentrant:");
+		builder.append(allowReentrant);
+		builder.append("\n\tdisableOnTrigger:");
+		builder.append(disableOnTrigger);
+		builder.append("\n\tstartDisabled:");
+		builder.append(startDisabled);
+		builder.append("\n\tbatchTransform:");
+		builder.append(batchTransform);
+		builder.append("\n\tresidentTransformer:");
+		builder.append(residentTransformer);
+		builder.append("\n\tclassLoaders:");
+		builder.append(classLoaders != null ? toString(classLoaders.entrySet(),
+				maxLen) : null);
+		builder.append("\n]");
+		return builder.toString();
+	}
+
+
+
+	private String toString(Collection<?> collection, int maxLen) {
+		StringBuilder builder = new StringBuilder();
+		builder.append("[");
+		int i = 0;
+		for (Iterator<?> iterator = collection.iterator(); iterator.hasNext()
+				&& i < maxLen; i++) {
+			if (i > 0)
+				builder.append(", ");
+			builder.append(iterator.next());
+		}
+		builder.append("]");
+		return builder.toString();
+	}
+
+	
+	
+	/**
+	 * Returns a parsed ShorthandScript instance for the passed sourcexx
 	 * @param source The source to parse
 	 * @param classLoaders A map of classloader names keyed by the type the classloader is for (i.e. <b>target</b> or <b>collector</b>)
 	 * @return a parsed ShorthandScript instance 
@@ -285,8 +376,8 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		log("Parsed values: %s", Arrays.toString(parsedFields));
 		validateMandatoryFields(whiteSpaceCleanedSource, parsedFields);
 		validateTargetClass(whiteSpaceCleanedSource, parsedFields[IND_TARGETCLASS.ordinal()], parsedFields[IND_TARGETCLASS_CL.ordinal()], parsedFields[IND_TARGETCLASS_ANNOT.ordinal()], parsedFields[IND_INHERRIT.ordinal()]);
-		validateTargetMethod(whiteSpaceCleanedSource, parsedFields[IND_METHOD.ordinal()], parsedFields[IND_METHOD_ANNOT_CL.ordinal()], parsedFields[IND_METHOD_ANNOT.ordinal()], parsedFields[IND_SIGNATURE.ordinal()], parsedFields[IND_INSTOPTIONS.ordinal()]);
-		validateTargetMethodAttributes(whiteSpaceCleanedSource, parsedFields[IND_METHOD_ANNOT_CL.ordinal()]); 
+		validateTargetMethod(whiteSpaceCleanedSource, parsedFields[IND_METHOD.ordinal()], parsedFields[IND_METHOD_ANNOT.ordinal()], parsedFields[IND_SIGNATURE.ordinal()], parsedFields[IND_INSTOPTIONS.ordinal()]);
+		validateTargetMethodAttributes(whiteSpaceCleanedSource, parsedFields[IND_METHOD_ATTRS.ordinal()]); 
 		validateMethodSignature(whiteSpaceCleanedSource, parsedFields[IND_SIGNATURE.ordinal()]);
 		validateMethodInvocationOptions(whiteSpaceCleanedSource, parsedFields[IND_INSTOPTIONS.ordinal()]);
 //		validateMethodInstrumentation(whiteSpaceCleanedSource, parsedFields[IND_COLLECTORNAME.ordinal()], parsedFields[IND_COLLECTOR_CL.ordinal()], parsedFields[IND_BITMASK.ordinal()]);		
@@ -488,20 +579,12 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 * Validates, loads and configures the target method[s]
 	 * @param source The source (for reporting in any ecxeption thrown)
 	 * @param parsedMethodName The method name or pattern
-	 * @param parsedClassLoader The classloader expression for the method level annotation class
 	 * @param parsedMethodAnnotation The method annotation indicator
 	 * @param parsedMethodSignature The method signature or pattern
 	 * @param parsedMethodInvOptions The method invocation options (from {@link InvocationOption})
 	 */
 	@SuppressWarnings("unchecked")
-	protected void validateTargetMethod(String source, String parsedMethodName, String parsedClassLoader, String parsedMethodAnnotation, String parsedMethodSignature, String parsedMethodInvOptions) {
-		ClassLoader classLoader = null;
-		if(parsedClassLoader!=null && !parsedClassLoader.trim().isEmpty()) {
-			classLoader = classLoaderFrom(parsedClassLoader.trim());
-		} else {
-			classLoader = Thread.currentThread().getContextClassLoader();
-		}
-		
+	protected void validateTargetMethod(String source, String parsedMethodName, String parsedMethodAnnotation, String parsedMethodSignature, String parsedMethodInvOptions) {
 		if(parsedMethodAnnotation!=null) {
 			targetMethodAnnotation = "@".equals(parsedMethodAnnotation.trim());
 		} else {
@@ -529,7 +612,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 						// It's a method annotation
 						this.methodName = null;
 						try {
-							methodAnnotationClass = (Class<? extends Annotation>)Class.forName(methodName, true, classLoader);
+							methodAnnotationClass = (Class<? extends Annotation>)Class.forName(methodName);
 						} catch (Exception ex) {
 							throw new ShorthandParseFailureException("Failed to load method level annotation class [" + methodName + "]", source, ex);
 						}
@@ -568,9 +651,9 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		String className = parsedClassName.trim();
 		ClassLoader classLoader = null;
 		if(parsedClassLoader!=null && !parsedClassLoader.trim().isEmpty()) {
-			classLoader = classLoaderFrom(parsedClassLoader.trim());
+			classLoader = ClassLoaderRepository.getInstance().getClassLoader(parsedClassLoader.trim()); 
 		} else if(this.classLoaders.containsKey(PREDEF_CL_TARGET)) {
-			classLoader = classLoaderFrom(classLoaders.get(PREDEF_CL_TARGET));
+			classLoader = ClassLoaderRepository.getInstance().getClassLoader(classLoaders.get(PREDEF_CL_TARGET)); 
 		} else {
 			classLoader = Thread.currentThread().getContextClassLoader();
 		}
@@ -641,60 +724,11 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		if(fields==null || fields.length < 11) throw new ShorthandParseFailureException("Invalid parsed field count [" + (fields==null ? 0 : fields.length) + "]", source);
 		if(fields[IND_TARGETCLASS.ordinal()]==null || fields[IND_TARGETCLASS.ordinal()].trim().isEmpty()) throw new ShorthandParseFailureException("Mandatory field for TARGET_CLASS was null or empty", source);
 		//if(fields[IND_METHOD]==null || fields[IND_METHOD].trim().isEmpty()) throw new ShorthandParseFailureException("Mandatory field for TARGET_METHOD was null or empty", source);
-		if(fields[IND_COLLECTORNAME.ordinal()]==null || fields[IND_COLLECTORNAME.ordinal()].trim().isEmpty()) throw new ShorthandParseFailureException("Mandatory field for COLLECTORNAME was null or empty", source);
+		//if(fields[IND_COLLECTORNAME.ordinal()]==null || fields[IND_COLLECTORNAME.ordinal()].trim().isEmpty()) throw new ShorthandParseFailureException("Mandatory field for COLLECTORNAME was null or empty", source);
 		//if(fields[IND_BITMASK]==null || fields[IND_BITMASK].trim().isEmpty()) throw new ShorthandParseFailureException("Mandatory field for BITMASK was null or empty", source);
 		if(fields[IND_METRICNAME.ordinal()]==null || fields[IND_METRICNAME.ordinal()].trim().isEmpty()) throw new ShorthandParseFailureException("Mandatory field for METRICNAME was null or empty", source);
 	}
 	
-	/**
-	 * Attempts to derive a classloader from the passed object.
-	 * @param obj The object to derive a classloader from
-	 * @return a classloader
-	 */
-	protected static ClassLoader classLoaderFrom(Object obj) {
-		if(obj==null) {
-			return ClassLoader.getSystemClassLoader();
-		} else if(obj instanceof ClassLoader) {
-			return (ClassLoader)obj;
-		} else if(obj instanceof Class) {
-			return ((Class<?>)obj).getClassLoader();
-		} else if(obj instanceof URL) {
-			return new URLClassLoader(new URL[]{(URL)obj}); 
-		} else if(URLHelper.isValidURL(obj.toString())) {
-			URL url = URLHelper.toURL(obj.toString());
-			return new URLClassLoader(new URL[]{url});
-		} else if(obj instanceof ObjectName) {
-			return getClassLoader((ObjectName)obj);
-		} else if(Util.isObjectName(obj.toString())) {
-			return getClassLoader(Util.objectName(obj.toString()));
-		} else if(obj instanceof File) {
-			File f = (File)obj;
-			return new URLClassLoader(new URL[]{URLHelper.toURL(f)});
-		} else if(new File(obj.toString()).canRead()) {
-			File f = new File(obj.toString());
-			return new URLClassLoader(new URL[]{URLHelper.toURL(f)});			
-		} else {
-			return obj.getClass().getClassLoader();
-		}
-		
-	}
-	
-	/**
-	 * Returns the classloader represented by the passed ObjectName
-	 * @param on The ObjectName to resolve the classloader from
-	 * @return a classloader
-	 */
-	protected static ClassLoader getClassLoader(ObjectName on) {
-		try {
-			MBeanServer server = ManagementFactory.getPlatformMBeanServer();
-			if(server.isInstanceOf(on, ClassLoader.class.getName())) {
-				return server.getClassLoader(on);
-			}
-			return server.getClassLoaderFor(on);
-		} catch (Exception ex) {
-			throw new RuntimeException("Failed to get classloader for object name [" + on + "]", ex);
-		}
-	}
 	
 	/**
 	 * Validates that the passed string value is an int
@@ -950,8 +984,6 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	@Override
 	public Class<? extends Annotation> getMethodAnnotation() {
 		return methodAnnotationClass;
-	}
-
-	
+	}	
 
 }

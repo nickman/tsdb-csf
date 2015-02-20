@@ -42,16 +42,12 @@ public enum ShorthandToken {
 	IND_SIGNATURE,
 	/** The index of the target method attributes */
 	IND_METHOD_ATTRS,	
-	/** The index of the method level annotation classloader expression */
-	IND_METHOD_ANNOT_CL,	
 	/** The index of the instrumentation options */
 	IND_INSTOPTIONS,
-	/** The index of the collector name */
-	IND_COLLECTORNAME(true),				// MANDATORY
-	/** The index of the instrumentation bit mask */
-	IND_BITMASK,					
-	/** The index of the collector class classloader expression */
-	IND_COLLECTOR_CL,	
+	/** The index of the Measurement bitmask */
+	IND_MEASURMENT,
+	/** The index of the SubMetric bitmask */
+	IND_SUBMETRIC,					
 	/** The index of the instrumentation generated metric name */
 	IND_METRICNAME;	
 	

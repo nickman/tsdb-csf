@@ -25,6 +25,7 @@
 package com.heliosapm.opentsdb.client.aop;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.concurrent.Callable;
@@ -91,16 +92,87 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 	 * @return the classloader
 	 */
 	public ClassLoader getClassLoader(final Object key) {
+		if(key==null) return null;
+		final Object _key = WeakReferenceKey.isWeakRefRequired(key.getClass()) ? WeakReferenceKey.newInstance(key, classLoaderCache) : key; 		
 		try {
-			return classLoaderCache.get(key, new Callable<ClassLoader>(){
+			return classLoaderCache.get(_key, new Callable<ClassLoader>(){
 				@Override
 				public ClassLoader call() throws Exception {
-					return classLoaderFrom(key);
+					return classLoaderFrom(_key);
 				}
 			});
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
 		}
+	}
+	
+	/**
+	 * <p>Title: WeakReferenceKey</p>
+	 * <p>Description: A cache key wrapper. We don't want to use {@link CacheBuilder#weakKeys()} on the cache because many of the keys
+	 * are arbitrary non-significant values which could be enqueued at any time. On the other hand, if the key is a {@link Class}, 
+	 * we don't want to keep a hard reference because this will prevent the class (and associated classloader) from being enqueued which
+	 * is quite important when using dynamic aop because classes will come and go.</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.aop.ClassLoaderRepository.WeakReferenceKey</code></p>
+	 */
+	private static class WeakReferenceKey<T> extends WeakReference<T> {
+		/** The hash code of the referent */
+		final int hashCode;
+		/** A reference to the cache so we can remove this key from the cache if enqueued */
+		final Cache<Object, ClassLoader> cache;
+		
+		public static boolean isWeakRefRequired(final Class<?> clazz) {
+			if(clazz.equals(Class.class)) return true;
+			if(ClassLoader.class.isAssignableFrom(clazz)) return true;
+			// any others ?
+			return false;
+		}
+		
+		/**
+		 * Creates a new WeakReferenceKey
+		 * @param referent The referent we want to avoid prevention of GC on
+		 * @param cache A reference to the cache so we can remove this key from the cache if enqueued
+		 * @return the new WeakReferenceKey
+		 */
+		public static <T> WeakReferenceKey<T> newInstance(T referent, final Cache<Object, ClassLoader> cache) {
+			return new WeakReferenceKey<T>(referent, cache);
+		}
+		
+		private WeakReferenceKey(final T referent, final Cache<Object, ClassLoader> cache) {
+			super(referent);
+			hashCode = referent.hashCode();
+			this.cache = cache;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#equals(java.lang.Object)
+		 */
+		@Override
+		public boolean equals(final Object that) {
+			final T t = get();
+			if(this==that) {
+				return true;
+			}
+			if(t==null) {
+				cache.invalidate(this);
+				return false;
+			}
+			return t.equals(that);
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#hashCode()
+		 */
+		@Override
+		public int hashCode() {
+			return hashCode;
+		}
+		
+		
+		
 	}
 	
 	

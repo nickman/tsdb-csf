@@ -19,10 +19,13 @@ package com.heliosapm.opentsdb.client.opentsdb.opt;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -86,6 +89,11 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 	/** The ordered set of count subMetrics. Since we only need one count per instrumentation definition, these are in order of precedence */
 	public static final SortedSet<SubMetric> countFilter = Collections.unmodifiableSortedSet(new TreeSet<SubMetric>(Arrays.asList(count, hcount, tcount, mcount)));
 
+	/** An empty SubMetric array const */
+	public static final SubMetric[] EMPTY_SUBMETRIC_ARR = {};
+	/** A comma splitter pattern */
+	public static final Pattern COMMA_SPLITTER = Pattern.compile(",");
+	
 
 	
 	/** The {@link Gauge} SubMetrics */
@@ -135,6 +143,17 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 	/** The default SubMetrics mask */
 	public static final int DEFAULT_SUBMETRICS_MASK = (DEFAULT_GAUGE_SUBMETRIC_MASK | DEFAULT_COUNTER_SUBMETRIC_MASK | DEFAULT_METER_SUBMETRIC_MASK | DEFAULT_HISTOGRAM_SUBMETRIC_MASK);
 
+	/** Maps the member bitmask to the member */
+	public static final Map<Integer, SubMetric> MASK2ENUM;
+	
+	static {
+		final SubMetric[] values = values();
+		Map<Integer, SubMetric> tmp = new HashMap<Integer, SubMetric>(values.length);
+		for(SubMetric s: values) {
+			tmp.put(s.mask, s);
+		}
+		MASK2ENUM = Collections.unmodifiableMap(tmp);		
+	}
 	
 
 	private SubMetric() {
@@ -199,6 +218,105 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 		if(ots==null) return 0;
 		return getMaskFor(ots.toArray(new SubMetric[ots.size()]));
 	}
+	
+	/**
+	 * Decodes the passed expression into an array of SubMetrics.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a SubMetric member or a SubMetric mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param throwIfInvalid If true, will throw an exception if a value cannot be decoded
+	 * @param expr The expression to decode
+	 * @return an array of represented SubMetric members.
+	 */
+	public static SubMetric[] decode(final boolean throwIfInvalid, final CharSequence expr) {
+		if(expr==null) return EMPTY_SUBMETRIC_ARR;
+		final String sexpr = expr.toString().trim().toUpperCase();
+		if(sexpr.isEmpty()) return EMPTY_SUBMETRIC_ARR;
+		final EnumSet<SubMetric> set = EnumSet.noneOf(SubMetric.class);
+		final String[] exprFields = COMMA_SPLITTER.split(sexpr);
+		for(String s: exprFields) {
+			if(isSubMetricName(s)) {
+				set.add(valueOf(s.trim()));
+				continue;
+			}
+			try {
+				int mask = new Double(s).intValue();
+				SubMetric sm = MASK2ENUM.get(mask);
+				if(sm!=null) {
+					set.add(sm);
+					continue;
+				} else {
+					if(!throwIfInvalid) continue;
+				}
+			} catch (Exception ex) {
+				if(!throwIfInvalid) continue;
+			}
+			throw new RuntimeException("Failed to decode SubMetric value [" + s + "]");
+		}
+		return set.toArray(new SubMetric[set.size()]);
+	}
+	
+	/**
+	 * Decodes the passed expression into an array of SubMetrics, ignoring any non-decoded values.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a SubMetric member or a SubMetric mask (individual or bitmasked).
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param expr The expression to decode
+	 * @return an array of represented SubMetric members.
+	 */
+	public static SubMetric[] decode(final CharSequence expr) {
+		return decode(false, expr);
+	}
+	
+	/**
+	 * Decodes the passed expression into a bitmask representing enabled SubMetric, ignoring any non-decoded values.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a SubMetric member or a SubMetric mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param expr The expression to decode
+	 * @return the bit mask of the enabled SubMetric members
+	 */
+	public static int decodeToMask(final CharSequence expr) {
+		return getMaskFor(decode(expr));
+	}
+	
+	/**
+	 * Decodes the passed expression into a bitmask representing enabled SubMetrics
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a SubMetric member or a SubMetric mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param throwIfInvalid If true, will throw an exception if a value cannot be decoded
+	 * @param expr The expression to decode
+	 * @return the bit mask of the enabled SubMetric members
+	 */
+	public static int decodeToMask(final boolean throwIfInvalid, final CharSequence expr) {
+		return getMaskFor(decode(throwIfInvalid, expr));
+	}
+	
+	
+	
+	/**
+	 * Indicates if the passed symbol is a valid SubMetric member name.
+	 * The passed value is trimmed and upper-cased.
+	 * @param symbol The symbol to test
+	 * @return true if the passed symbol is a valid SubMetric member name, false otherwise
+	 */
+	public static boolean isSubMetricName(final CharSequence symbol) {
+		if(symbol==null) return false;
+		final String name = symbol.toString().trim().toLowerCase();
+		if(name.isEmpty()) return false;
+		try {
+			valueOf(name);
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+	
 
 
 	/**

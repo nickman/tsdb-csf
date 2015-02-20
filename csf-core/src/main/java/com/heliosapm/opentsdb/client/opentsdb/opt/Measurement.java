@@ -21,12 +21,15 @@ import java.lang.management.ThreadMXBean;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import com.codahale.metrics.CachedGauge;
 import com.codahale.metrics.Metric;
@@ -131,7 +134,13 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		post(values, index);
 	}
 	
+	/** The number of header longs in the long array value buffer */
+	public static final int VALUEBUFFER_HEADER_SIZE = 2;
 	
+	/** An empty Measurement array const */
+	public static final Measurement[] EMPTY_MEASUREMENT_ARR = {};
+	/** A comma splitter pattern */
+	public static final Pattern COMMA_SPLITTER = Pattern.compile(",");
 	
 	/** The thread mx bean */
 	public static final ThreadMXBean TMX = ManagementFactory.getThreadMXBean();
@@ -157,6 +166,8 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public static final int ACTUAL_ALL_MASK;
 	/** The default measurements mask */
 	public static final int DEFAULT_MASK;
+	/** Maps the member bitmask to the member */
+	public static final Map<Integer, Measurement> MASK2ENUM;
 	
 	
 	static {
@@ -166,10 +177,14 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		DISABLED_MASK = disabledMask;
 		ACTUAL_ALL_MASK = (ALL_MASK & ~DISABLED_MASK);
 		int dm = 0;
-		for(Measurement m: values()) {
+		final Measurement[] values = values();
+		Map<Integer, Measurement> tmp = new HashMap<Integer, Measurement>(values.length);
+		for(Measurement m: values) {
+			tmp.put(m.mask, m);
 			if(m.isDefault) dm = (dm | m.mask);
 		}
 		DEFAULT_MASK = dm;
+		MASK2ENUM = Collections.unmodifiableMap(tmp);
 	}
 	
 	
@@ -237,15 +252,117 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 ////		}
 //	}
 	
+	
+	
 	/**
 	 * Allocates a long array for the passed measurement mask, minus the unsupported measurements, plus one for the mask.
+	 * @param otMetricId The ID of the parent OTMetric the values are being collected for
 	 * @param mask The measurement bit mask
 	 * @return the allocated array
 	 */
-	public static long[] allocate(final int mask) {
-		final long[] alloc = new long[getEnabled(mask & ~DISABLED_MASK).length + 1];
+	public static long[] allocate(final long otMetricId, final int mask) {
+		final long[] alloc = new long[getEnabled(mask & ~DISABLED_MASK).length + 2];
 		alloc[0] = mask;
+		alloc[1] = otMetricId;
 		return alloc;
+	}
+	
+	/**
+	 * Decodes the passed expression into an array of Measurements.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a Measurement member or a Measurement mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param throwIfInvalid If true, will throw an exception if a value cannot be decoded
+	 * @param expr The expression to decode
+	 * @return an array of represented Measurement members.
+	 */
+	public static Measurement[] decode(final boolean throwIfInvalid, final CharSequence expr) {
+		if(expr==null) return EMPTY_MEASUREMENT_ARR;
+		final String sexpr = expr.toString().trim().toUpperCase();
+		if(sexpr.isEmpty()) return EMPTY_MEASUREMENT_ARR;
+		final EnumSet<Measurement> set = EnumSet.noneOf(Measurement.class);
+		final String[] exprFields = COMMA_SPLITTER.split(sexpr);
+		for(String s: exprFields) {
+			if(isMeasurementName(s)) {
+				set.add(valueOf(s.trim()));
+				continue;
+			}
+			try {
+				int mask = new Double(s).intValue();
+				Measurement m = MASK2ENUM.get(mask);
+				if(m!=null) {
+					set.add(m);
+					continue;
+				} else {
+					if(!throwIfInvalid) continue;
+				}
+			} catch (Exception ex) {
+				if(!throwIfInvalid) continue;
+			}
+			throw new RuntimeException("Failed to decode Measurement value [" + s + "]");
+		}
+		return set.toArray(new Measurement[set.size()]);
+	}
+	
+	/**
+	 * Decodes the passed expression into an array of Measurements, ignoring any non-decoded values.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a Measurement member or a Measurement mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param expr The expression to decode
+	 * @return an array of represented Measurement members.
+	 */
+	public static Measurement[] decode(final CharSequence expr) {
+		return decode(false, expr);
+	}
+	
+	/**
+	 * Decodes the passed expression into a bitmask representing enabled Measurements, ignoring any non-decoded values.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a Measurement member or a Measurement mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param expr The expression to decode
+	 * @return the bit mask of the enabled Measurement members
+	 */
+	public static int decodeToMask(final CharSequence expr) {
+		return getMaskFor(decode(expr));
+	}
+	
+	/**
+	 * Decodes the passed expression into a bitmask representing enabled Measurements
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a Measurement member or a Measurement mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param throwIfInvalid If true, will throw an exception if a value cannot be decoded
+	 * @param expr The expression to decode
+	 * @return the bit mask of the enabled Measurement members
+	 */
+	public static int decodeToMask(final boolean throwIfInvalid, final CharSequence expr) {
+		return getMaskFor(decode(throwIfInvalid, expr));
+	}
+	
+	
+	
+	/**
+	 * Indicates if the passed symbol is a valid measurement member name.
+	 * The passed value is trimmed and upper-cased.
+	 * @param symbol The symbol to test
+	 * @return true if the passed symbol is a valid measurement member name, false otherwise
+	 */
+	public static boolean isMeasurementName(final CharSequence symbol) {
+		if(symbol==null) return false;
+		final String name = symbol.toString().trim().toLowerCase();
+		if(name.isEmpty()) return false;
+		try {
+			valueOf(name);
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
 	}
 
 	
@@ -308,7 +425,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	 */
 	public static final void enter(final long[] buffer) {
 		final int mask = (int)buffer[0];
-		int index = 1;
+		int index = VALUEBUFFER_HEADER_SIZE;
 		final boolean ti = (mask & ~TI_REQUIRED_MASK) != mask; 
 		try {
 			if(ti) {
@@ -329,7 +446,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	 */
 	public static final void exit(final long[] buffer) {
 		final int mask = (int)buffer[0];
-		int index = 1;
+		int index = VALUEBUFFER_HEADER_SIZE;
 		final boolean ti = (mask & ~TI_REQUIRED_MASK) != mask;
 		try {
 			for(Measurement m: getEnabled((mask & ~ERROR.mask))) {
