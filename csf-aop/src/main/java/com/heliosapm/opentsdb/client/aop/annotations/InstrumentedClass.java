@@ -47,4 +47,9 @@ public @interface InstrumentedClass {
 	 * The shorthand expression used to compile the instrumentation applied to this class
 	 */
 	public String shorthand();
+	
+	/**
+	 * The version of the instrumentation. Starts at 0 and increments each time the class is retransformed without being restored.
+	 */
+	public long version() default 0L;
 }

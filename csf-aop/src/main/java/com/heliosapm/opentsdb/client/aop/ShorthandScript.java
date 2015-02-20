@@ -15,24 +15,20 @@
  */
 package com.heliosapm.opentsdb.client.aop;
 
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.*;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_INHERRIT;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_INSTOPTIONS;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD_ANNOT;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD_ATTRS;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METRICNAME;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_SIGNATURE;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_ANNOT;
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_CL;
 
-import java.io.File;
 import java.lang.annotation.Annotation;
-import java.lang.management.ManagementFactory;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -49,17 +45,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
 import org.reflections.Reflections;
 import org.reflections.scanners.SubTypesScanner;
 import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
 
+import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
+import com.heliosapm.opentsdb.client.opentsdb.opt.SubMetric;
 import com.heliosapm.opentsdb.client.util.StringHelper;
-import com.heliosapm.opentsdb.client.util.URLHelper;
-import com.heliosapm.opentsdb.client.util.Util;
 
 
 /**
@@ -100,7 +93,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 					"\\s" + 							// spacer
 	                "(?:\\((.*?)\\)\\s)?" +         	// (4)	The optional method accessibilities. Defaults to "pub"
 	                "(@)?" +                         	// (5)	The method annotation indicator
-	                "(.*?)" +                         	// (6)	The method name expression, wrapped in "[ ]" if a regular expression  (MANDATORY)
+	                "(\\[?.*?\\]?)" +                         	// (6)	The method name expression, wrapped in "[ ]" if a regular expression  (MANDATORY)
 	                "(?:\\((.*)\\))?" +            		// (7)	The optional method signature
 	                "(?:\\[(.*)\\])?" +         		// (8)	The optional method attributes
 //	                "\\s" +                             // spacer
@@ -120,7 +113,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	public static void main(String[] args) {
 		log("Pattern:%s", SH_PATTERN.pattern());
 		log("Pattern Groups:%s", SH_PATTERN.matcher("").groupCount());
-		log(parse("java.lang.Object+ equals 'java/lang/Object'").toString());
+		log(parse("java.lang.Object+ [eq.*|to.*] 'java/lang/Object'").toString());
 	}
 	
 	/** The whitespace cleaner */
@@ -200,8 +193,6 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	protected boolean targetMethodAnnotation = false;
 	/** The target method level annotation class */
 	protected Class<? extends Annotation> methodAnnotationClass = null;	
-	/** The target method level annotation classloader */
-	protected ClassLoader methodAnnotationClassLoader = null;
 	/** The method attributes (from {@link MethodAttribute}) */
 	protected int methodAttribute = MethodAttribute.DEFAULT_METHOD_MASK;
 
@@ -210,12 +201,11 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	//==============================================================================================
 	/** The method invocation options (from {@link InvocationOption}) */
 	protected int methodInvocationOption = 0;
-	/** The enum collector class index */
-	protected int enumIndex = -1;
-	/** The enum collector class classloader */
-	protected ClassLoader enumCollectorClassLoader = null;
-	/** The enum collector enabled metric bitmask */
-	protected int bitMask = -1;
+	/** The measurement bitmask */
+	protected int measurementBitMask = Measurement.DEFAULT_MASK;
+	/** The subMetric bitmask */
+	protected int subMetricBitMask = SubMetric.DEFAULT_MASK;
+	
 	/** The metric name template */
 	protected String metricNameTemplate = null;
 	/** Indicates if the instrumented method should have the instrumentation enabled when the method is called reentrantly (i.e. self-calls) */
@@ -274,18 +264,14 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		builder.append(targetMethodAnnotation);
 		builder.append("\n\tmethodAnnotationClass:");
 		builder.append(methodAnnotationClass);
-		builder.append("\n\tmethodAnnotationClassLoader:");
-		builder.append(methodAnnotationClassLoader);
 		builder.append("\n\tmethodAttribute:");
 		builder.append(methodAttribute);
 		builder.append("\n\tmethodInvocationOption:");
 		builder.append(methodInvocationOption);
-		builder.append("\n\tenumIndex:");
-		builder.append(enumIndex);
-		builder.append("\n\tenumCollectorClassLoader:");
-		builder.append(enumCollectorClassLoader);
-		builder.append("\n\tbitMask:");
-		builder.append(bitMask);
+		builder.append("\n\tmeasurements:");
+		builder.append(Arrays.toString(Measurement.getEnabled(measurementBitMask)));
+		builder.append("\n\tsubMetrics:");
+		builder.append(Arrays.toString(SubMetric.getEnabled(subMetricBitMask)));		
 		builder.append("\n\tmetricNameTemplate:");
 		builder.append(metricNameTemplate);
 		builder.append("\n\tallowReentrant:");
@@ -373,7 +359,8 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		for(int i = 1; i <= fieldCount; i++ ) {
 			parsedFields[i-1] = matcher.group(i);
 		}
-		log("Parsed values: %s", Arrays.toString(parsedFields));
+		
+		log(printParsedValues(parsedFields));
 		validateMandatoryFields(whiteSpaceCleanedSource, parsedFields);
 		validateTargetClass(whiteSpaceCleanedSource, parsedFields[IND_TARGETCLASS.ordinal()], parsedFields[IND_TARGETCLASS_CL.ordinal()], parsedFields[IND_TARGETCLASS_ANNOT.ordinal()], parsedFields[IND_INHERRIT.ordinal()]);
 		validateTargetMethod(whiteSpaceCleanedSource, parsedFields[IND_METHOD.ordinal()], parsedFields[IND_METHOD_ANNOT.ordinal()], parsedFields[IND_SIGNATURE.ordinal()], parsedFields[IND_INSTOPTIONS.ordinal()]);
@@ -382,6 +369,15 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		validateMethodInvocationOptions(whiteSpaceCleanedSource, parsedFields[IND_INSTOPTIONS.ordinal()]);
 //		validateMethodInstrumentation(whiteSpaceCleanedSource, parsedFields[IND_COLLECTORNAME.ordinal()], parsedFields[IND_COLLECTOR_CL.ordinal()], parsedFields[IND_BITMASK.ordinal()]);		
 		metricNameTemplate = parsedFields[IND_METRICNAME.ordinal()].trim();
+	}
+	
+	protected String printParsedValues(final String[] parsedFields) {
+		StringBuilder b = new StringBuilder("Parsed Values: [");
+		for(ShorthandToken token: ShorthandToken.values()) {
+			b.append("\n\t").append(token.name()).append(":").append(parsedFields[token.ordinal()]);
+		}
+		
+		return b.append("\n]").toString();
 	}
 	
 //	/**
@@ -837,23 +833,6 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		return methodAttribute;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean#getEnumIndex()
-	 */
-	@Override
-	public int getEnumIndex() {
-		return enumIndex;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean#getBitMask()
-	 */
-	@Override
-	public int getBitMask() {
-		return bitMask;
-	}
 
 	/**
 	 * {@inheritDoc}
@@ -863,23 +842,14 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	public String getMetricNameTemplate() {
 		return metricNameTemplate;
 	}
-	
-	/**
-	 * Simple out formatted logger
-	 * @param fmt The format of the message
-	 * @param args The message arguments
-	 */
-	public static void log(String fmt, Object...args) {
-		System.out.println(String.format(fmt, args));
-	}
-	
+
 	/**
 	 * Simple err formatted logger
 	 * @param fmt The format of the message
 	 * @param args The message arguments
 	 */
-	public static void loge(String fmt, Object...args) {
-		System.err.println(String.format(fmt, args));
+	public static void loge(Object fmt, Object...args) {
+		System.err.println(String.format(fmt.toString(), args));
 	}
 	
 	/**
@@ -958,24 +928,6 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		return targetClassLoader;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean#getMethodAnnotationClassLoader()
-	 */
-	@Override
-	public ClassLoader getMethodAnnotationClassLoader() {
-		return methodAnnotationClassLoader;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean#getEnumCollectorClassLoader()
-	 */
-	@Override
-	public ClassLoader getEnumCollectorClassLoader() {
-		return enumCollectorClassLoader;
-	}
-
 
 	/**
 	 * {@inheritDoc}
@@ -986,4 +938,21 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		return methodAnnotationClass;
 	}	
 
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean#getMeasurementBitMask()
+	 */
+	@Override
+	public int getMeasurementBitMask() {		
+		return measurementBitMask;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean#getSubMetricsBitMask()
+	 */
+	@Override
+	public int getSubMetricsBitMask() {	
+		return subMetricBitMask;
+	}
 }

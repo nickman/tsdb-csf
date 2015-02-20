@@ -29,6 +29,13 @@ import java.util.Set;
 public interface RetransformerLiteMBean {
 	
 	/**
+	 * Prints the names of all the locations where the class with the passed name is found 
+	 * @param className The class name to print the locations of
+	 * @return The unique class locations
+	 */
+	public Set<String> printClassLocations(final String className);
+	
+	/**
 	 * Returns the {@link #toString()} of the classloader for the passed name
 	 * @param name The class loader symbol
 	 * @return the classloader toString

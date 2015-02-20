@@ -141,7 +141,7 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 	/** All the SubMetrics mask */
 	public static final int ALL_SUBMETRICS_MASK = getMaskFor(values());
 	/** The default SubMetrics mask */
-	public static final int DEFAULT_SUBMETRICS_MASK = (DEFAULT_GAUGE_SUBMETRIC_MASK | DEFAULT_COUNTER_SUBMETRIC_MASK | DEFAULT_METER_SUBMETRIC_MASK | DEFAULT_HISTOGRAM_SUBMETRIC_MASK);
+	public static final int DEFAULT_MASK = (DEFAULT_GAUGE_SUBMETRIC_MASK | DEFAULT_COUNTER_SUBMETRIC_MASK | DEFAULT_METER_SUBMETRIC_MASK | DEFAULT_HISTOGRAM_SUBMETRIC_MASK);
 
 	/** Maps the member bitmask to the member */
 	public static final Map<Integer, SubMetric> MASK2ENUM;

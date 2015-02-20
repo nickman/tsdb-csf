@@ -104,17 +104,6 @@ public interface ShorthandScriptMBean {
 	 */
 	public abstract int getMethodAttribute();
 
-	/**
-	 * Returns the 
-	 * @return the enumIndex
-	 */
-	public abstract int getEnumIndex();
-
-	/**
-	 * Returns the 
-	 * @return the bitMask
-	 */
-	public abstract int getBitMask();
 
 	/**
 	 * Returns the template to build the metric name from
@@ -165,21 +154,22 @@ public interface ShorthandScriptMBean {
 	public abstract ClassLoader getTargetClassLoader();
 
 	/**
-	 * Returns the method level annotation classloader
-	 * @return the method level annotation classloader
-	 */
-	public abstract ClassLoader getMethodAnnotationClassLoader();
-
-	/**
-	 * Returns the enum collector class classloader
-	 * @return the enum collector class classloader
-	 */
-	public abstract ClassLoader getEnumCollectorClassLoader();
-
-	/**
 	 * Returns the target method level annotation class
 	 * @return the target method level annotation class
 	 */
 	public abstract Class<? extends Annotation> getMethodAnnotation();
+	
+	/**
+	 * Returns the bitmask of the enabled measurements
+	 * @return the bitmask of the enabled measurements
+	 */
+	public abstract int getMeasurementBitMask();
+	
+	/**
+	 * Returns the bitmask of the enabled subMetrics
+	 * @return the bitmask of the enabled subMetrics
+	 */
+	public abstract int getSubMetricsBitMask();
+	
 
 }

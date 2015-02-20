@@ -21,9 +21,9 @@ import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.Arrays;
 import java.util.Collections;
@@ -60,7 +60,6 @@ import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.URLHelper;
 import com.heliosapm.opentsdb.client.util.Util;
 
@@ -501,6 +500,31 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 		return instrumentedClasses.size();
 	}
 	
+	
+	public Set<String> printClassLocations(final String className) {
+		Set<String> set = new HashSet<String>(6);
+		for(Class<?> clazz: instrumentation.getAllLoadedClasses()) {
+			if(className.equals(clazz.getName())) {
+				ProtectionDomain pd = clazz.getProtectionDomain();
+				if(pd==null) {
+					set.add("No Protection Domain");
+					continue;
+				}
+				CodeSource cs = pd.getCodeSource();
+				if(cs==null) {
+					set.add("No Code Source");
+					continue;
+				}
+				URL location = cs.getLocation();
+				if(location==null) {
+					set.add("No Location");
+					continue;
+				}
+				set.add(location.toString());
+			}
+		}
+		return set;
+	}
 	
 	
 	/**
