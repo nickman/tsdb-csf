@@ -246,9 +246,8 @@ public enum SubMetric implements IMetricValueReader<Metric> {
 				if(sm!=null) {
 					set.add(sm);
 					continue;
-				} else {
-					if(!throwIfInvalid) continue;
-				}
+				} 
+				if(!throwIfInvalid) continue;				
 			} catch (Exception ex) {
 				if(!throwIfInvalid) continue;
 			}

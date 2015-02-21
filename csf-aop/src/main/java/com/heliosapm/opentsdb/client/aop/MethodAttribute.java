@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 
 
@@ -60,6 +61,9 @@ public enum MethodAttribute  {
 	
 	/** A map of the method attribute enums keyed by the lower name and aliases */
 	public static final Map<String, MethodAttribute> NAME2ENUM;
+	/** Maps the member bitmask to the member */
+	public static final Map<Integer, MethodAttribute> MASK2ENUM;
+	
 	
 	/** The default method attribute mask */
 	public static final int DEFAULT_MASK;
@@ -68,8 +72,9 @@ public enum MethodAttribute  {
 	static {
 		MethodAttribute[] values = MethodAttribute.values();
 		Map<String, MethodAttribute> tmp = new HashMap<String, MethodAttribute>(values.length);
+		Map<Integer, MethodAttribute> itmp = new HashMap<Integer, MethodAttribute>(values.length);
 		for(MethodAttribute ma: values) {
-			
+			itmp.put(ma.mask, ma);
 			if(tmp.put(ma.name, ma)!=null) {
 				throw new RuntimeException("Duplicate lower name [" + ma.name + "]. Programmer error");
 			}
@@ -80,8 +85,15 @@ public enum MethodAttribute  {
 			}
 		}
 		NAME2ENUM = Collections.unmodifiableMap(tmp);
+		MASK2ENUM = Collections.unmodifiableMap(itmp);	
 		DEFAULT_MASK = enableFor(PUBLIC);
 	}
+	
+	/** An empty MethodAttribute array const */
+	public static final MethodAttribute[] EMPTY_INVOPT_ARR = {};
+	/** A comma splitter pattern */
+	public static final Pattern COMMA_SPLITTER = Pattern.compile(",");
+	
 	
 	
 	private MethodAttribute(int mask, String name, boolean forMethod, String...aliases) {
@@ -213,6 +225,118 @@ public enum MethodAttribute  {
 		MethodAttribute ma = forNameOrNull(name);
 		return ma!=null;
 	}
+	
+	/**
+	 * Returns an array of the MethodAttributes enabled by the passed mask 
+	 * @param mask The mask
+	 * @return an array of MethodAttributes
+	 */
+	public static MethodAttribute[] getEnabled(final int mask) {
+		final EnumSet<MethodAttribute> set = EnumSet.noneOf(MethodAttribute.class);
+		for(MethodAttribute ot: values()) {
+			if((mask & ot.mask) != 0) set.add(ot);
+		}
+		return set.toArray(new MethodAttribute[set.size()]);
+	}	
+	
+	/**
+	 * Decodes the passed expression into an array of MethodAttributes.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a MethodAttribute member or a MethodAttribute mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param throwIfInvalid If true, will throw an exception if a value cannot be decoded
+	 * @param expr The expression to decode
+	 * @return an array of represented MethodAttribute members.
+	 */
+
+	public static MethodAttribute[] decode(final boolean throwIfInvalid, final CharSequence expr) {
+		if(expr==null) return EMPTY_INVOPT_ARR;
+		final String sexpr = expr.toString().trim().toUpperCase();
+		if(sexpr.isEmpty()) return EMPTY_INVOPT_ARR;
+		final EnumSet<MethodAttribute> set = EnumSet.noneOf(MethodAttribute.class);
+		final String[] exprFields = COMMA_SPLITTER.split(sexpr);
+		for(String s: exprFields) {
+			if(isMethodAttributeName(s)) {
+				set.add(valueOf(s.trim()));
+				continue;
+			}
+			try {
+				int mask = new Double(s).intValue();
+				MethodAttribute sm = MASK2ENUM.get(mask);
+				if(sm!=null) {
+					set.add(sm);
+					continue;
+				} 
+				if(!throwIfInvalid) continue;				
+			} catch (Exception ex) {
+				if(!throwIfInvalid) continue;
+			}
+			throw new RuntimeException("Failed to decode MethodAttribute value [" + s + "]");
+		}
+		return set.toArray(new MethodAttribute[set.size()]);
+	}
+	
+	/**
+	 * Decodes the passed expression into an array of MethodAttributes, ignoring any non-decoded values.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a MethodAttribute member or a MethodAttribute mask (individual or bitmasked).
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param expr The expression to decode
+	 * @return an array of represented MethodAttribute members.
+	 */
+	public static MethodAttribute[] decode(final CharSequence expr) {
+		return decode(false, expr);
+	}
+	
+	/**
+	 * Decodes the passed expression into a bitmask representing enabled MethodAttribute, ignoring any non-decoded values.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a MethodAttribute member or a MethodAttribute mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param expr The expression to decode
+	 * @return the bit mask of the enabled MethodAttribute members
+	 */
+	public static int decodeToMask(final CharSequence expr) {
+		return enableFor(decode(expr));
+	}
+	
+	/**
+	 * Decodes the passed expression into a bitmask representing enabled MethodAttributes
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a MethodAttribute member or a MethodAttribute mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param throwIfInvalid If true, will throw an exception if a value cannot be decoded
+	 * @param expr The expression to decode
+	 * @return the bit mask of the enabled MethodAttribute members
+	 */
+	public static int decodeToMask(final boolean throwIfInvalid, final CharSequence expr) {
+		return enableFor(decode(throwIfInvalid, expr));
+	}
+	
+	
+	
+	/**
+	 * Indicates if the passed symbol is a valid MethodAttribute member name.
+	 * The passed value is trimmed and upper-cased.
+	 * @param symbol The symbol to test
+	 * @return true if the passed symbol is a valid MethodAttribute member name, false otherwise
+	 */
+	public static boolean isMethodAttributeName(final CharSequence symbol) {
+		if(symbol==null) return false;
+		final String name = symbol.toString().trim().toLowerCase();
+		if(name.isEmpty()) return false;
+		try {
+			valueOf(name);
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+	
 	
 	
 	/**

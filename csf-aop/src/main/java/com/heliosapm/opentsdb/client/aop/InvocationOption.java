@@ -21,7 +21,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
+import com.heliosapm.opentsdb.client.opentsdb.opt.SubMetric;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -48,11 +50,15 @@ public enum InvocationOption  {
 	
 	/** A map of the method attribute enums keyed by the lower name and aliases */
 	public static final Map<String, InvocationOption> ALIAS2ENUM;
+	/** Maps the member bitmask to the member */
+	public static final Map<Integer, InvocationOption> MASK2ENUM;
 	
 	static {
 		InvocationOption[] values = InvocationOption.values();
+		Map<Integer, InvocationOption> itmp = new HashMap<Integer, InvocationOption>(values.length);
 		Map<String, InvocationOption> tmp = new HashMap<String, InvocationOption>(values.length*2);
 		for(InvocationOption ma: values) {
+			itmp.put(ma.mask, ma);
 			tmp.put(ma.name().toLowerCase(), ma);
 			for(String name: ma.aliases) {
 				if(tmp.put(name, ma)!=null) {
@@ -61,7 +67,27 @@ public enum InvocationOption  {
 			}
 		}
 		ALIAS2ENUM = Collections.unmodifiableMap(tmp);
+		MASK2ENUM = Collections.unmodifiableMap(itmp);		
 	}
+	
+	/** An empty InvocationOption array const */
+	public static final InvocationOption[] EMPTY_INVOPT_ARR = {};
+	/** A comma splitter pattern */
+	public static final Pattern COMMA_SPLITTER = Pattern.compile(",");
+
+	/**
+	 * Returns an array of the InvocationOptions enabled by the passed mask 
+	 * @param mask The mask
+	 * @return an array of InvocationOptions
+	 */
+	public static InvocationOption[] getEnabled(final int mask) {
+		final EnumSet<InvocationOption> set = EnumSet.noneOf(InvocationOption.class);
+		for(InvocationOption ot: values()) {
+			if((mask & ot.mask) != 0) set.add(ot);
+		}
+		return set.toArray(new InvocationOption[set.size()]);
+	}
+	
 	
 	
 	/**
@@ -160,56 +186,129 @@ public enum InvocationOption  {
 	/** This members mask */
 	public final int mask;
 
-	/**
-	 * Returns a set containing all of the InvocationOptions represented by the passed names, ignoring invalid options.
-	 * @param names The names to build the set with
-	 * @return the built set
-	 */
-	public static Set<InvocationOption> getEnabled(CharSequence...names) {
-		return getEnabled(true, names);
-	}
+//	/**
+//	 * Returns a set containing all of the InvocationOptions represented by the passed names, ignoring invalid options.
+//	 * @param names The names to build the set with
+//	 * @return the built set
+//	 */
+//	public static Set<InvocationOption> getEnabled(CharSequence...names) {
+//		return getEnabled(true, names);
+//	}
 	
 	
 	/**
-	 * Returns a set containing all of the InvocationOptions represented by the passed names
-	 * @param ignoreInvalids if true, invalid or null names will be ignored
-	 * @param names The names to build the set with
-	 * @return the built set
+	 * Decodes the passed expression into an array of InvocationOptions.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a InvocationOption member or a InvocationOption mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param throwIfInvalid If true, will throw an exception if a value cannot be decoded
+	 * @param expr The expression to decode
+	 * @return an array of represented InvocationOption members.
 	 */
-	public static Set<InvocationOption> getEnabled(boolean ignoreInvalids, CharSequence...names) {
-		Set<InvocationOption> set = EnumSet.noneOf(InvocationOption.class);
-		if(names==null || names.length==0) return set; 
-		for(CharSequence cs: names) {
-			if(names==null || names.toString().isEmpty()) return set;
-			char[] chars = cs.toString().replace(" ", "").toCharArray();
-			for(char c: chars) {
-				String name = new String(new char[]{c});
-				InvocationOption ma = forNameOrNull(name);
-				if(ma==null) {
-					if(!ignoreInvalids) throw new IllegalArgumentException("The option [" + name + "] is invalid");
-					continue;
-				}
-				set.add(ma);				
+
+	public static InvocationOption[] decode(final boolean throwIfInvalid, final CharSequence expr) {
+		if(expr==null) return EMPTY_INVOPT_ARR;
+		final String sexpr = expr.toString().trim().toUpperCase();
+		if(sexpr.isEmpty()) return EMPTY_INVOPT_ARR;
+		final EnumSet<InvocationOption> set = EnumSet.noneOf(InvocationOption.class);
+		final String[] exprFields = COMMA_SPLITTER.split(sexpr);
+		for(String s: exprFields) {
+			if(isInvocationOptionName(s)) {
+				set.add(valueOf(s.trim()));
+				continue;
 			}
+			try {
+				int mask = new Double(s).intValue();
+				InvocationOption sm = MASK2ENUM.get(mask);
+				if(sm!=null) {
+					set.add(sm);
+					continue;
+				} 
+				if(!throwIfInvalid) continue;				
+			} catch (Exception ex) {
+				if(!throwIfInvalid) continue;
+			}
+			throw new RuntimeException("Failed to decode InvocationOption value [" + s + "]");
 		}
-		return set;
+		return set.toArray(new InvocationOption[set.size()]);
 	}
 	
 	/**
-	 * Indicates if the passed name is a valid InvocationOption
-	 * @param name the name to test
-	 * @return true if the passed name is a valid InvocationOption, false otherwise
+	 * Decodes the passed expression into an array of InvocationOptions, ignoring any non-decoded values.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a InvocationOption member or a InvocationOption mask (individual or bitmasked).
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param expr The expression to decode
+	 * @return an array of represented InvocationOption members.
 	 */
-	public static boolean isInvocationOption(CharSequence name) {
-		if(name==null) return false;
+	public static InvocationOption[] decode(final CharSequence expr) {
+		return decode(false, expr);
+	}
+	
+	/**
+	 * Decodes the passed expression into a bitmask representing enabled InvocationOption, ignoring any non-decoded values.
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a InvocationOption member or a InvocationOption mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param expr The expression to decode
+	 * @return the bit mask of the enabled InvocationOption members
+	 */
+	public static int decodeToMask(final CharSequence expr) {
+		return getMaskFor(decode(expr));
+	}
+	
+	/**
+	 * Decodes the passed expression into a bitmask representing enabled InvocationOptions
+	 * Is expected to be a comma separated list of values where each value 
+	 * can be either the name of a InvocationOption member or a InvocationOption mask.
+	 * Normally there would only be one mask, but multiple are supported. 
+	 * The expression can contain both representations. 
+	 * @param throwIfInvalid If true, will throw an exception if a value cannot be decoded
+	 * @param expr The expression to decode
+	 * @return the bit mask of the enabled InvocationOption members
+	 */
+	public static int decodeToMask(final boolean throwIfInvalid, final CharSequence expr) {
+		return getMaskFor(decode(throwIfInvalid, expr));
+	}
+	
+	
+	
+	/**
+	 * Indicates if the passed symbol is a valid InvocationOption member name.
+	 * The passed value is trimmed and upper-cased.
+	 * @param symbol The symbol to test
+	 * @return true if the passed symbol is a valid InvocationOption member name, false otherwise
+	 */
+	public static boolean isInvocationOptionName(final CharSequence symbol) {
+		if(symbol==null) return false;
+		final String name = symbol.toString().trim().toLowerCase();
+		if(name.isEmpty()) return false;
 		try {
-			InvocationOption.valueOf(name.toString().trim().toUpperCase());
+			valueOf(name);
 			return true;
 		} catch (Exception ex) {
 			return false;
 		}
 	}
+	
 
+	/**
+	 * Returns a bitmask enabled for all the passed InvocationOption members
+	 * @param ots the InvocationOption members to get a mask for
+	 * @return the mask
+	 */
+	public static int getMaskFor(final InvocationOption...ots) {
+		if(ots==null || ots.length==0) return 0;
+		int bitMask = 0;
+		for(InvocationOption ot: ots) {
+			if(ot==null) continue;
+			bitMask = bitMask | ot.mask;
+		}
+		return bitMask;
+	}
 		
 
 	

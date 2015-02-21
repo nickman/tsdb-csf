@@ -263,7 +263,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		builder.append("\n\tmethodAttribute:");
 		builder.append(methodAttribute);
 		builder.append("\n\tmethodInvocationOption:");
-		builder.append(methodInvocationOption);
+		builder.append(Arrays.toString(InvocationOption.getEnabled(methodInvocationOption)));
 		builder.append("\n\tmeasurements:");
 		builder.append(Arrays.toString(Measurement.getEnabled(measurementBitMask)));
 		builder.append("\n\tsubMetrics:");
