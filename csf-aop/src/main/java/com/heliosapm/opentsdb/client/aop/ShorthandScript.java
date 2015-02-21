@@ -662,6 +662,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		} else {
 			targetClassLoader = ClassLoaderRepository.getInstance().getClassLoader(parsedClassLoader);
 		}
+		if(targetClassLoader==null) targetClassLoader = Thread.currentThread().getContextClassLoader();
 		if(parsedAnnotationIndicator!=null) {
 			targetClassAnnotation = "@".equals(parsedAnnotationIndicator.trim());
 		} else {

@@ -17,6 +17,9 @@ package test.com.heliosapm.shorthand;
 
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -179,8 +182,21 @@ public class ShorthandCompilerTestCases extends BaseTest {
 	 */	
 	@Test
 	public void testSimpleClassInherritance() throws Exception {
-		final Map<Class<?>, Set<Member>> members = ShorthandScript.parse("java.lang.CharSequence+ toString 'X'").getTargetMembers();
-		log("CharSequence Inherrited: %s", members.size());
+		final Map<Class<?>, Set<Member>> members = ShorthandScript.parse("test.com.heliosapm.shorthand.testclasses.ISimpleClass+ methodX 'X'").getTargetMembers();
+		Assert.assertFalse("Member key set was empty", members.isEmpty());
+		final Set<String> expectedClassNames = new HashSet<String>(Arrays.asList(
+				"test.com.heliosapm.shorthand.testclasses.SimpleClass",
+				"test.com.heliosapm.shorthand.testclasses.SimpleClassExt"
+		));
+		Set<Class<?>> membersKeysCopy = new HashSet<Class<?>>(members.keySet());
+		Iterator<Class<?>> clazzIter = membersKeysCopy.iterator();
+		while(clazzIter.hasNext()) {
+			Class<?> clazz = clazzIter.next();
+			log("Member count for %s: %s", clazz.getName(), members.get(clazz).size());
+			Assert.assertTrue("Failed to find expected class", expectedClassNames.contains(clazz.getName()));
+			expectedClassNames.remove(clazz.getName());
+		}
+		Assert.assertTrue("Failed to find all expected classes", expectedClassNames.isEmpty());
 	}
 
 	
