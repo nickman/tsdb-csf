@@ -15,11 +15,23 @@
  */
 package com.heliosapm.opentsdb.client.aop;
 
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.*;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_INHERRIT;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_INSTOPTIONS;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_MEASURMENT;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD_ANNOT;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD_ATTRS;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METRICNAME;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_SIGNATURE;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_SUBMETRIC;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_ANNOT;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_CL;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,6 +51,7 @@ import java.util.regex.Pattern;
 import org.reflections.Reflections;
 import org.reflections.scanners.SubTypesScanner;
 import org.reflections.scanners.TypeAnnotationsScanner;
+import org.reflections.scanners.TypeElementsScanner;
 import org.reflections.util.ConfigurationBuilder;
 
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
@@ -53,7 +66,7 @@ import com.heliosapm.opentsdb.client.util.StringHelper;
  * <p>Description: Class responsible for parsing a shorthand expression and locating the intended classes and methods to instrument.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.aop.ShorthandScript</code></p>
  * <h4><pre>
 		 [@]<ClassName>[+] [(Method Attributes)] [@]<MethodName>[<Signature>] [Invocation Options] <CollectorName>[<BitMask>|<CollectionNames>] <MetricFormat> DISABLED
 	</pre></h4>
@@ -86,7 +99,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 					"\\s" + 							// spacer
 	                "(?:\\((.*?)\\)\\s)?" +         	// (4)	The optional method accessibilities. Defaults to "pub"
 	                "(@)?" +                         	// (5)	The method annotation indicator
-	                "(\\[?.*?\\]?)" +                         	// (6)	The method name expression, wrapped in "[ ]" if a regular expression  (MANDATORY)
+	                "(\\[?.*?\\]?)" +                   // (6)	The method name expression, wrapped in "[ ]" if a regular expression  (MANDATORY)
 	                "(?:\\((.*)\\))?" +            		// (7)	The optional method signature
 	                "(?:\\[(.*)\\])?" +         		// (8)	The optional method attributes
 //	                "\\s" +                             // spacer
@@ -104,9 +117,10 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		log("Pattern:%s", SH_PATTERN.pattern());
-		log("Pattern Groups:%s", SH_PATTERN.matcher("").groupCount());
-		log(parse("java.lang.Object+<-SYSTEM.PARENT [eq.*|to.*] 'java/lang/Object'").toString());
+		SignaturePrinter.main(Object.class.getName(), "equals");
+//		log("Pattern:%s", SH_PATTERN.pattern());
+//		log("Pattern Groups:%s", SH_PATTERN.matcher("").groupCount());
+//		log(parse("java.lang.Object+<-SYSTEM.PARENT [eq.*|to.*] 'java/lang/Object'").toString());
 	}
 	
 	/** The whitespace cleaner */
@@ -193,7 +207,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	//		Instrumentation Attributes
 	//==============================================================================================
 	/** The method invocation options (from {@link InvocationOption}) */
-	protected int methodInvocationOption = 0;
+	protected int methodInvocationOption = InvocationOption.DEFAULT_MASK;
 	/** The measurement bitmask */
 	protected int measurementBitMask = Measurement.DEFAULT_MASK;
 	/** The subMetric bitmask */
@@ -261,7 +275,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		builder.append("\n\tmethodAnnotationClass:");
 		builder.append(methodAnnotationClass);
 		builder.append("\n\tmethodAttribute:");
-		builder.append(methodAttribute);
+		builder.append(Arrays.toString(MethodAttribute.getEnabled(methodAttribute)));
 		builder.append("\n\tmethodInvocationOption:");
 		builder.append(Arrays.toString(InvocationOption.getEnabled(methodInvocationOption)));
 		builder.append("\n\tmeasurements:");
@@ -322,7 +336,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 * @param source The source to parse
 	 * @return a parsed ShorthandScript instance 
 	 */
-	public static ShorthandScriptMBean parse(CharSequence source) {
+	public static ShorthandScript parse(CharSequence source) {
 		return parse(source, EMPTY_CL_MAP);
 	}
 
@@ -455,7 +469,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 * @return true for a match, false otherwise
 	 */
 	protected boolean isMatchingSignature(Member member) {
-		String desc = StringHelper.getMemberDescriptor(member);
+		String desc = StringHelper.getMemberSignature(member);
 		if(methodSignature!=null) {
 			return methodSignature.equals(desc);
 		}
@@ -469,7 +483,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 */
 	protected boolean isMatchingAttribute(Member member) {
 		//log("isMatchingAttribute:  %s [%s]  ma [%s]", member.getName(), member.getModifiers(), methodAttribute);
-		return (methodAttribute & member.getModifiers())==member.getModifiers(); 
+		return (methodAttribute & member.getModifiers())==methodAttribute; 
 	}
 	
 	
@@ -477,13 +491,19 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	/**
 	 * {@inheritDoc}
 	 * @see com.heliosapm.opentsdb.client.aop.ShorthandScriptMBean#getTargetClasses()
+	 * FIXME:  Can be optimized if we know what the classloader is and it is localized
 	 */
 	@SuppressWarnings("unchecked")
 	@Override
 	public Set<Class<?>> getTargetClasses() {
+		if(!targetClassAnnotation && (!inherritanceEnabled || Modifier.isFinal(targetClass.getModifiers()))) {
+			return new HashSet<Class<?>>(Arrays.asList(targetClass));
+		}		
 		ConfigurationBuilder cb = new ConfigurationBuilder()
-			.addClassLoader(targetClassLoader)
-			.addScanners(new SubTypesScanner());
+//			.addClassLoader(targetClass.getClassLoader())
+//			.addClassLoader(targetClassLoader)
+			.addClassLoader(ClassLoader.getSystemClassLoader().getParent())
+			.addScanners(new SubTypesScanner(), new TypeElementsScanner());
 		
 		if(targetClassAnnotation) {
 			cb.addScanners(new TypeAnnotationsScanner());
@@ -492,9 +512,10 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		Reflections reflections = new Reflections(ConfigurationBuilder.build());
 		if(targetClassAnnotation) {
 			return reflections.getTypesAnnotatedWith((Class<? extends Annotation>) targetClass, inherritanceEnabled);
-		} else if(inherritanceEnabled) {
+		} else if(inherritanceEnabled) {						
 			Set<?> subTypes = reflections.getSubTypesOf(targetClass);
 			Set<Class<?>> results = new HashSet<Class<?>>((Collection<? extends Class<?>>) subTypes);
+			return results;
 		}
 		Set<Class<?>> results  = new HashSet<Class<?>>(Arrays.asList(targetClass));
 		return results;
@@ -520,14 +541,14 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	
 	/**
 	 * Validates, loads and configures the target method[s]
-	 * @param source The source (for reporting in any ecxeption thrown)
+	 * @param source The source (for reporting in any exception thrown)
 	 * @param parsedMethodSignature The method signature or pattern
 	 */
 	protected void validateMethodSignature(String source, String parsedMethodSignature) {
 		if(parsedMethodSignature!=null && !parsedMethodSignature.trim().isEmpty()) {
 			methodSignature = parsedMethodSignature.trim(); 
-			boolean patternStart = methodSignature.startsWith("[");
-			boolean patternEnd = methodSignature.endsWith("]");
+			boolean patternStart = methodSignature.startsWith("(");
+			boolean patternEnd = methodSignature.endsWith(")");
 			if((patternStart && patternEnd) || (!patternStart && !patternEnd)) {
 				if(patternStart && patternEnd) {
 					try {
@@ -536,6 +557,8 @@ public class ShorthandScript implements ShorthandScriptMBean {
 					} catch (Exception ex) {
 						throw new ShorthandParseFailureException("Failed to compile method signature pattern " + methodSignature, source);
 					}
+				} else {
+					// TODO
 				}
 			} else {
 				throw new ShorthandParseFailureException("Method signature [" + methodSignature + "] seemed to want to be an expression but was missing an opener or closer", source);

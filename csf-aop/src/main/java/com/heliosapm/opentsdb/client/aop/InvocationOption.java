@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import com.heliosapm.opentsdb.client.opentsdb.opt.SubMetric;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
@@ -74,6 +73,9 @@ public enum InvocationOption  {
 	public static final InvocationOption[] EMPTY_INVOPT_ARR = {};
 	/** A comma splitter pattern */
 	public static final Pattern COMMA_SPLITTER = Pattern.compile(",");
+	
+	/** The default InvocationOption mask */
+	public static final int DEFAULT_MASK = TRANSFORMER_BATCH.mask;
 
 	/**
 	 * Returns an array of the InvocationOptions enabled by the passed mask 

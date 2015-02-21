@@ -53,8 +53,25 @@ public class StringHelper {
 		}
 	}
 	
+	/**
+	 * Returns the signature for the passed member
+	 * @param m The class member
+	 * @return the member signature
+	 */
+	@SuppressWarnings("rawtypes")
+	public static String getMemberSignature(final Member m) {
+		if(m instanceof Method) {
+			return getMethodSignature((Method)m);
+		} else if(m instanceof Constructor) {
+			return getConstructorSignature((Constructor)m);
+		} else {
+			return m.toString();
+		}
+	}
 	
-	   /**
+	
+	
+	/**
      * Returns the descriptor corresponding to the given method.
      * @param m a {@link Method Method} object.
      * @return the descriptor of the given method.
@@ -74,6 +91,26 @@ public class StringHelper {
         return buf.toString();
     }
     
+	/**
+     * Returns the descriptor corresponding to the given method.
+     * @param m a {@link Method Method} object.
+     * @return the descriptor of the given method.
+     * (Based on getDescriptorfrom ObjectWeb ASM)
+     * @author Eric Bruneton  
+     * @author Chris Nokleberg
+     * @author nwhitehead
+     */
+    public static String getMethodSignature(final Method m) {
+        Class<?>[] parameters = m.getParameterTypes();
+        if(parameters.length==0) return "";
+        StringBuffer buf = new StringBuffer();        
+        for (int i = 0; i < parameters.length; ++i) {
+            getDescriptor(buf, parameters[i]);
+        }
+        return buf.toString();
+    }
+    
+    
     /**
      * Returns the descriptor corresponding to the given constructor.
      * @param c a {@link Constructor Constructor} object.
@@ -92,6 +129,22 @@ public class StringHelper {
         return buf.append(")V").toString();
     }
     
+    /**
+     * Returns the descriptor corresponding to the given constructor.
+     * @param c a {@link Constructor Constructor} object.
+     * @return the descriptor of the given constructor.
+     * (All credit to ObjectWeb ASM)
+     * @author Eric Bruneton  
+     * @author Chris Nokleberg
+     */
+    public static String getConstructorSignature(final Constructor<?> c) {
+        Class<?>[] parameters = c.getParameterTypes();
+        StringBuffer buf = new StringBuffer();        
+        for (int i = 0; i < parameters.length; ++i) {
+            getDescriptor(buf, parameters[i]);
+        }
+        return buf.toString();
+    }
 
     /**
      * Appends the descriptor of the given class to the given string buffer.
