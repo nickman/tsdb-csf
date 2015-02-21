@@ -305,5 +305,14 @@ public interface Constants {
 	//     Java Agent Props
 	//======================================================================================================================
 	
+
+	//======================================================================================================================
+	//     Shortand Compiler Props
+	//======================================================================================================================
+	/** The system property name for the compiler tolerance of the shorthand compiler */
+	public static final String PROP_SHORTHAND_TOLERANT_PROPERTY = "tsdb.aop.shorthand.tolerant";
+	/** The default default-domain of the default MBeanServer which is the platform MBeanServer */
+	public static final boolean DEFAULT_SHORTHAND_TOLERANT_PROPERTY = false;
+	
 	
 }

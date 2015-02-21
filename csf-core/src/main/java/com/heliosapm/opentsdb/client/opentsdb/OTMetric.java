@@ -424,7 +424,7 @@ public class OTMetric implements Serializable {
 		
 		otm = new OTMetric("KitchenSink.resultCounts.op=cache-lookup.service=cacheservice,host=AA,app=XX")
 			.setMeasurement(Measurement.DEFAULT_MASK)
-			.setSubMetric(SubMetric.DEFAULT_SUBMETRICS_MASK);
+			.setSubMetric(SubMetric.DEFAULT_MASK);
 		
 		printDetails(otm);
 		log("TS:" + otm.toString());

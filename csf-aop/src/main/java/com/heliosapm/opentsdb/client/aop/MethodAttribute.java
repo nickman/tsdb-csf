@@ -61,7 +61,8 @@ public enum MethodAttribute  {
 	/** A map of the method attribute enums keyed by the lower name and aliases */
 	public static final Map<String, MethodAttribute> NAME2ENUM;
 	
-	public static final int DEFAULT_METHOD_MASK;
+	/** The default method attribute mask */
+	public static final int DEFAULT_MASK;
 	
 	
 	static {
@@ -79,7 +80,7 @@ public enum MethodAttribute  {
 			}
 		}
 		NAME2ENUM = Collections.unmodifiableMap(tmp);
-		DEFAULT_METHOD_MASK = enableFor(PUBLIC);
+		DEFAULT_MASK = enableFor(PUBLIC);
 	}
 	
 	

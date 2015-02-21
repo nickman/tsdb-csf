@@ -84,6 +84,8 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 	 */
 	public ClassLoader getClassLoader(final Object key) {
 		if(key==null) return null;
+		if("SYSTEM".equals(key)) return ClassLoader.getSystemClassLoader();
+		if("SYSTEM.PARENT".equals(key)) return ClassLoader.getSystemClassLoader().getParent();
 		final Object _key = WeakReferenceKey.isWeakRefRequired(key.getClass()) ? WeakReferenceKey.newInstance(key, classLoaderCache) : key; 		
 		try {
 			return classLoaderCache.get(_key, new Callable<ClassLoader>(){
@@ -93,7 +95,8 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 				}
 			});
 		} catch (Exception ex) {
-			throw new RuntimeException(ex);
+//			throw new RuntimeException(ex);
+			return Thread.currentThread().getContextClassLoader();
 		}
 	}
 	

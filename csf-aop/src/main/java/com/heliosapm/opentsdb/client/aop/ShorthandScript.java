@@ -15,16 +15,7 @@
  */
 package com.heliosapm.opentsdb.client.aop;
 
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_INHERRIT;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_INSTOPTIONS;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD_ANNOT;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METHOD_ATTRS;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_METRICNAME;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_SIGNATURE;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_ANNOT;
-import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_CL;
+import static com.heliosapm.opentsdb.client.aop.ShorthandToken.*;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
@@ -50,6 +41,8 @@ import org.reflections.scanners.SubTypesScanner;
 import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
 
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
 import com.heliosapm.opentsdb.client.opentsdb.opt.SubMetric;
 import com.heliosapm.opentsdb.client.util.StringHelper;
@@ -113,7 +106,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	public static void main(String[] args) {
 		log("Pattern:%s", SH_PATTERN.pattern());
 		log("Pattern Groups:%s", SH_PATTERN.matcher("").groupCount());
-		log(parse("java.lang.Object+ [eq.*|to.*] 'java/lang/Object'").toString());
+		log(parse("java.lang.Object+<-SYSTEM.PARENT [eq.*|to.*] 'java/lang/Object'").toString());
 	}
 	
 	/** The whitespace cleaner */
@@ -194,7 +187,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	/** The target method level annotation class */
 	protected Class<? extends Annotation> methodAnnotationClass = null;	
 	/** The method attributes (from {@link MethodAttribute}) */
-	protected int methodAttribute = MethodAttribute.DEFAULT_METHOD_MASK;
+	protected int methodAttribute = MethodAttribute.DEFAULT_MASK;
 
 	//==============================================================================================
 	//		Instrumentation Attributes
@@ -218,6 +211,9 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	protected boolean batchTransform = false;
 	/** Indicates if the instrumentation's classfile transformer should stay resident (see {@link InvocationOption#TRANSFORMER_RESIDENT}) */
 	protected boolean residentTransformer = false;
+	
+	/** Indicates if the parser will be tolerant of invalid settings in the expression */
+	protected final boolean parsingTolerance;
 	
 	//==============================================================================================
 
@@ -349,6 +345,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 */
 	private ShorthandScript(String source, Map<String, String> classLoaders) {
 		this.classLoaders = classLoaders;
+		parsingTolerance = ConfigurationReader.confBool(Constants.PROP_SHORTHAND_TOLERANT_PROPERTY, Constants.DEFAULT_SHORTHAND_TOLERANT_PROPERTY);
 		String whiteSpaceCleanedSource = WH_CLEANER.matcher(source).replaceAll(" ");
 		Matcher matcher = SH_PATTERN.matcher(whiteSpaceCleanedSource);
 		if(!matcher.matches()) {
@@ -367,10 +364,15 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		validateTargetMethodAttributes(whiteSpaceCleanedSource, parsedFields[IND_METHOD_ATTRS.ordinal()]); 
 		validateMethodSignature(whiteSpaceCleanedSource, parsedFields[IND_SIGNATURE.ordinal()]);
 		validateMethodInvocationOptions(whiteSpaceCleanedSource, parsedFields[IND_INSTOPTIONS.ordinal()]);
-//		validateMethodInstrumentation(whiteSpaceCleanedSource, parsedFields[IND_COLLECTORNAME.ordinal()], parsedFields[IND_COLLECTOR_CL.ordinal()], parsedFields[IND_BITMASK.ordinal()]);		
+		validateMethodInstrumentation(whiteSpaceCleanedSource, parsedFields[IND_MEASURMENT.ordinal()], parsedFields[IND_SUBMETRIC.ordinal()]);		
 		metricNameTemplate = parsedFields[IND_METRICNAME.ordinal()].trim();
 	}
 	
+	/**
+	 * Prints the parsed values for each of the Shorthand Regex groups
+	 * @param parsedFields The string arr if the regex parsed groups
+	 * @return the formatted values
+	 */
 	protected String printParsedValues(final String[] parsedFields) {
 		StringBuilder b = new StringBuilder("Parsed Values: [");
 		for(ShorthandToken token: ShorthandToken.values()) {
@@ -380,51 +382,36 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		return b.append("\n]").toString();
 	}
 	
-//	/**
-//	 * Validates, loads and configures the target method instrumentation collector and configuration
-//	 * @param source The source (for reporting in any ecxeption thrown)
-//	 * @param collectorName The partial or full collector name
-//	 * @param parsedClassLoader The classloader expression for the enum collector class
-//	 * @param bitMaskOptions The bitmask or comma separated collector member names to enable
-//	 */
-//	protected void validateMethodInstrumentation(String source, String collectorName, String parsedClassLoader, String bitMaskOptions) {
-//		String _collectorName = collectorName.trim();
-//		ClassLoader classLoader = null;
-//		if(parsedClassLoader!=null && !parsedClassLoader.trim().isEmpty()) {
-//			classLoader = classLoaderFrom(parsedClassLoader.trim());
-//		} else if(classLoaders.containsKey(PREDEF_CL_INSTR)) {
-//			classLoader = classLoaderFrom(classLoaders.get(PREDEF_CL_INSTR));
-//		} else {
-//			classLoader = Thread.currentThread().getContextClassLoader();
-//		}
-//		Class<? extends ICollector<?>> clazz = null;
-//		try {
-//			clazz = (Class<? extends ICollector<?>>) Class.forName(_collectorName, true, classLoader);
-//		} catch (Exception ex) {/* No Op */}
-//		if(clazz==null) {
-//			for(String packageName: ShorthandProperties.getEnumCollectorPackages()) {
-//				try {
-//					clazz = (Class<? extends ICollector<?>>) Class.forName(packageName + "." + _collectorName, true, classLoader);
-//					break;
-//				} catch (Exception ex) {
-//					continue;
-//				}				
-//			}
-//		}
-//		if(clazz==null) throw new ShorthandParseFailureException("Failed to locate collector class [" + collectorName + "]", source);
-//		EnumCollectors.getInstance().typeForName(clazz.getName(), classLoader);
-//		enumIndex = EnumCollectors.getInstance().index(clazz.getName());
-//		if(isNumber(bitMaskOptions.trim())) {
-//			bitMask = Integer.parseInt(bitMaskOptions.trim());
-//		} else {			
-//			if("*".equals(bitMaskOptions.trim())) {
-//				// all members
-//				bitMask = EnumHelper.getEnabledBitMask(true, EnumHelper.castToIntBitMaskedEnum(clazz), COMMA_SPLITTER.split(bitMaskOptions.trim()));
-//			} else {
-//				bitMask = EnumHelper.getEnabledBitMask(true, EnumHelper.castToIntBitMaskedEnum(clazz), COMMA_SPLITTER.split(bitMaskOptions.trim()));
-//			}
-//		}		
-//	}
+	/**
+	 * Validates, loads and configures the target method instrumentation collector and configuration.
+	 * TODO:  Detect inactive measurements where data is collected but not reported (or vice-versa ?)
+	 * @param source The source (for reporting in any exception thrown)
+	 * @param measurementNames The configured measurements
+	 * @param subMetricNames The configured subMetrics
+	 * @throws ShorthandParseFailureException thrown if tolerance is false and there are invalid measurements or subMetrics.
+	 */
+	protected void validateMethodInstrumentation(final String source, final String measurementNames, final String subMetricNames) {
+		try {
+			Measurement[] measurements = measurementNames==null ? Measurement.getEnabled(Measurement.DEFAULT_MASK) : Measurement.decode(!parsingTolerance, measurementNames);
+			if(measurements.length==0) {
+				if(!parsingTolerance) throw new Exception("No valid measurements found from names [" + measurementNames + "]");
+				measurements  = Measurement.getEnabled(Measurement.DEFAULT_MASK);
+			}
+			this.measurementBitMask = Measurement.getMaskFor(measurements);
+		} catch (Exception ex) {
+			throw new ShorthandParseFailureException("Failed to parse measurements", source, ex);
+		}
+		try {
+			SubMetric[] subMetrics = subMetricNames==null ? SubMetric.getEnabled(SubMetric.DEFAULT_MASK) : SubMetric.decode(!parsingTolerance, subMetricNames);
+			if(subMetrics.length==0) {
+				if(!parsingTolerance) throw new Exception("No valid subMetrics found from names [" + subMetricNames + "]");
+				subMetrics  = SubMetric.getEnabled(SubMetric.DEFAULT_MASK);
+			}
+			this.subMetricBitMask = SubMetric.getMaskFor(subMetrics);
+		} catch (Exception ex) {
+			throw new ShorthandParseFailureException("Failed to parse subMetrics", source, ex);
+		}
+	}
 	
 	/**
 	 * {@inheritDoc}
@@ -645,13 +632,12 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 */
 	protected void validateTargetClass(String source, String parsedClassName, String parsedClassLoader, String parsedAnnotationIndicator, String inherritanceIndicator) {
 		String className = parsedClassName.trim();
-		ClassLoader classLoader = null;
 		if(parsedClassLoader!=null && !parsedClassLoader.trim().isEmpty()) {
-			classLoader = ClassLoaderRepository.getInstance().getClassLoader(parsedClassLoader.trim()); 
+			targetClassLoader = ClassLoaderRepository.getInstance().getClassLoader(parsedClassLoader.trim()); 
 		} else if(this.classLoaders.containsKey(PREDEF_CL_TARGET)) {
-			classLoader = ClassLoaderRepository.getInstance().getClassLoader(classLoaders.get(PREDEF_CL_TARGET)); 
+			targetClassLoader = ClassLoaderRepository.getInstance().getClassLoader(classLoaders.get(PREDEF_CL_TARGET)); 
 		} else {
-			classLoader = Thread.currentThread().getContextClassLoader();
+			targetClassLoader = ClassLoaderRepository.getInstance().getClassLoader(parsedClassLoader);
 		}
 		if(parsedAnnotationIndicator!=null) {
 			targetClassAnnotation = "@".equals(parsedAnnotationIndicator.trim());
@@ -667,7 +653,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 			loge("WARNING: Target class was marked as an annotation and for inherritance.");
 		}
 		try {
-			targetClass = Class.forName(className, true, classLoader);
+			targetClass = Class.forName(className, true, targetClassLoader);
 			// If the class is an annotation, we don't want to mark is an interface,
 			// although the JVM considers it to be. We want them to be mutually exclusive.
 			if(targetClass.isAnnotation()) {
