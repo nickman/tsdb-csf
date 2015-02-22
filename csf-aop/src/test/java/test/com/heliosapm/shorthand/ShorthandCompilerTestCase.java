@@ -38,7 +38,7 @@ import com.heliosapm.opentsdb.client.aop.ShorthandScript;
  * <p><code>test.com.heliosapm.shorthand.ShorthandCompilerTestCases</code></p>
  */
 @SuppressWarnings("static-method")
-public class ShorthandCompilerTestCases extends BaseTest {
+public class ShorthandCompilerTestCase extends BaseTest {
 	
 	/**
 	 * Attributes to test
