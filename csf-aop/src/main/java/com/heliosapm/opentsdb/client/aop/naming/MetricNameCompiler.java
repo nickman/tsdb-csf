@@ -28,6 +28,7 @@ import java.util.regex.Matcher;
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtMethod;
+import javassist.Modifier;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -109,6 +110,8 @@ public class MetricNameCompiler {
 			CtClass ctClass = classPool.makeClass(className);
 			ctClass.addInterface(classPool.get(MetricNameProvider.class.getName()));
 			CtMethod ctMethod = new CtMethod(classPool.get(String.class.getName()), "getMetricName", EMPTY_ARR, ctClass);
+			CtMethod ctStaticMethod = new CtMethod(classPool.get(String.class.getName()), "metricName", EMPTY_ARR, ctClass);
+			ctStaticMethod.setModifiers(ctStaticMethod.getModifiers() | Modifier.STATIC);
 			StringBuffer b = new StringBuffer();
 			Matcher matcher = MetricNamingToken.ALL_PATTERNS.matcher(metricNameExpression);
 			List<String> javassistExpressions = new ArrayList<String>();
@@ -126,7 +129,8 @@ public class MetricNameCompiler {
 			matcher.appendTail(b);
 			if(javassistExpressions.isEmpty()) {
 				ctMethod.setBody(String.format("{return \"%s\";}", b.toString()));
-				log("Static Source: [%s]", b);
+				ctStaticMethod.setBody(String.format("{return \"%s\";}", b.toString()));
+				log("Stat Source: [%s]", b);
 			} else {
 				StringBuilder src = new StringBuilder("{ return String.format(\"").append(b.toString()).append("\",");
 				for(String x: javassistExpressions) {
@@ -136,8 +140,11 @@ public class MetricNameCompiler {
 				src.append(");}");
 				log("Runtime Source: [%s]", src);
 				ctMethod.setBody(src.toString());
+				ctStaticMethod.setBody(src.toString());
 			}
 			ctClass.addMethod(ctMethod);
+			ctClass.addMethod(ctStaticMethod);
+			ctClass.writeFile(System.getProperty("java.io.tmpdir"));
 			return (MetricNameProvider)ctClass.toClass().newInstance();
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to compile [" + className + "]", ex);

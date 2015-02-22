@@ -22,6 +22,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,6 +50,42 @@ public class Extractors {
 	public static final Pattern DOT_SPLITTER = Pattern.compile("\\.");
 	/** A white space cleaner */
 	public static final Pattern WS_CLEANER = Pattern.compile("\\s+");
+	/** Index and Index Range Expression */
+	public static final Pattern INDEX_RANGE = Pattern.compile("\\[(\\d+).*?|(\\d+)\\-(\\d+).*?\\]");
+	
+	/** Empty int array const */
+	public static final int[] EMPTY_INT_ARR = {};
+	
+	/**
+	 * Attempts to extract an index range from the passed expression
+	 * @param expression The range expression to parse
+	 * @return an int array representing the range which will be zero length if no match was made
+	 */
+	public static int[] range(final CharSequence expression) {
+		if(expression==null || expression.toString().trim().isEmpty()) return EMPTY_INT_ARR; 
+		final Set<Integer> entries = new TreeSet<Integer>();
+		final Matcher m = INDEX_RANGE.matcher(expression);
+		while(m.find()) {
+			String a = m.group(1), b = m.group(2), c = m.group(3);
+			if(a!=null && (b==null && c==null)) entries.add(Integer.parseInt(a));
+			else if(a==null && (b!=null && c!=null)) {
+				int start = Integer.parseInt(b);
+				int end = Integer.parseInt(c);
+				if(start > end) throw new RuntimeException("Invalid range [" + m.group(0) + "] in expression [" + expression + "]. Range[0] must be <= Range[1]");
+				for(int i = start; i <= end; i++) {
+					entries.add(i);
+				}				
+			}
+		}
+		final int[] result = new int[entries.size()];
+		int index = 0;
+		for(Integer entry: entries) {
+			result[index] = entry;
+			index++;
+		}
+		return result;
+	}
+	
 	
 	/**
 	 * Determines if there is a named attribute method (i.e. no params) with a non void return type in the passed class
@@ -318,7 +356,7 @@ public class Extractors {
 			if(!matcher.matches()) throw new RuntimeException("Unexpected non-macthing $PACKAGE expression [" + expression + "]");
 			String strIndex = matcher.group(1); 
 			if(strIndex==null || strIndex.trim().isEmpty()) {
-				return toArray(clazz.getPackage().getName().replace('.', '/'));
+				return toArray(clazz.getPackage().getName());
 			}
 			int index = -1;
 			try {

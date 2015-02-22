@@ -16,7 +16,6 @@
 package com.heliosapm.opentsdb.client.aop.naming;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
 
 /**
  * <p>Title: EvalPoc</p>
@@ -35,33 +34,35 @@ public class EvalPoc {
 		log("EvalPOC");
 		try {
 			Method method = Foo.class.getDeclaredMethod("getBar", int.class);
-			//    \\$\\{(.*)?@\\((.*)?\\)(.*)?\\}
-			String replacement[] = Extractors.ANNOTATION.getStringReplacement("${@(Instrumented).version()}", Foo.class, method);
-			log("Replacement:[%s]", Arrays.toString(replacement));
-			
-			replacement = Extractors.THIS.getStringReplacement("${this}", Foo.class, method);
-			log("Replacement:[%s]", Arrays.toString(replacement));
-			replacement = Extractors.THIS.getStringReplacement("${this:}", Foo.class, method);
-			log("Replacement:[%s]", Arrays.toString(replacement)); 
-			replacement = Extractors.THIS.getStringReplacement("${this: $0.toString().toUpperCase()}", Foo.class, method);
-			log("Replacement:[%s]", Arrays.toString(replacement));
-			
-			replacement = Extractors.ARG.getStringReplacement("${arg[0]}", Foo.class, method);
-			log("Replacement:[%s]", Arrays.toString(replacement));			
-			replacement = Extractors.ARG.getStringReplacement("${arg:(\"\" + ($1 + $1))}", Foo.class, method);
-			log("Replacement:[%s]", Arrays.toString(replacement));
-			
-
-//			replacement = Extractors.RETURN.getStringReplacement("${return}", Foo.class, method);
-//			log("Return Replacement:[%s]", Arrays.toString(replacement));			
-//			replacement = Extractors.RETURN.getStringReplacement("${return:$_.toUpperCase()}", Foo.class, method);
-//			log("Return Replacement:[%s]", Arrays.toString(replacement));			
-
-			
-			replacement = Extractors.JAVA.getStringReplacement("${java:$_ + $1}", Foo.class, method);
-			log("JAVA Replacement:[%s]", Arrays.toString(replacement));		
+//			//    \\$\\{(.*)?@\\((.*)?\\)(.*)?\\}
+//			String replacement[] = Extractors.ANNOTATION.getStringReplacement("${@(Instrumented).version()}", Foo.class, method);
+//			log("Replacement:[%s]", Arrays.toString(replacement));
+//			
+//			replacement = Extractors.THIS.getStringReplacement("${this}", Foo.class, method);
+//			log("Replacement:[%s]", Arrays.toString(replacement));
+//			replacement = Extractors.THIS.getStringReplacement("${this:}", Foo.class, method);
+//			log("Replacement:[%s]", Arrays.toString(replacement)); 
+//			replacement = Extractors.THIS.getStringReplacement("${this: $0.toString().toUpperCase()}", Foo.class, method);
+//			log("Replacement:[%s]", Arrays.toString(replacement));
+//			
+//			replacement = Extractors.ARG.getStringReplacement("${arg[0]}", Foo.class, method);
+//			log("Replacement:[%s]", Arrays.toString(replacement));			
+//			replacement = Extractors.ARG.getStringReplacement("${arg:(\"\" + ($1 + $1))}", Foo.class, method);
+//			log("Replacement:[%s]", Arrays.toString(replacement));
+//			
+//
+////			replacement = Extractors.RETURN.getStringReplacement("${return}", Foo.class, method);
+////			log("Return Replacement:[%s]", Arrays.toString(replacement));			
+////			replacement = Extractors.RETURN.getStringReplacement("${return:$_.toUpperCase()}", Foo.class, method);
+////			log("Return Replacement:[%s]", Arrays.toString(replacement));			
+//
+//			
+//			replacement = Extractors.JAVA.getStringReplacement("${java:$_ + $1}", Foo.class, method);
+//			log("JAVA Replacement:[%s]", Arrays.toString(replacement));		
 			
 			MetricNameProvider mnp = MetricNameCompiler.getMetricNameProvider(Foo.class, method, "${package}/${class}/${method}");
+			log("Provided Metric Name:" + mnp.getMetricName());
+			
 
 
 		} catch (Exception ex) {
