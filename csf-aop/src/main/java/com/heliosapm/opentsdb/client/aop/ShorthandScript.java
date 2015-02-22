@@ -29,6 +29,7 @@ import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_A
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_CL;
 
 import java.lang.annotation.Annotation;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -502,7 +503,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		}		
 		ConfigurationBuilder cb = new ConfigurationBuilder()
 			.addClassLoader(targetClass.getClassLoader())
-			.addClassLoader(Object.class.getClassLoader())
+			//.addClassLoader(Object.class.getClassLoader())
 			.addClassLoader(Thread.currentThread().getContextClassLoader())
 			//.addClassLoader(ClassLoader.getSystemClassLoader().getParent())
 			.addScanners(new SubTypesScanner());
@@ -517,6 +518,8 @@ public class ShorthandScript implements ShorthandScriptMBean {
 			return reflections.getTypesAnnotatedWith((Class<? extends Annotation>) targetClass, inherritanceEnabled);
 		} else if(inherritanceEnabled) {
 			printReflectionsRepo(reflections);
+			log("Classpath: %s", ManagementFactory.getRuntimeMXBean().getClassPath());
+			log("Command Line: %s", ManagementFactory.getRuntimeMXBean().getInputArguments());
 			Set<?> subTypes = reflections.getSubTypesOf(targetClass);
 			Set<Class<?>> results = new HashSet<Class<?>>((Collection<? extends Class<?>>) subTypes);
 			return results;
