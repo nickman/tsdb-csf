@@ -54,6 +54,7 @@ import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.scanners.TypeElementsScanner;
 import org.reflections.util.ConfigurationBuilder;
 
+import com.google.common.collect.Multimap;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
@@ -501,15 +502,16 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		}		
 		ConfigurationBuilder cb = new ConfigurationBuilder()
 //			.addClassLoader(targetClass.getClassLoader())
-//			.addClassLoader(targetClassLoader)
+			.addClassLoader(Object.class.getClassLoader())
 			.addClassLoader(ClassLoader.getSystemClassLoader().getParent())
-			.addScanners(new SubTypesScanner(), new TypeElementsScanner());
+			.addScanners(new SubTypesScanner(false));
 		
 		if(targetClassAnnotation) {
 			cb.addScanners(new TypeAnnotationsScanner());
 		}
 		cb.setExecutorService(scanExecutor);
 		Reflections reflections = new Reflections(ConfigurationBuilder.build());
+		printReflectionsRepo(reflections);
 		if(targetClassAnnotation) {
 			return reflections.getTypesAnnotatedWith((Class<? extends Annotation>) targetClass, inherritanceEnabled);
 		} else if(inherritanceEnabled) {						
@@ -519,6 +521,21 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		}
 		Set<Class<?>> results  = new HashSet<Class<?>>(Arrays.asList(targetClass));
 		return results;
+	}
+	
+	private void printReflectionsRepo(final Reflections ref) {
+		final StringBuilder b = new StringBuilder("\n\t======= Reflections List:");
+		for(String s: ref.getStore().keySet()) {
+			b.append("\n").append("Scanner:").append(s);
+			Multimap<String, String> mm = ref.getStore().get(s);
+			for(Map.Entry<String, Collection<String>> entry : mm.asMap().entrySet()) {
+				b.append("\n\t").append(entry.getKey());
+				for(String n: entry.getValue()) {
+					b.append("\n\t\t").append(n);
+				}
+			}
+		}
+		log(b.toString());
 	}
 	
 	/**
