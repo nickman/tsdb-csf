@@ -503,7 +503,8 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		ConfigurationBuilder cb = new ConfigurationBuilder()
 			.addClassLoader(targetClass.getClassLoader())
 			.addClassLoader(Object.class.getClassLoader())
-			.addClassLoader(ClassLoader.getSystemClassLoader().getParent())
+			.addClassLoader(Thread.currentThread().getContextClassLoader())
+			//.addClassLoader(ClassLoader.getSystemClassLoader().getParent())
 			.addScanners(new SubTypesScanner(false));
 		
 		if(targetClassAnnotation) {
