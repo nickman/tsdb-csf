@@ -503,10 +503,11 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		}		
 		ConfigurationBuilder cb = new ConfigurationBuilder()
 			.addClassLoader(targetClass.getClassLoader())
-			//.addClassLoader(Object.class.getClassLoader())
 			.addClassLoader(Thread.currentThread().getContextClassLoader())
-			//.addClassLoader(ClassLoader.getSystemClassLoader().getParent())
 			.addScanners(new SubTypesScanner());
+		if(targetClassLoader!=null) {
+			cb.addClassLoader(targetClassLoader);
+		}
 		
 		if(targetClassAnnotation) {
 			cb.addScanners(new TypeAnnotationsScanner());
@@ -517,9 +518,9 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		if(targetClassAnnotation) {
 			return reflections.getTypesAnnotatedWith((Class<? extends Annotation>) targetClass, inherritanceEnabled);
 		} else if(inherritanceEnabled) {
-			printReflectionsRepo(reflections);
-			log("Classpath: %s", ManagementFactory.getRuntimeMXBean().getClassPath());
-			log("Command Line: %s", ManagementFactory.getRuntimeMXBean().getInputArguments());
+//			printReflectionsRepo(reflections);
+//			log("Classpath: %s", ManagementFactory.getRuntimeMXBean().getClassPath());
+//			log("Command Line: %s", ManagementFactory.getRuntimeMXBean().getInputArguments());
 			Set<?> subTypes = reflections.getSubTypesOf(targetClass);
 			Set<Class<?>> results = new HashSet<Class<?>>((Collection<? extends Class<?>>) subTypes);
 			return results;
