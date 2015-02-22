@@ -501,7 +501,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 			return new HashSet<Class<?>>(Arrays.asList(targetClass));
 		}		
 		ConfigurationBuilder cb = new ConfigurationBuilder()
-//			.addClassLoader(targetClass.getClassLoader())
+			.addClassLoader(targetClass.getClassLoader())
 			.addClassLoader(Object.class.getClassLoader())
 			.addClassLoader(ClassLoader.getSystemClassLoader().getParent())
 			.addScanners(new SubTypesScanner(false));
@@ -511,10 +511,11 @@ public class ShorthandScript implements ShorthandScriptMBean {
 		}
 		cb.setExecutorService(scanExecutor);
 		Reflections reflections = new Reflections(ConfigurationBuilder.build());
-		printReflectionsRepo(reflections);
+		
 		if(targetClassAnnotation) {
 			return reflections.getTypesAnnotatedWith((Class<? extends Annotation>) targetClass, inherritanceEnabled);
-		} else if(inherritanceEnabled) {						
+		} else if(inherritanceEnabled) {
+			printReflectionsRepo(reflections);
 			Set<?> subTypes = reflections.getSubTypesOf(targetClass);
 			Set<Class<?>> results = new HashSet<Class<?>>((Collection<? extends Class<?>>) subTypes);
 			return results;
