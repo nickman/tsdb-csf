@@ -205,7 +205,7 @@ public class ShorthandCompilerTestCase extends BaseTest {
 	}
 
 	/**
-	 * Tests a simple class and method locator to find a generated dynamic class using a "<-" specified classloader
+	 * Tests a simple class and method locator to find a generated dynamic class using a "<-URL" specified classloader
 	 * @throws Exception thrown on any error
 	 */	
 	@Test
