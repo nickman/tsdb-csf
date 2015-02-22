@@ -505,7 +505,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 			.addClassLoader(Object.class.getClassLoader())
 			.addClassLoader(Thread.currentThread().getContextClassLoader())
 			//.addClassLoader(ClassLoader.getSystemClassLoader().getParent())
-			.addScanners(new SubTypesScanner(false));
+			.addScanners(new SubTypesScanner());
 		
 		if(targetClassAnnotation) {
 			cb.addScanners(new TypeAnnotationsScanner());
