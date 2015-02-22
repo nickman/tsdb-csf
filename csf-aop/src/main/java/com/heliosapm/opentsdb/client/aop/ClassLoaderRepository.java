@@ -86,7 +86,7 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 		if(key==null) return null;
 		if("SYSTEM".equals(key)) return ClassLoader.getSystemClassLoader();
 		if("SYSTEM.PARENT".equals(key)) return ClassLoader.getSystemClassLoader().getParent();
-		final Object _key = WeakReferenceKey.isWeakRefRequired(key.getClass()) ? WeakReferenceKey.newInstance(key, classLoaderCache) : key; 		
+		final Object _key = WeakReferenceKey.isWeakRefRequired(key.getClass()) ? WeakReferenceKey.newInstance(key, classLoaderCache) : typeKey(key); 		
 		try {
 			return classLoaderCache.get(_key, new Callable<ClassLoader>(){
 				@Override
@@ -98,6 +98,21 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 //			throw new RuntimeException(ex);
 			return Thread.currentThread().getContextClassLoader();
 		}
+	}
+	
+	private Object typeKey(final Object key) {
+		if(key instanceof CharSequence) {
+			final String skey = key.toString();
+			if(URLHelper.isValidURL(skey)) {
+				return URLHelper.toURL(skey);
+			}
+			if(JMXHelper.isObjectName(skey)) {
+				return JMXHelper.objectName(skey);
+			}
+			return skey;			
+		}
+		
+		return key;
 	}
 	
 	/**

@@ -17,6 +17,8 @@ package test.com.heliosapm.shorthand;
 
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -27,8 +29,11 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import test.com.heliosapm.base.BaseTest;
+import test.com.heliosapm.shorthand.testclasses.DynamicClassCompiler;
 
+import com.heliosapm.opentsdb.client.aop.ClassLoaderRepository;
 import com.heliosapm.opentsdb.client.aop.ShorthandScript;
+import com.heliosapm.opentsdb.client.aop.ShorthandTargetClassLoadException;
 
 /**
  * <p>Title: ShorthandCompilerTestCases</p>
@@ -199,6 +204,38 @@ public class ShorthandCompilerTestCase extends BaseTest {
 		Assert.assertTrue("Failed to find all expected classes", expectedClassNames.isEmpty());
 	}
 
+	/**
+	 * Tests a simple class and method locator to find a generated dynamic class using a "<-" specified classloader
+	 * @throws Exception thrown on any error
+	 */	
+	@Test
+	public void testURLClassFinder() throws Exception {
+		final URL dynClassUrl = DynamicClassCompiler.generateClass("test.com.heliosapm.aop.ExtendedThreadPoolExecutor", java.util.concurrent.ThreadPoolExecutor.class);
+		final Map<Class<?>, Set<Member>> members = ShorthandScript.parse("test.com.heliosapm.aop.ExtendedThreadPoolExecutor<-"+  dynClassUrl + " execute 'X'").getTargetMembers();
+		Assert.assertFalse("Member key set was empty", members.isEmpty());
+		Assert.assertEquals("Member key set count was unexpected", 1, members.size());
+		final Class<?> clazz = members.keySet().iterator().next();
+		Assert.assertEquals("Dyn Class Name was unexpected", "test.com.heliosapm.aop.ExtendedThreadPoolExecutor", clazz.getName());
+		final ClassLoader classLoader = clazz.getClassLoader();
+		Assert.assertEquals("Dyn Class ClassLoader Type was unexpected", URLClassLoader.class, classLoader.getClass());
+		@SuppressWarnings("resource")
+		final URLClassLoader urlClassLoader = (URLClassLoader)classLoader;
+		final URL[] urls = urlClassLoader.getURLs();
+		Assert.assertEquals("Dyn Class URLClassLoader URL array length", 1, urls.length);
+		Assert.assertEquals("Dyn Class URLClassLoader URL", urls[0], dynClassUrl);
+		log("Cached ClassLoader: %s, Actual ClassLoader: %s", clazz.getClassLoader(), ClassLoaderRepository.getInstance().getClassLoader(dynClassUrl));
+		Assert.assertTrue("Dyn Class URLClassLoader", classLoader==ClassLoaderRepository.getInstance().getClassLoader(urls[0]));
+		Assert.assertTrue("Dyn Class URLClassLoader", classLoader==ClassLoaderRepository.getInstance().getClassLoader(dynClassUrl));
+	}
 	
-	
+	/**
+	 * Tests a simple class and method locator to find a generated dynamic class without using a "<-" specified classloader (which should fail)
+	 * @throws Exception thrown on any error
+	 */	
+	@Test(expected=ShorthandTargetClassLoadException.class)
+	public void testNoURLClassFinder() throws Exception {
+		DynamicClassCompiler.generateClass("test.com.heliosapm.aop.ExtendedThreadPoolExecutor", java.util.concurrent.ThreadPoolExecutor.class);
+		ShorthandScript.parse("test.com.heliosapm.aop.ExtendedThreadPoolExecutor execute 'X'").getTargetMembers();
+	}
+
 }

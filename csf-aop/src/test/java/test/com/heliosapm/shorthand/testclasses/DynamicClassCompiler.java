@@ -16,6 +16,7 @@
 package test.com.heliosapm.shorthand.testclasses;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.jar.JarEntry;
@@ -66,11 +67,13 @@ public class DynamicClassCompiler {
 		ClassPool cp = new ClassPool();
 		cp.appendSystemPath();
 		cp.appendClassPath(new ClassClassPath(parent));
+		FileOutputStream fos = null;
 		try {
-			URL _url = File.createTempFile(".tmpClazz", urlKey).toURI().toURL();
+			File jarFile = File.createTempFile(".tmpClazz", urlKey);
+			fos = new FileOutputStream(jarFile);
 			CtClass parentClazz = cp.get(parent.getName());
 			CtClass clazz = cp.makeClass(name, parentClazz);
-			JarOutputStream jos = new JarOutputStream(_url.openConnection().getOutputStream(), new Manifest());
+			JarOutputStream jos = new JarOutputStream(fos, new Manifest());
 			String entryName = name.replace('.', '/') + ".class";
 			jos.putNextEntry(new JarEntry(entryName));
 			byte[] byteCode = clazz.toBytecode();
@@ -80,17 +83,21 @@ public class DynamicClassCompiler {
 			jos.flush();
 			jos.finish();
 			jos.close();
+			fos.flush();
+			fos.close();
 			clazz.writeFile(DEBUG_CLASS_DIR);
 			clazz.detach();
 			parentClazz.detach();						
 //			BufferManager.getInstance().registerMemBuffer(_url, memBuffer);
-			return _url;
+			return jarFile.toURI().toURL();
 		} catch (IOException ex) {
 			throw new RuntimeException("Failed to write dynamic class [" + name + "] bytecode to membuffer", ex);
 		} catch (CannotCompileException cex) {
 			throw new RuntimeException("Failed to compile dynamic class [" + name + "]", cex);
 		} catch (NotFoundException nfe) {
 			throw new RuntimeException("Failed to load CtClass from ClassPool for [" + parent.getName() + "]", nfe);
+		} finally {
+			if(fos!=null) try { fos.close(); } catch (Exception x) {/* No Op */}
 		}
 	}
 }

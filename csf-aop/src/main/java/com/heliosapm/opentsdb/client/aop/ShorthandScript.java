@@ -675,6 +675,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	 * @param parsedClassLoader The classloader expression for the target class
 	 * @param parsedAnnotationIndicator The parsed annotation indicator
 	 * @param inherritanceIndicator The parsed inherritance indicator
+	 * @throws ShorthandTargetClassLoadException thrown if the target class cannot be found
 	 */
 	protected void validateTargetClass(String source, String parsedClassName, String parsedClassLoader, String parsedAnnotationIndicator, String inherritanceIndicator) {
 		String className = parsedClassName.trim();
@@ -713,7 +714,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 				targetClassAnnotation = false;
 			}
 		} catch (Exception ex) {
-			throw new ShorthandParseFailureException("Failed to locate target class [" + className + "]", source, ex);
+			throw new ShorthandTargetClassLoadException("Failed to locate target class [" + className + "]", source, ex);
 		}
 	}
 	
