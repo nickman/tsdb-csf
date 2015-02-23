@@ -421,10 +421,12 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	
 	/**
 	 * Called at the entry of a measured block
-	 * @param buffer The value buffer
+	 * @param mask The enabled measurement bitmask
+	 * @param parentMetricId  The long hash code of the parent OTMetric
+	 * @return The value bufferallocated on the stack for this invocaion
 	 */
-	public static final void enter(final long[] buffer) {
-		final int mask = (int)buffer[0];
+	public static final long[] enter(final int mask, final long parentMetricId) {
+		final long[] valueBuffer = allocate(parentMetricId, mask);
 		int index = VALUEBUFFER_HEADER_SIZE;
 		final boolean ti = (mask & ~TI_REQUIRED_MASK) != mask; 
 		try {
@@ -432,12 +434,13 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 				TINFO.get();
 			}
 			for(Measurement m: getEnabled(mask)) {
-				m.reader.pre(buffer, index);
+				m.reader.pre(valueBuffer, index);
 				index++;
 			}
 		} finally {
 			if(ti) TINFO.remove();
 		}
+		return valueBuffer;
 	}
 	
 	/**

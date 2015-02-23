@@ -1,6 +1,17 @@
-/**
-* Helios Development Group LLC, 2013. 
+/*
+ * Copyright 2015 the original author or authors.
  *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.heliosapm.opentsdb.client.aop;
 
@@ -21,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 import javassist.CannotCompileException;
 import javassist.ClassClassPath;
@@ -45,6 +57,9 @@ import com.google.common.cache.RemovalNotification;
 import com.heliosapm.attachme.agent.LocalAgentInstaller;
 import com.heliosapm.opentsdb.client.aop.naming.MetricNameCompiler;
 import com.heliosapm.opentsdb.client.aop.naming.MetricNameProvider;
+import com.heliosapm.opentsdb.client.name.AgentName;
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.util.StringHelper;
 
 
@@ -69,6 +84,8 @@ public class ShorthandCompiler implements RemovalListener<String, ShorthandStati
 	protected final Cache<String, ShorthandStaticInterceptor> interceptorCache = CacheBuilder.newBuilder().weakValues().removalListener(this).build();
 	/** A cache of private invokers keyed by class name and method name/sig */
 	protected final Cache<String, PrivateMethodInvoker> privateInvokerCache = CacheBuilder.newBuilder().weakValues().build();
+	
+	protected final String byteCodeDir;
 	
 	/**
 	 * Returns the compiler singleton
@@ -402,6 +419,7 @@ public class ShorthandCompiler implements RemovalListener<String, ShorthandStati
 			classPool.importPackage(NonBlockingHashMap.class.getPackage().getName());
 			classPool.importPackage(DataMapperBuilder.class.getPackage().getName());
 			classPool.importPackage(ShorthandStaticInterceptor.class.getPackage().getName());
+			byteCodeDir = getByteCodeDir();
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
 		}
@@ -474,6 +492,42 @@ public class ShorthandCompiler implements RemovalListener<String, ShorthandStati
 	public static void loge(String fmt, Throwable t, Object...args) {
 		System.err.println(String.format(fmt, args));
 		t.printStackTrace(System.err);
+	}
+	
+	/** The name of the directory within the agent home where we'll write the transient byte code to */
+	public static final String BYTE_CODE_DIR = ".bytecode";
+	/** The name of the directory where we'll write the transient byte code to if things don't work out with the agent home */
+	public static final String STANDBY_BYTE_CODE_DIR = System.getProperty("java.io.tmpdir") + File.separator + ".tsdb-aop" + File.separator + Constants.SPID; 
+	/** Class and package name splitter */
+	public static final Pattern DOT_SPLITTER = Pattern.compile("\\.");
+
+	
+	protected static String getByteCodeDir() {
+		String _byteCodeDir = ConfigurationReader.conf(Constants.PROP_OFFLINE_DIR, Constants.DEFAULT_OFFLINE_DIR) + File.separator + AgentName.appName() + File.separator + BYTE_CODE_DIR;
+		File f = new File(_byteCodeDir);
+		boolean byteCodeDirReady = true;
+		if(f.exists()) {
+			if(!f.isDirectory()) {
+				byteCodeDirReady = false;
+				log("Transient bytecode directory %s is a file. Will attempt default: %s",  _byteCodeDir, STANDBY_BYTE_CODE_DIR);
+				f = new File(STANDBY_BYTE_CODE_DIR);
+			}
+		} 
+		if(!byteCodeDirReady) {
+			if(!f.mkdirs()) {
+				log("Failed to create transient bytecode directory %s. Will attempt default: %s",  _byteCodeDir, STANDBY_BYTE_CODE_DIR);
+				f = new File(STANDBY_BYTE_CODE_DIR);
+				if(!f.exists()) {
+					if(!f.mkdirs()) {
+						byteCodeDirReady = false;
+						log("Failed to create standby transient bytecode directory [%s]. Persisted transient classes will be disabled", f);						
+					}					
+				}
+			}
+		}
+		String byteCodeDir = byteCodeDirReady ? f.getAbsolutePath() : null;
+		log("Transient ByteCode Directory: %s", byteCodeDir);
+		return byteCodeDir;
 	}
 
 }

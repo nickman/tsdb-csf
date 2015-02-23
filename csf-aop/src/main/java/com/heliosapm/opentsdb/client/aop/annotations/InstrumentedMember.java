@@ -31,33 +31,33 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * <p>Title: InstrumentedClass</p>
- * <p>Description: Annotation applied to instrumented classes (and removed when the class is restored)</p> 
+ * <p>Title: InstrumentedMember</p>
+ * <p>Description: Annotation applied to instrumented class members (methods and classes) and removed when the class is restored</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.annotations.InstrumentedClass</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.aop.annotations.InstrumentedMember</code></p>
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 @Documented
-public @interface InstrumentedClass {
+public @interface InstrumentedMember {
 	/**
-	 * A hash code uniquely identifying the combinations of instrumentation options applied to this class.
+	 * The bit mask of measurements taken for the annotated member
 	 */
-	public long longHashCode();
+	public int measurements();
 	
 	/**
-	 * The timestamp of when this annotation was applied
+	 * The bit mask of subMetrics reported for the annotated member
 	 */
-	public long timestamp();
+	public int subMetrics();
 	
 	/**
-	 * The shorthand expression used to compile the instrumentation applied to this class
+	 * The OTMetric long hash code of the parent metric for all captured metrics associated to this member
 	 */
-	public String shorthand();
+	public long otMetricId();
 	
 	/**
-	 * The version of the instrumentation. Starts at 0 and increments each time the class is retransformed without being restored.
+	 * The OTMetric name of the parent metric for all captured metrics associated to this member
 	 */
-	public long version() default 0L;
+	public String otMetric();
 }
