@@ -17,6 +17,7 @@ package com.heliosapm.opentsdb.client.opentsdb.opt;
 
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement.BlockCountMeasurement;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement.BlockTimeMeasurement;
+import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement.ConcurrencyMeasurement;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement.CountMeasurement;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement.CpuMeasurement;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement.ElapsedMeasurement;
@@ -65,4 +66,7 @@ public interface Measurers {
 	public static final ReturnMeasurement RETURN_MEAS = new ReturnMeasurement();
 	/**  */
 	public static final ErrorMeasurement ERROR_MEAS = new ErrorMeasurement();
+	/**  */
+	public static final ConcurrencyMeasurement CONCURRENT_MEAS = new ConcurrencyMeasurement();
+
 }

@@ -55,39 +55,39 @@ import com.heliosapm.opentsdb.client.util.Util;
  */
 public enum Measurement implements Measurers, ThreadMetricReader {
 	/** Elapsed time in ns.  */
-	ELAPSED(true, false, CHMetric.TIMER, ELAPSED_MEAS),
+	ELAPSED("elapsed", "ns", true, false, CHMetric.TIMER, ELAPSED_MEAS),
 	/** Elapsed CPU time in ns. */
-	CPU(false, false, CHMetric.TIMER, CPU_MEAS),
+	CPU("syscpu", "ns", false, false, CHMetric.TIMER, CPU_MEAS),
 	/** Elapsed User Mode CPU time in ns. */
-	UCPU(false, false, CHMetric.TIMER, UCPU_MEAS),
+	UCPU("usercpu", "ns", false, false, CHMetric.TIMER, UCPU_MEAS),
 	/** The Total Elapsed (User + System Mode) CPU time in ns. */
-	TCPU(false, false, CHMetric.TIMER, TCPU_MEAS),	
+	TCPU("totalcpu", "ns", false, false, CHMetric.TIMER, TCPU_MEAS),	
 	/** Number of thread waits */	
-	WAIT(false, true, CHMetric.COUNTER, WAIT_MEAS),
+	WAIT("waitcount", "waits", false, true, CHMetric.COUNTER, WAIT_MEAS),
 	/** Number of thread blocks */
-	BLOCK(false, true, CHMetric.COUNTER, BLOCK_MEAS),
+	BLOCK("blockcount", "blocks", false, true, CHMetric.COUNTER, BLOCK_MEAS),
 	/** Number of thread waits */	
-	WAITRATE(false, true, CHMetric.METER, WAIT_MEAS),
+	WAITRATE("waitrate", "waits/call", false, true, CHMetric.METER, WAIT_MEAS),
 	/** Number of thread blocks */
-	BLOCKRATE(false, true, CHMetric.METER, BLOCK_MEAS),	
+	BLOCKRATE("blockrate", "blocks/call", false, true, CHMetric.METER, BLOCK_MEAS),	
 	/** Thread wait time in ms. */
-	WAITTIME(false, true, CHMetric.TIMER, WAIT_TIME_MEAS),
+	WAITTIME("waittime", "ms", false, true, CHMetric.TIMER, WAIT_TIME_MEAS),
 	/** Thread block time in ms. */
-	BLOCKTIME(false, true, CHMetric.TIMER, BLOCK_TIME_MEAS),
-//	/** Concurrent threads with entry/exit block */
-//	CONCURRENT(false, null),  // FIXME: !!!
+	BLOCKTIME("blocktime", "ms", false, true, CHMetric.TIMER, BLOCK_TIME_MEAS),
+	/** Concurrent threads with entry/exit block */
+	CONCURRENT("concurrency", "concurrency highwater", false, false, CHMetric.GAUGE, CONCURRENT_MEAS, true),  
 	/** Total invocation count */
-	INVOKE(false, false, CHMetric.COUNTER, COUNT_MEAS),
+	INVOKE("entry", "invocations", false, false, CHMetric.COUNTER, COUNT_MEAS),
 	/** Total return count */
-	RETURN(true, false, CHMetric.COUNTER, RETURN_MEAS),
+	RETURN("exit", "returns", true, false, CHMetric.COUNTER, RETURN_MEAS),
 	/** Total exception count */
-	ERROR(false, false, CHMetric.COUNTER, ERROR_MEAS),
+	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, ERROR_MEAS, true),
 	/** The invocation rate */
-	INVOKERATE(false, false, CHMetric.METER, COUNT_MEAS),
+	INVOKERATE("entryrate", "invocations/ms", false, false, CHMetric.METER, COUNT_MEAS),
 	/** The return rate */
-	RETURNRATE(true, false, CHMetric.METER, RETURN_MEAS),
+	RETURNRATE("exitrate", "exits/ms", true, false, CHMetric.METER, RETURN_MEAS),
 	/** The exception rate */
-	ERRORRATE(false, false, CHMetric.METER, ERROR_MEAS);
+	ERRORRATE("errorrate", "exceptions/ms", false, false, CHMetric.METER, ERROR_MEAS, true);
 	
 	
 	
@@ -97,16 +97,27 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 //	USER_CPU(seed.next(), false, true, "CPU Time (\u00b5s)", "usercpu", "CPU Thread Execution Time In User Mode", new DefaultUserCpuMeasurer(1), DataStruct.getInstance(Primitive.LONG, 3, Long.MAX_VALUE, Long.MIN_VALUE, -1L), "Min", "Max", "Avg"),
 	
 	
-	private Measurement(final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader) {
+	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader, final boolean isFinally) {
 		this.mask = Util.pow2Index(ordinal());
 		this.isDefault = isDefault;
 		this.chMetric = chMetric;
 		this.reader = reader;
 		this.requiresTinfo = requiresTinfo;
+		this.shortName = shortName;
+		this.unit = unit;
+		this.isFinally = isFinally;
 	}
+	
+	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader) {
+		this(shortName, unit, isDefault, requiresTinfo, chMetric, reader, false);
+	}
+
 	
 	/** Indicates if this is a default measurement */
 	public final boolean isDefault;
+	/** Indicates if this measurement requires a finally block */
+	public final boolean isFinally;
+	
 	/** The bit mask value for this Measurement member */
 	public final int mask;
 	/** The CodaHale metric type allocated to track this measurement */
@@ -115,6 +126,10 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public final ThreadMetricReader reader;
 	/** Indicates if this measurement requires a ThreadInfo */
 	public final boolean requiresTinfo;
+	/** The short name of the measurement */
+	public final String shortName;
+	/** The unit of the measurement */
+	public final String unit;
 	
 	/**
 	 * {@inheritDoc}
@@ -133,6 +148,17 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public void post(long[] values, int index) {
 		post(values, index);
 	}
+	
+	/**
+	 * Determines if this measurment member is enabled in the passed mask
+	 * @param mask The mask to test
+	 * @return true if enabled, false otherwise
+	 */
+	public boolean isEnabledFor(final int mask) {
+		return (mask & this.mask)==mask;
+	}
+	
+
 	
 	/** The number of header longs in the long array value buffer */
 	public static final int VALUEBUFFER_HEADER_SIZE = 2;
@@ -589,6 +615,28 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		protected abstract long pre();
 		
 		protected abstract long post(final long pre);
+	}
+	
+	public static class ConcurrencyMeasurement implements ThreadMetricReader {
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#pre(long[], int)
+		 */
+		@Override
+		public void pre(long[] values, int index) {
+			
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#post(long[], int)
+		 */
+		@Override
+		public void post(long[] values, int index) {
+			
+		}
+		
 	}
 	
 	public static class IncrementMeasurement implements ThreadMetricReader {

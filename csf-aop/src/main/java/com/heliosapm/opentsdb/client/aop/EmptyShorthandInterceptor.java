@@ -15,6 +15,8 @@
  */
 package com.heliosapm.opentsdb.client.aop;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
 
 /**
@@ -26,12 +28,28 @@ import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
  */
 
 public class EmptyShorthandInterceptor implements ShorthandInterceptor {
+	/** The parent OTMetric long hash code */
+	protected final long metricId;
+	/** The enabled measurement mask */
+	protected final int mask;
+	/** The concurrency counter */
+	protected final AtomicInteger concurrencyCounter;
+	
+	
+	/** The concurrency counter accessor for the calling thread */
+	public static final ThreadLocal<AtomicInteger> concurrencyAccessor = new ThreadLocal<AtomicInteger>();  
+
 
 	/**
 	 * Creates a new EmptyShorthandInterceptor
+	 * @param metricId The parent OTMetric long hash code
+	 * @param mask The enabled measurement mask
 	 */
-	public EmptyShorthandInterceptor() {
-
+	public EmptyShorthandInterceptor(long metricId, int mask) {
+		super();
+		this.metricId = metricId;
+		this.mask = mask;
+		concurrencyCounter = Measurement.CONCURRENT.isEnabledFor(this.mask) ? new AtomicInteger() : null;
 	}
 
 	/**
@@ -40,6 +58,16 @@ public class EmptyShorthandInterceptor implements ShorthandInterceptor {
 	 */
 	@Override
 	public long[] enter(final int mask, final long parentMetricId) {
+		if(Measurement.CONCURRENT.isEnabledFor(mask)) {
+			final AtomicInteger ai = concurrencyAccessor.get();
+			try {
+				concurrencyAccessor.set(ai);
+				return Measurement.enter(mask, parentMetricId);
+			} finally {
+				if(ai!=null) concurrencyAccessor.set(ai);
+				else concurrencyAccessor.remove();
+			}			
+		}		
 		return Measurement.enter(mask, parentMetricId);
 	}
 
@@ -51,6 +79,15 @@ public class EmptyShorthandInterceptor implements ShorthandInterceptor {
 	public void exit(final long[] entryState) {
 		Measurement.exit(entryState);
 		// enqueue state buffer
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aop.ShorthandInterceptor#texit(long)
+	 */
+	@Override
+	public void texit(long parentMetricId) {
+		// enque abend		
 	}
 
 }
