@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 import com.codahale.metrics.CachedGauge;
@@ -75,19 +76,19 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	/** Thread block time in ms. */
 	BLOCKTIME("blocktime", "ms", false, true, CHMetric.TIMER, BLOCK_TIME_MEAS),
 	/** Concurrent threads with entry/exit block */
-	CONCURRENT("concurrency", "concurrency highwater", false, false, CHMetric.GAUGE, CONCURRENT_MEAS, true),  
+	CONCURRENT("concurrency", "concurrency highwater", false, false, CHMetric.GAUGE, CONCURRENT_MEAS, true, false),  
 	/** Total invocation count */
 	INVOKE("entry", "invocations", false, false, CHMetric.COUNTER, COUNT_MEAS),
 	/** Total return count */
 	RETURN("exit", "returns", true, false, CHMetric.COUNTER, RETURN_MEAS),
 	/** Total exception count */
-	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, ERROR_MEAS, true),
+	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, ERROR_MEAS, false, true),
 	/** The invocation rate */
 	INVOKERATE("entryrate", "invocations/ms", false, false, CHMetric.METER, COUNT_MEAS),
 	/** The return rate */
 	RETURNRATE("exitrate", "exits/ms", true, false, CHMetric.METER, RETURN_MEAS),
 	/** The exception rate */
-	ERRORRATE("errorrate", "exceptions/ms", false, false, CHMetric.METER, ERROR_MEAS, true);
+	ERRORRATE("errorrate", "exceptions/ms", false, false, CHMetric.METER, ERROR_MEAS, false, true);
 	
 	
 	
@@ -97,7 +98,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 //	USER_CPU(seed.next(), false, true, "CPU Time (\u00b5s)", "usercpu", "CPU Thread Execution Time In User Mode", new DefaultUserCpuMeasurer(1), DataStruct.getInstance(Primitive.LONG, 3, Long.MAX_VALUE, Long.MIN_VALUE, -1L), "Min", "Max", "Avg"),
 	
 	
-	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader, final boolean isFinally) {
+	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader, final boolean isFinally, final boolean isCatch) {
 		this.mask = Util.pow2Index(ordinal());
 		this.isDefault = isDefault;
 		this.chMetric = chMetric;
@@ -106,10 +107,11 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		this.shortName = shortName;
 		this.unit = unit;
 		this.isFinally = isFinally;
+		this.isCatch = isCatch;
 	}
 	
 	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader) {
-		this(shortName, unit, isDefault, requiresTinfo, chMetric, reader, false);
+		this(shortName, unit, isDefault, requiresTinfo, chMetric, reader, false, false);
 	}
 
 	
@@ -117,6 +119,8 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public final boolean isDefault;
 	/** Indicates if this measurement requires a finally block */
 	public final boolean isFinally;
+	/** Indicates if this measurement requires a catch block */
+	public final boolean isCatch;
 	
 	/** The bit mask value for this Measurement member */
 	public final int mask;
@@ -147,6 +151,24 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	@Override
 	public void post(long[] values, int index) {
 		post(values, index);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postCatch()
+	 */
+	@Override
+	public void postCatch() throws Throwable {
+		reader.postCatch();		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postFinal()
+	 */
+	@Override
+	public void postFinal() {
+		reader.postFinal();		
 	}
 	
 	/**
@@ -192,12 +214,19 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public static final int ACTUAL_ALL_MASK;
 	/** The default measurements mask */
 	public static final int DEFAULT_MASK;
+	/** The measurements mask for measurements requiring a catch block */
+	public static final int CATCH_MASK;	
+	/** The measurements mask for measurements requiring a finally block */
+	public static final int FINALLY_MASK;
+	
 	/** Maps the member bitmask to the member */
 	public static final Map<Integer, Measurement> MASK2ENUM;
 	
 	
 	static {
 		int disabledMask = 0;
+		int finallyMask = 0;
+		int catchMask = 0;
 		if(!THREADCONTTIMEAVAIL) disabledMask = (disabledMask | CONT_CONDITIONAL_MASK);
 		if(!CPUTIMEAVAIL) disabledMask = (disabledMask | CPU_CONDITIONAL_MASK);
 		DISABLED_MASK = disabledMask;
@@ -208,8 +237,12 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		for(Measurement m: values) {
 			tmp.put(m.mask, m);
 			if(m.isDefault) dm = (dm | m.mask);
+			if(m.isFinally) finallyMask = (finallyMask | m.mask);
+			if(m.isCatch) catchMask = (catchMask | m.mask);
 		}
 		DEFAULT_MASK = dm;
+		FINALLY_MASK = finallyMask;
+		CATCH_MASK = catchMask;
 		MASK2ENUM = Collections.unmodifiableMap(tmp);
 	}
 	
@@ -292,6 +325,25 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		alloc[1] = otMetricId;
 		return alloc;
 	}
+	
+	/**
+	 * Determines if the passed mask has any finally block requiring mesurements
+	 * @param mask The mask to test
+	 * @return true if the passed mask has any finally block requiring mesurements, false otherwise
+	 */
+	public static boolean hasFinallyBlock(final int mask) {
+		return (FINALLY_MASK & ~mask) != FINALLY_MASK;
+	}
+	
+	/**
+	 * Determines if the passed mask has any catch block requiring mesurements
+	 * @param mask The mask to test
+	 * @return true if the passed mask has any catch block requiring mesurements, false otherwise
+	 */
+	public static boolean hasCatchBlock(final int mask) {
+		return (CATCH_MASK & ~mask) != CATCH_MASK;
+	}
+	
 	
 	/**
 	 * Decodes the passed expression into an array of Measurements.
@@ -612,12 +664,42 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 			values[index] = post(values[index]);
 		}		
 		
+		/**
+		 * The pre invocation baseline collection callback
+		 * @return the baseline collected
+		 */
 		protected abstract long pre();
 		
+		/**
+		 * The post invocation delta calculator
+		 * @param pre The pre-invocation baseline collected value 
+		 * @return The delta between the pre and post collected values
+		 */
 		protected abstract long post(final long pre);
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postCatch()
+		 */
+		@Override
+		public void postCatch() throws Throwable {
+			/* No Op */			
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postFinal()
+		 */
+		@Override
+		public void postFinal() {		
+			/* No Op */
+		}
+		
 	}
 	
 	public static class ConcurrencyMeasurement implements ThreadMetricReader {
+		/** The concurrency counter accessor for the calling thread */
+		public static final ThreadLocal<AtomicInteger> concurrencyAccessor = new ThreadLocal<AtomicInteger>();
 
 		/**
 		 * {@inheritDoc}
@@ -625,8 +707,19 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		 */
 		@Override
 		public void pre(long[] values, int index) {
-			
+			final AtomicInteger ai = concurrencyAccessor.get();
+			values[index] = ai==null ? 1 : ai.incrementAndGet();
 		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postFinal()
+		 */
+		@Override
+		public void postFinal() {
+			/* No Op, the concurrency counter is decremented by the interceptor */
+		}
+
 
 		/**
 		 * {@inheritDoc}
@@ -634,7 +727,17 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		 */
 		@Override
 		public void post(long[] values, int index) {
-			
+			/* No Op */
+		}
+		
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postCatch()
+		 */
+		@Override
+		public void postCatch() throws Throwable {
+			/* No Op */			
 		}
 		
 	}
@@ -657,6 +760,24 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		public void post(final long[] values, final int index) {
 			/* No Op */
 		}				
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postCatch()
+		 */
+		@Override
+		public void postCatch() throws Throwable {
+			/* No Op */			
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postFinal()
+		 */
+		@Override
+		public void postFinal() {		
+			/* No Op */
+		}
 	}
 	
 	public static class CountMeasurement extends IncrementMeasurement {

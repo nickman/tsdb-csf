@@ -16,6 +16,9 @@
 
 package com.heliosapm.opentsdb.client.opentsdb.sink;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
+
 /**
  * <p>Title: IMetricSink</p>
  * <p>Description: The generalized interface exposed to callers submitting generic metrics. 
@@ -26,6 +29,18 @@ package com.heliosapm.opentsdb.client.opentsdb.sink;
  */
 
 public interface IMetricSink {
-
+	/**
+	 * Accepts a metric submission
+	 * @param measurements The opt metrc to enqueue
+	 */
+	public void submit(long[] measurements);
+	
+	/**
+	 * Returns the concurrency counter for the passed parent metric id
+	 * @param parentMetricId The parent metric id for the concurrency counter
+	 * @return the concurrency counter
+	 */
+	public AtomicInteger getConcurrencyCounter(final long parentMetricId);
+	
 
 }

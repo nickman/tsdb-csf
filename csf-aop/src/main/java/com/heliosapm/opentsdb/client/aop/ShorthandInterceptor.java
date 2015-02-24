@@ -15,6 +15,7 @@
  */
 package com.heliosapm.opentsdb.client.aop;
 
+
 /**
  * <p>Title: ShorthandInterceptor</p>
  * <p>Description: Defines the externalized interface exposed for the interceptor injected into instrumented members.</p> 
@@ -24,6 +25,8 @@ package com.heliosapm.opentsdb.client.aop;
  */
 
 public interface ShorthandInterceptor {
+	
+
 	/**
 	 * Entry point for the interceptor
 	 * @param mask The enabled measurement bit mask
@@ -39,8 +42,13 @@ public interface ShorthandInterceptor {
 	public void exit(long[] entryState);
 	
 	/**
-	 * The thrown exception exit for the interceptor 
-	 * @param parentMetricId The long hash code of the OTMetric associated to this interceptor
+	 * The finally block exit for the interceptor 
 	 */
-	public void texit(long parentMetricId);
+	public void finalExit();
+	
+	/**
+	 * The catch block exit for the interceptor 
+	 */
+	public void throwExit();
+	
 }

@@ -18,38 +18,48 @@ package com.heliosapm.opentsdb.client.aop;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
+import com.heliosapm.opentsdb.client.opentsdb.sink.IMetricSink;
+import com.heliosapm.opentsdb.client.opentsdb.sink.MetricSink;
 
 /**
- * <p>Title: EmptyShorthandInterceptor</p>
+ * <p>Title: DefaultShorthandInterceptor</p>
  * <p>Description: An empty {@link ShorthandInterceptor} implementation</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.EmptyShorthandInterceptor</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.aop.DefaultShorthandInterceptor</code></p>
  */
 
-public class EmptyShorthandInterceptor implements ShorthandInterceptor {
+public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	/** The parent OTMetric long hash code */
 	protected final long metricId;
 	/** The enabled measurement mask */
 	protected final int mask;
+	/** Indicates if the measurement mask is enabled for the concurrency measurement */
+	protected final boolean hasConcurrent;
 	/** The concurrency counter */
 	protected final AtomicInteger concurrencyCounter;
-	
-	
+	/** The metric sink hub */
+	protected final IMetricSink sink;
+	/** The exception submission if error tracking is enabled */
+	protected final long[] exSub;
 	/** The concurrency counter accessor for the calling thread */
-	public static final ThreadLocal<AtomicInteger> concurrencyAccessor = new ThreadLocal<AtomicInteger>();  
-
+	protected static final ThreadLocal<AtomicInteger> concurrencyAccessor = Measurement.ConcurrencyMeasurement.concurrencyAccessor;
+	
+	
+	
 
 	/**
-	 * Creates a new EmptyShorthandInterceptor
+	 * Creates a new DefaultShorthandInterceptor
 	 * @param metricId The parent OTMetric long hash code
 	 * @param mask The enabled measurement mask
 	 */
-	public EmptyShorthandInterceptor(long metricId, int mask) {
-		super();
+	public DefaultShorthandInterceptor(final long metricId, final int mask) {
 		this.metricId = metricId;
-		this.mask = mask;
-		concurrencyCounter = Measurement.CONCURRENT.isEnabledFor(this.mask) ? new AtomicInteger() : null;
+		this.mask = mask;	
+		hasConcurrent = Measurement.CONCURRENT.isEnabledFor(mask);
+		sink = MetricSink.hub();		
+		concurrencyCounter = Measurement.CONCURRENT.isEnabledFor(this.mask) ? sink.getConcurrencyCounter(metricId) : null;
+		exSub = Measurement.hasFinallyBlock(mask) ? new long[]{mask, metricId, 1} : null;		
 	}
 
 	/**
@@ -58,16 +68,16 @@ public class EmptyShorthandInterceptor implements ShorthandInterceptor {
 	 */
 	@Override
 	public long[] enter(final int mask, final long parentMetricId) {
-		if(Measurement.CONCURRENT.isEnabledFor(mask)) {
-			final AtomicInteger ai = concurrencyAccessor.get();
-			try {
-				concurrencyAccessor.set(ai);
+		if(hasConcurrent) {
+			final AtomicInteger ai = concurrencyAccessor.get(); 
+			try {				
+				concurrencyAccessor.set(concurrencyCounter);
 				return Measurement.enter(mask, parentMetricId);
 			} finally {
 				if(ai!=null) concurrencyAccessor.set(ai);
 				else concurrencyAccessor.remove();
 			}			
-		}		
+		}			
 		return Measurement.enter(mask, parentMetricId);
 	}
 
@@ -78,16 +88,26 @@ public class EmptyShorthandInterceptor implements ShorthandInterceptor {
 	@Override
 	public void exit(final long[] entryState) {
 		Measurement.exit(entryState);
-		// enqueue state buffer
+		sink.submit(entryState);
 	}
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aop.ShorthandInterceptor#texit(long)
+	 * @see com.heliosapm.opentsdb.client.aop.ShorthandInterceptor#finalExit()
 	 */
 	@Override
-	public void texit(long parentMetricId) {
-		// enque abend		
+	public void finalExit() {		
+		if(hasConcurrent) concurrencyCounter.decrementAndGet();
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.aop.ShorthandInterceptor#throwExit()
+	 */
+	@Override
+	public void throwExit() {
+		sink.submit(exSub);		
+	}
+	
 
 }

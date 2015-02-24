@@ -42,6 +42,17 @@ public interface ThreadMetricReader {
 	 */
 	public void post(final long[] values, final int index);
 	
+	/**
+	 * Catch block call to the reader, used to trace catch-and-throw exceptions.
+	 * @throws Throwable throws the caught exception
+	 */
+	public void postCatch() throws Throwable;
+	
+	/**
+	 * Finally block call to the reader, used to cleanup any references or resources allocated.
+	 */
+	public void postFinal();
+	
 	
 	
 }

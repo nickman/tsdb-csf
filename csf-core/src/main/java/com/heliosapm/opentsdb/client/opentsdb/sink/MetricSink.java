@@ -16,7 +16,6 @@
 
 package com.heliosapm.opentsdb.client.opentsdb.sink;
 
-import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -24,6 +23,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import jsr166e.LongAdder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -84,6 +85,8 @@ public class MetricSink implements Runnable, IMetricSink {
 	/** The input Q in progress flag */
 	protected final AtomicBoolean inputInProgress = new AtomicBoolean(true);
 
+	/** A shared counter to track metric submissions dropped on account of a full input queue */
+	protected final LongAdder fullQueueDrops = new LongAdder();
 	
 	/**
 	 * Acquires the MetricSink singleton instance
@@ -135,6 +138,26 @@ public class MetricSink implements Runnable, IMetricSink {
 				}
 			}
 		};
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.sink.IMetricSink#getConcurrencyCounter(long)
+	 */
+	@Override
+	public AtomicInteger getConcurrencyCounter(long parentMetricId) {		
+		return LongIdOTMetricCache.getInstance().getCounter(parentMetricId);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.sink.IMetricSink#submit(long[])
+	 */
+	@Override
+	public void submit(final long[] measurements) {
+		if(!inputQueue.offer(measurements)) {
+			fullQueueDrops.increment();
+		}		
 	}
 
 	/**
