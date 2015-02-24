@@ -15,6 +15,8 @@
  */
 package com.heliosapm.opentsdb.client.aop.naming;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -46,19 +48,21 @@ public class MetricNameCompiler {
 	
 	private static final AtomicLong classSerial = new AtomicLong();
 			
-	private static final RemovalListener<Class<?>, Cache<Method, Cache<String, MetricNameProvider>>> classRemovalListener
-	 = new RemovalListener<Class<?>, Cache<Method, Cache<String, MetricNameProvider>>>() {
+	private static final RemovalListener<Class<?>, Cache<Member, Cache<String, MetricNameProvider>>> classRemovalListener
+	 = new RemovalListener<Class<?>, Cache<Member, Cache<String, MetricNameProvider>>>() {
 			@Override
-			public void onRemoval(RemovalNotification<Class<?>, Cache<Method, Cache<String, MetricNameProvider>>> notification) {
+			public void onRemoval(RemovalNotification<Class<?>, Cache<Member, Cache<String, MetricNameProvider>>> notification) {
 				log("MetricNameProviders Expiration: Class:[%s] Cause:[%s]", notification.getKey().getName(), notification.getCause().name());
 			}
 		};
 		
-	private static final RemovalListener<Method, Cache<String, MetricNameProvider>> methodRemovalListener
-	 = new RemovalListener<Method, Cache<String, MetricNameProvider>>() {
+	private static final RemovalListener<Member, Cache<String, MetricNameProvider>> methodRemovalListener
+	 = new RemovalListener<Member, Cache<String, MetricNameProvider>>() {
 			@Override
-			public void onRemoval(RemovalNotification<Method, Cache<String, MetricNameProvider>> notification) {
-				log("MetricNameProviders Expiration: Method:[%s] Cause:[%s]", notification.getKey().toGenericString(), notification.getCause().name());
+			public void onRemoval(RemovalNotification<Member, Cache<String, MetricNameProvider>> notification) {
+				final Member member = notification.getKey();
+				final String genericString = (member instanceof Constructor) ? ((Constructor)member).toGenericString() : ((Method)member).toGenericString();
+				log("MetricNameProviders Expiration: Member:[%s] Cause:[%s]", genericString, notification.getCause().name());
 			}
 		};
 		
@@ -70,12 +74,16 @@ public class MetricNameCompiler {
 			}
 		};
 	
-	private static final Cache<Class<?>, Cache<Method, Cache<String, MetricNameProvider>>> pCache = CacheBuilder.newBuilder()
+	private static final Cache<Class<?>, Cache<Member, Cache<String, MetricNameProvider>>> pCache = CacheBuilder.newBuilder()
 			.weakKeys().removalListener(classRemovalListener).build();
 	
 	private static final CtClass[] EMPTY_ARR = {};
 	
 	public static String[] getMetricNameCodePoints(Class<?> clazz, Member member, String metricNameExpression) {
+		if(clazz==null) throw new IllegalArgumentException("The passed class was null");
+		if(member==null) throw new IllegalArgumentException("The passed member was null");
+		if(metricNameExpression==null || metricNameExpression.trim().isEmpty())  throw new IllegalArgumentException("The passed metricNameExpression was null or empty");
+		if(member instanceof Field) throw new java.lang.UnsupportedOperationException("Field members are not supported");
 		String[] codePoints = null;
 		StringBuffer b = new StringBuffer();
 		Matcher matcher = MetricNamingToken.ALL_PATTERNS.matcher(metricNameExpression);
@@ -103,9 +111,9 @@ public class MetricNameCompiler {
 	}
 	
 	
-	private static MetricNameProvider compile(Class<?> clazz, Method method, String metricNameExpression) {
+	private static MetricNameProvider compile(final Class<?> clazz, final Member member, final String metricNameExpression) {
 		ClassPool classPool = new ClassPool(true);
-		String className = clazz.getName() + "." + method.getName() + "MetricNameProvider" + classSerial.incrementAndGet();
+		String className = clazz.getName() + "." + member.getName() + "MetricNameProvider" + classSerial.incrementAndGet();
 		try {
 			CtClass ctClass = classPool.makeClass(className);
 			ctClass.addInterface(classPool.get(MetricNameProvider.class.getName()));
@@ -119,7 +127,7 @@ public class MetricNameCompiler {
 				String matchedPattern = matcher.group(0);
 				log("Matched Pattern [%s]", matchedPattern);
 				MetricNamingToken token = MetricNamingToken.matchToken(matcher.group(0));
-				String[] replacers = token.extractor.getStringReplacement(matchedPattern, clazz, method);
+				String[] replacers = token.extractor.getStringReplacement(matchedPattern, clazz, member);
 				log("Replacers %s", Arrays.toString(replacers));
 				matcher.appendReplacement(b, replacers[0]);
 				if(token.runtime) {
@@ -155,24 +163,24 @@ public class MetricNameCompiler {
 	/**
 	 * Attempts to locate the MetricNameProvider for the passed class, method and expression
 	 * @param clazz The target class
-	 * @param method The target method
+	 * @param member The target method or constructor (fields not supported)
 	 * @param metricNameExpression The metric name expression
 	 * @return the matching MetricNameProvider or null if one was not found
 	 */
-	public static MetricNameProvider getMetricNameProvider(final Class<?> clazz, final Method method, final String metricNameExpression) {
+	public static MetricNameProvider getMetricNameProvider(final Class<?> clazz, final Member member, final String metricNameExpression) {
 		try {
-			return pCache.get(clazz, new Callable<Cache<Method,Cache<String,MetricNameProvider>>>() {
-				public Cache<Method,Cache<String,MetricNameProvider>> call() {
+			return pCache.get(clazz, new Callable<Cache<Member,Cache<String,MetricNameProvider>>>() {
+				public Cache<Member,Cache<String,MetricNameProvider>> call() {
 					return CacheBuilder.newBuilder().weakKeys().removalListener(methodRemovalListener).build();
 				}
-			}).get(method, new Callable<Cache<String,MetricNameProvider>>() {
+			}).get(member, new Callable<Cache<String,MetricNameProvider>>() {
 				public Cache<String, MetricNameProvider> call() {
 					return CacheBuilder.newBuilder().weakKeys().removalListener(providerRemovalListener).build();
 				}			
 			}).get(metricNameExpression, new Callable<MetricNameProvider>() {
 				@Override
 				public MetricNameProvider call() throws Exception {
-					return compile(clazz, method, metricNameExpression);
+					return compile(clazz, member, metricNameExpression);
 				}
 			});
 		} catch (ExecutionException eex) {
