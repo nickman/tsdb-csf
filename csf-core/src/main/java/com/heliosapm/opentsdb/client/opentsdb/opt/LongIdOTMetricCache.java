@@ -19,7 +19,9 @@ package com.heliosapm.opentsdb.client.opentsdb.opt;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -36,6 +38,7 @@ import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
+import com.heliosapm.opentsdb.client.opentsdb.Threading;
 
 /**
  * <p>Title: LongIdOTMetricCache</p>
@@ -126,7 +129,21 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 			final OTMetric otm = notification.getKey();
 			if(otm!=null) {
 				final long metricId = otm.longHashCode();
-				
+				cache.remove(metricId);
+				final Set<OTMetricIdListener> listeners = new HashSet<OTMetricIdListener>(metricIdListeners);
+				Threading.getInstance().async(new Runnable() {
+					@Override
+					public void run() {
+						for(final OTMetricIdListener listener: listeners) {
+							Threading.getInstance().async(new Runnable() {
+								@Override
+								public void run() {
+									listener.onRemoved(metricId);
+								}
+							});
+						}
+					}
+				});				
 			}
 		}
 	}
@@ -400,6 +417,8 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 		return getOTMetric(mb);
 	}
 	
+	private static final String ENQUEUE_VALUE = "X";
+	
 	/**
 	 * Creates the OTMetric represented by the passed metric builder if it not already in cache, and caches it.
 	 * Otherwise finds the existing by long hash code and returns it. 
@@ -415,6 +434,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 				if(otm==null) {
 					otm = metricBuilder.buildNoCache();
 					this.cache.put(id, otm);
+					enqueueWatcher.put(otm, ENQUEUE_VALUE);
 				}
 			}
 		}
