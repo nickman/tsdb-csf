@@ -106,7 +106,7 @@ public class ShorthandScript implements ShorthandScriptMBean {
 	                "(?:\\[(.*)\\])?" +         		// (8)	The optional method attributes
 //	                "\\s" +                             // spacer
 	                "(?:\\-(\\w+))?" +                 	// (9)	The method instrumentation options (-dr)
-	                "(?:\\[(.*)\\])?" +         		// (10)	The measurement bitmask option. [] is mandatory if specified. It may contain the bitmask int, or comma separated Measurement names
+	                "(?:m\\:\\[(.*)\\])?" +         		// (10)	The measurement bitmask option. [] is mandatory if specified. It may contain the bitmask int, or comma separated Measurement names
 //					"\\s+?" + 							// optional spacer
 	                "(?:\\[(.*)\\])?" +         		// (11)	The sub-metric bitmask option. [] is mandatory if specified. It may contain the bitmask int, or comma separated SubMetric names	                
 	                "\\s" +                            	// spacer

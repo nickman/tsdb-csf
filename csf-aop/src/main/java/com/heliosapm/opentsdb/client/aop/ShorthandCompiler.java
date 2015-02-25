@@ -192,10 +192,11 @@ public class ShorthandCompiler {
 		}
 	}
 	
-	class TestClass {
+	static class TestClass {
 		final Random r = new Random(System.currentTimeMillis());		
 		public void sleep(final long time) {
-			try { Thread.currentThread().join(time); } catch (Exception ex) {/* No Op */}
+			//if(time%4==0) throw new RuntimeException();
+			try { Thread.currentThread().join(1); } catch (Exception ex) {/* No Op */}
 		}
 	}
 	
@@ -211,13 +212,26 @@ public class ShorthandCompiler {
 	
 	public static void main(String args[]) {
 		LoggingConfiguration.getInstance();
+		final TestClass tc = new TestClass();
+		long start = System.currentTimeMillis();
+		for(int i = 0; i < 10000; i++) {
+			try { tc.sleep(i); } catch (Exception ex) {  }
+		}
+		long elapsed = System.currentTimeMillis()-start;
+		log("PreInstrument Time: %s ns.", elapsed);
 		log("Shorthand compiler test");
 		final ShorthandCompiler compiler = ShorthandCompiler.getInstance();
-		final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " sleep 'class=TestClass,method=${method}'");
+		final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " sleep m:[" + Measurement.ALL_MASK + "] 'class=TestClass,method=${method}'");
 		log("Script: %s", script);
 		final Map<Class<?>, Set<ShorthandScript>> compileJob = new HashMap<Class<?>, Set<ShorthandScript>>(1);
 		compileJob.put(TestClass.class, Collections.singleton(script));
 		compiler.compile(compileJob);
+		start = System.currentTimeMillis();
+		for(int i = 0; i < 10000; i++) {
+			try { tc.sleep(i); } catch (Exception ex) { }
+		}
+		elapsed = System.currentTimeMillis()-start;
+		log("PostInstrument Time: %s ns.", elapsed);
 	}
 	
 	/**
@@ -233,7 +247,7 @@ public class ShorthandCompiler {
 		final Set<CtClass> remove = new HashSet<CtClass>();
 		try {
 			for(Map.Entry<Class<?>, Set<ShorthandScript>> entry: scriptsToCompile.entrySet()) {
-				final Class<?> clazz = entry.getClass();
+				final Class<?> clazz = entry.getKey();
 				final Set<ShorthandScript> scripts = entry.getValue();
 				if(scripts.isEmpty()) continue;
 				if(!instrumentation.isModifiableClass(clazz)) {
@@ -293,26 +307,30 @@ public class ShorthandCompiler {
 		try {
 			if(Measurement.hasBodyBlock(measurementMask)) {
 				DefaultShorthandInterceptor.install(metricId, measurementMask);
-				final String metricIdFieldName =  "_metricId_" + Math.abs(metricId) + "_" + measurementMask;
-				final String valueFieldName =  "_measured_" + Math.abs(metricId) + "_" + measurementMask;
-				final String interceptorFieldName =  "_interceptor_" + Math.abs(metricId) + "_" + measurementMask;
-				ctMethod.addLocalVariable(metricIdFieldName, CtClass.longType);
+//				final String metricIdFieldName =  "_metricId_" + Math.abs(metricId) + "_" + measurementMask;
+//				final String valueFieldName =  "_measured_" + Math.abs(metricId) + "_" + measurementMask;
+//				final String interceptorFieldName =  "_interceptor_" + Math.abs(metricId) + "_" + measurementMask;
+//				final String metricIdFieldName =  "_ametricId_"; // + Math.abs(metricId) + "_" + measurementMask;
+				final String valueFieldName =  "_measured_"; // + Math.abs(metricId) + "_" + measurementMask;
+				final String interceptorFieldName =  "_interceptor_"; // + Math.abs(metricId) + "_" + measurementMask;
+				
+//				ctMethod.addLocalVariable(metricIdFieldName, CtClass.longType);
 				ctMethod.addLocalVariable(valueFieldName, longArrCtClass);
 				ctMethod.addLocalVariable(interceptorFieldName, interceptorCtClass);
-				final String bodyCode = "{ \n\t" + metricIdFieldName + " = " + metricId + ";\n\t" + 
-						interceptorFieldName + " = DefaultShorthandInterceptor.get(" + metricIdFieldName + "," + measurementMask + ");\n\t"
-						+ valueFieldName + " = " + interceptorFieldName +  ".enter(" + measurementMask + "," + metricIdFieldName + ");\n\t"
+				final String bodyCode = "{ \n\t" +  
+						interceptorFieldName + " = DefaultShorthandInterceptor.get(" + metricId + "L," + measurementMask + ");\n\t"
+						+ valueFieldName + " = " + interceptorFieldName +  ".enter(" + measurementMask + "," + metricId + "L);\n\t"
 				+ " }";
 				log("Body Code:\n" + bodyCode);
 				ctMethod.insertBefore(bodyCode);
-				ctMethod.insertBefore(valueFieldName + " = DefaultShorthandInterceptor.get(" + metricIdFieldName + "," + measurementMask + ").enter(" + measurementMask + "," + metricIdFieldName + ");");
+				//ctMethod.insertBefore(valueFieldName + " = DefaultShorthandInterceptor.get(" + metricId + "L," + measurementMask + ").enter(" + measurementMask + "," + metricId + "L);");
 				ctMethod.insertAfter(interceptorFieldName + ".exit(" + valueFieldName + ");");
 			}
 			if(Measurement.hasCatchBlock(measurementMask)) {
-				ctMethod.addCatch("DefaultShorthandInterceptor.get("  + metricId + "L," + measurementMask + ").throwExit($e);", throwableCtClass, "$e");
+				ctMethod.addCatch("{ DefaultShorthandInterceptor.get("  + metricId + "L," + measurementMask + ").throwExit($e); throw new RuntimeException(); }", throwableCtClass, "$e");
 			}
 			if(Measurement.hasFinallyBlock(measurementMask)) {
-				ctMethod.insertAfter("DefaultShorthandInterceptor.get("  + metricId + "L," + measurementMask + ").finalExit();", true);
+				ctMethod.insertAfter("{ DefaultShorthandInterceptor.get("  + metricId + "L," + measurementMask + ").finalExit(); }", true);
 			}
 			
 		} catch (Exception ex) {

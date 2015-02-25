@@ -137,7 +137,7 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 		this.metricId = metricId;
 		this.mask = mask;	
 		hasConcurrent = Measurement.CONCURRENT.isEnabledFor(mask);
-		sink = MetricSink.hub();		
+		sink = MetricSink.sink();		
 		concurrencyCounter = Measurement.CONCURRENT.isEnabledFor(this.mask) ? sink.getConcurrencyCounter(metricId) : null;
 		exSub = Measurement.hasFinallyBlock(mask) ? new long[]{mask, metricId, 1} : null;		
 	}
@@ -158,10 +158,10 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 				else concurrencyAccessor.remove();
 			}			
 		}
-		
-		final long[] values = Measurement.enter(mask, parentMetricId);
-		log("Values: %s", Arrays.toString(values));
-		return values;
+		return Measurement.enter(mask, parentMetricId);
+//		final long[] values = Measurement.enter(mask, parentMetricId);
+//		log("Values: %s", Arrays.toString(values));
+//		return values;
 	}
 
 	/**
@@ -171,7 +171,7 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	@Override
 	public void exit(final long[] entryState) {
 		Measurement.exit(entryState);
-		log("Exit Values: %s", Arrays.toString(entryState));
+//		log("Exit Values: %s", Arrays.toString(entryState));
 		//sink.submit(entryState);
 	}
 	

@@ -92,7 +92,7 @@ public class MetricSink implements Runnable, IMetricSink {
 	 * Acquires the MetricSink singleton instance
 	 * @return the MetricSink singleton instance
 	 */
-	public static MetricSink hub() {
+	public static MetricSink sink() {
 		if(instance==null) {
 			synchronized(lock) {
 				if(instance==null) {

@@ -388,7 +388,9 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 					set.add(m);
 					continue;
 				} else {
-					if(!throwIfInvalid) continue;
+					System.out.println("GAA: [" + mask + "] == [" + Integer.toBinaryString(mask) + "] vs [" + Integer.toBinaryString(mask-1) + "]");
+					return getEnabled(mask);
+					//if(!throwIfInvalid) continue;
 				}
 			} catch (Exception ex) {
 				if(!throwIfInvalid) continue;
