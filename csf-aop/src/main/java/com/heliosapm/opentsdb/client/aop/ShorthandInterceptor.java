@@ -48,7 +48,8 @@ public interface ShorthandInterceptor {
 	
 	/**
 	 * The catch block exit for the interceptor 
+	 * @param t The caught exception that will be rethrown
 	 */
-	public void throwExit();
+	public void throwExit(Throwable t);
 	
 }

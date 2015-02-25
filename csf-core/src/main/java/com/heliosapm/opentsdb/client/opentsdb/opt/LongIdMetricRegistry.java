@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import jsr166e.LongAdder;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
@@ -38,6 +40,7 @@ import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
+import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache.OTMetricIdListener;
 
 /**
  * <p>Title: LongIdMetricRegistry</p>
@@ -47,7 +50,7 @@ import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.LongIdMetricRegistry</code></p>
  */
 
-public class LongIdMetricRegistry implements LongIdMetricSet {
+public class LongIdMetricRegistry implements LongIdMetricSet, OTMetricIdListener {
 	/** The singleton instance */
 	private static volatile LongIdMetricRegistry instance = null;
 	/** The singleton instance ctor lock */
@@ -61,6 +64,9 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
 	
 	/** The long id otmetric cache */
 	private final LongIdOTMetricCache otCache;
+	
+	/** The cummulative count of removed metric ids */
+	private final LongAdder removalCount = new LongAdder();
 	
 	/** The initial size of the opt cache */
 	final int initialSize;
@@ -92,8 +98,19 @@ public class LongIdMetricRegistry implements LongIdMetricSet {
 		metrics = new NonBlockingHashMapLong<Metric>(initialSize, space4Speed);	
 		submetrics = new NonBlockingHashMapLong<Set<OTMetric>>(initialSize, space4Speed);
 		otCache = LongIdOTMetricCache.getInstance();
+		otCache.registerMetricIdListener(this);
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache.OTMetricIdListener#onRemoved(long, com.heliosapm.opentsdb.client.opentsdb.OTMetric)
+	 */
+	@Override
+	public void onRemoved(final long otMetricId, final OTMetric otMetric) {		
+		metrics.remove(otMetricId);
+		submetrics.remove(otMetricId);
+		removalCount.increment();
+	}
 	
     /**
      * Given a {@link Metric}, registers it under the given name.

@@ -128,6 +128,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 		if(notification!=null) {
 			final OTMetric otm = notification.getKey();
 			if(otm!=null) {
+				counters.invalidate(otm);
 				final long metricId = otm.longHashCode();
 				cache.remove(metricId);
 				final Set<OTMetricIdListener> listeners = new HashSet<OTMetricIdListener>(metricIdListeners);
@@ -138,7 +139,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 							Threading.getInstance().async(new Runnable() {
 								@Override
 								public void run() {
-									listener.onRemoved(metricId);
+									listener.onRemoved(metricId, otm);
 								}
 							});
 						}
@@ -519,8 +520,9 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 		/**
 		 * Callback when an OTMetric is removed from cache
 		 * @param otMetricId The long hash code of the removed metric
+		 * @param otMetric The metric removed from cache
 		 */
-		public void onRemoved(long otMetricId);
+		public void onRemoved(long otMetricId, OTMetric otMetric);
 	}
 
 }
