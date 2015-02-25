@@ -108,19 +108,21 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		this.unit = unit;
 		this.isFinally = isFinally;
 		this.isCatch = isCatch;
+		isBody = (!this.isFinally && !this.isCatch);
 	}
 	
 	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader) {
 		this(shortName, unit, isDefault, requiresTinfo, chMetric, reader, false, false);
 	}
 
-	
 	/** Indicates if this is a default measurement */
 	public final boolean isDefault;
 	/** Indicates if this measurement requires a finally block */
 	public final boolean isFinally;
 	/** Indicates if this measurement requires a catch block */
 	public final boolean isCatch;
+	/** Indicates if this measurement is captured in the main body (i.e. !catch && !finally) */
+	public final boolean isBody;
 	
 	/** The bit mask value for this Measurement member */
 	public final int mask;
@@ -218,6 +220,8 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public static final int CATCH_MASK;	
 	/** The measurements mask for measurements requiring a finally block */
 	public static final int FINALLY_MASK;
+	/** The measurements mask for measurements captured in the method body (i.e. !catch && !finally) */
+	public static final int BODY_MASK;
 	
 	/** Maps the member bitmask to the member */
 	public static final Map<Integer, Measurement> MASK2ENUM;
@@ -227,6 +231,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		int disabledMask = 0;
 		int finallyMask = 0;
 		int catchMask = 0;
+		int bodyMask = 0;
 		if(!THREADCONTTIMEAVAIL) disabledMask = (disabledMask | CONT_CONDITIONAL_MASK);
 		if(!CPUTIMEAVAIL) disabledMask = (disabledMask | CPU_CONDITIONAL_MASK);
 		DISABLED_MASK = disabledMask;
@@ -239,10 +244,12 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 			if(m.isDefault) dm = (dm | m.mask);
 			if(m.isFinally) finallyMask = (finallyMask | m.mask);
 			if(m.isCatch) catchMask = (catchMask | m.mask);
+			if(m.isBody) bodyMask = (bodyMask | m.mask);
 		}
 		DEFAULT_MASK = dm;
 		FINALLY_MASK = finallyMask;
 		CATCH_MASK = catchMask;
+		BODY_MASK = bodyMask;
 		MASK2ENUM = Collections.unmodifiableMap(tmp);
 	}
 	
@@ -344,6 +351,14 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		return (CATCH_MASK & ~mask) != CATCH_MASK;
 	}
 	
+	/**
+	 * Determines if the passed mask is a body block
+	 * @param mask The mask to test
+	 * @return true if the passed mask has any mesurements capture in the body block, false otherwise
+	 */
+	public static boolean hasBodyBlock(final int mask) {
+		return (BODY_MASK & ~mask) != BODY_MASK;
+	}
 	
 	/**
 	 * Decodes the passed expression into an array of Measurements.

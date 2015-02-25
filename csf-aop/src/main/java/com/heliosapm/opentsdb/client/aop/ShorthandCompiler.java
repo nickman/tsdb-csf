@@ -24,7 +24,16 @@
  */
 package com.heliosapm.opentsdb.client.aop;
 
+import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Member;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
+import javassist.CtMethod;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.heliosapm.opentsdb.client.aop.naming.MetricNameCompiler;
 import com.heliosapm.opentsdb.client.aop.naming.MetricNameProvider;
@@ -42,6 +51,10 @@ public class ShorthandCompiler {
 	private static volatile ShorthandCompiler instance = null;
 	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
+	/** Instance logger */
+	protected final Logger log = LogManager.getLogger(getClass());
+	/** The instrumentation instance to instrument with */
+	protected final Instrumentation instrumentation;
 	
 	/**
 	 * Acquires and returns the ShorthandCompiler singleton instance
@@ -61,7 +74,9 @@ public class ShorthandCompiler {
 	/**
 	 * Creates a new ShorthandCompiler
 	 */
-	private ShorthandCompiler() {}
+	private ShorthandCompiler() {
+		instrumentation = TransformerManager.getInstrumentation();
+	}
 	
 	/**
 	 * Acquires a metric name provider for the passed fefines Shorthand joinpoint
@@ -72,6 +87,67 @@ public class ShorthandCompiler {
 	 */
 	public MetricNameProvider getNameProvider(final Class<?> clazz, final Member member, final String nameTemplate) {
 		return MetricNameCompiler.getMetricNameProvider(clazz, member, nameTemplate);
+	}
+	
+	/**
+	 * Compiles the passed scripts
+	 * @param scriptsToCompile A map of sets of parsed shorthand scripts keyed by the class the scripts are instrumenting.
+	 */
+	// Return a classfiletransformer
+	public void compile(final Map<Class<?>, Set<ShorthandScript>> scriptsToCompile) {
+		if(scriptsToCompile==null || scriptsToCompile.isEmpty()) return;
+		final Map<String, Integer> classesToTransform = new HashMap<String, Integer>(scriptsToCompile.size()); 
+		for(Map.Entry<Class<?>, Set<ShorthandScript>> entry: scriptsToCompile.entrySet()) {
+			final Class<?> clazz = entry.getClass();
+			final Set<ShorthandScript> scripts = entry.getValue();
+			if(scripts.isEmpty()) continue;
+			if(!instrumentation.isModifiableClass(clazz)) {
+				log.warn("The class [{}] with [{}] shorthand scripts is not modifiable. Skipping.", clazz.getName(), scripts.size());
+			}
+			
+			
+			
+			classesToTransform.put(b2i(clazz), System.identityHashCode(clazz.getClassLoader()));
+		}
+	}
+	
+	
+	protected void instrument(final CtMethod ctMethod, final long metricId, final int measurementMask) {
+		if(ctMethod==null) throw new IllegalArgumentException("The passed CtMethod was null");
+		
+		/*
+		 * DefaultShorthandInterceptor
+		 * body exec capture
+		 * catch block capture
+		 * finally block capture
+		 */
+	}
+	
+	/**
+	 * Converts the internal format class name to the binary name format
+	 * @param internalName The internal name
+	 * @return the binary name
+	 */
+	public static String i2b(final String internalName) {
+		return internalName.replace('/', '.');
+	}
+	
+	/**
+	 * Converts the binary format class name to the internal name format
+	 * @param binaryName The binary name
+	 * @return the internal name
+	 */
+	public static String b2i(final String binaryName) {
+		return binaryName.replace('.', '/');
+	}
+	
+	/**
+	 * Returns the internal format name for the passed class
+	 * @param clazz The class
+	 * @return the internal name of the passed class
+	 */
+	public static String b2i(final Class<?> clazz) {
+		return clazz.getName().replace('.', '/');
 	}
 
 }

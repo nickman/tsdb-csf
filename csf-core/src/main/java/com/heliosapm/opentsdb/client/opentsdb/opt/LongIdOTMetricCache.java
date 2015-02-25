@@ -26,9 +26,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
@@ -42,7 +45,7 @@ import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.LongIdOTMetricCache</code></p>
  */
 
-public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
+public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalListener<OTMetric, String> {
 	/** The singleton instance */
 	private static volatile LongIdOTMetricCache instance = null;
 	/** The singleton instance ctor lock */
@@ -70,14 +73,23 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 			.weakKeys()
 			.build();
 	
+	/** A global cache of a string const keyed by the OTMetric. Used to track enqueued OTMetrics no longer in use */
+	private final Cache<OTMetric, String> enqueueWatcher = CacheBuilder.newBuilder()
+			.concurrencyLevel(1)
+			.initialCapacity(512)
+			.recordStats()
+			.weakKeys()
+			.removalListener(this)
+			.build();
 	
+	/** A set of registered metric id listeners */
+	final NonBlockingHashSet<OTMetricIdListener> metricIdListeners = new NonBlockingHashSet<OTMetricIdListener>(); 
 	/** The initial size of the opt cache */
 	final int initialSize;
 	/** The space for speed option of the opt cache */
 	final boolean space4Speed;
 	
 	
-
 	
 	/**
 	 * Acquires the LongIdOTMetricCache singleton instance
@@ -103,6 +115,22 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 		this.space4Speed = ConfigurationReader.confBool(Constants.PROP_OPT_CACHE_SPACE_FOR_SPEED, Constants.DEFAULT_OPT_CACHE_SPACE_FOR_SPEED);
 		this.cache = new NonBlockingHashMapLong<OTMetric>(this.initialSize, this.space4Speed);
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.google.common.cache.RemovalListener#onRemoval(com.google.common.cache.RemovalNotification)
+	 */
+	@Override
+	public void onRemoval(RemovalNotification<OTMetric, String> notification) {
+		if(notification!=null) {
+			final OTMetric otm = notification.getKey();
+			if(otm!=null) {
+				final long metricId = otm.longHashCode();
+				
+			}
+		}
+	}
+	
 	
 	/**
 	 * Increments a counter for the passed OTMetric Id and returns the new value
@@ -438,6 +466,41 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean {
 	public boolean isSpace4Speed() {
 		return this.space4Speed;
 	}
+	
+	/**
+	 * Adds a metric id listener
+	 * @param listener The listener to add
+	 */
+	public void registerMetricIdListener(final OTMetricIdListener listener) {
+		if(listener!=null) {
+			metricIdListeners.add(listener);
+		}
+	}
 
+	/**
+	 * Removes a metric id listener
+	 * @param listener The listener to remove
+	 */
+	public void removeMetricIdListener(final OTMetricIdListener listener) {
+		if(listener!=null) {
+			metricIdListeners.remove(listener);
+		}
+	}
+
+
+	/**
+	 * <p>Title: OTMetricIdListener</p>
+	 * <p>Description: Defines a listener notified of a removed metric</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache.OTMetricIdListener</code></p>
+	 */
+	public static interface OTMetricIdListener {
+		/**
+		 * Callback when an OTMetric is removed from cache
+		 * @param otMetricId The long hash code of the removed metric
+		 */
+		public void onRemoved(long otMetricId);
+	}
 
 }

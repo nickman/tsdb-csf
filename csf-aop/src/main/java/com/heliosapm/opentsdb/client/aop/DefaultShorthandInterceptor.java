@@ -17,6 +17,9 @@ package com.heliosapm.opentsdb.client.aop;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+
+import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
 import com.heliosapm.opentsdb.client.opentsdb.sink.IMetricSink;
 import com.heliosapm.opentsdb.client.opentsdb.sink.MetricSink;
@@ -45,15 +48,24 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	/** The concurrency counter accessor for the calling thread */
 	protected static final ThreadLocal<AtomicInteger> concurrencyAccessor = Measurement.ConcurrencyMeasurement.concurrencyAccessor;
 	
+	/** A map of interceptors keyed by the mask within a map of interceptors keyed by the metricId */
+	private static final NonBlockingHashMapLong<NonBlockingHashMapLong<DefaultShorthandInterceptor>> interceptors = new NonBlockingHashMapLong<NonBlockingHashMapLong<DefaultShorthandInterceptor>>();
+	
+	static {
+		// register a listener on metricId removal
+	}
 	
 	
+	public static DefaultShorthandInterceptor instance(final long metricId, final int mask) {
+		return new DefaultShorthandInterceptor(metricId, mask);
+	}
 
 	/**
 	 * Creates a new DefaultShorthandInterceptor
 	 * @param metricId The parent OTMetric long hash code
 	 * @param mask The enabled measurement mask
 	 */
-	public DefaultShorthandInterceptor(final long metricId, final int mask) {
+	private DefaultShorthandInterceptor(final long metricId, final int mask) {
 		this.metricId = metricId;
 		this.mask = mask;	
 		hasConcurrent = Measurement.CONCURRENT.isEnabledFor(mask);
