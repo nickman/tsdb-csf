@@ -707,7 +707,7 @@ public class OTMetric implements Serializable {
 		int totalLength = buff.getInt();
 		int prefixLength = buff.getInt();
 		int tagCount = buff.getInt();
-		StringBuilder b = new StringBuilder(totalLength + tagCount + 1);
+		StringBuilder b = new StringBuilder(totalLength + (tagCount*20) + 1);
 		b.append(readString(buff, prefixLength));
 		b.append(getTags().toString());
 		return b;

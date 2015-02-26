@@ -21,6 +21,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -41,25 +43,26 @@ import com.heliosapm.opentsdb.client.util.Util;
 
 public enum CHMetric implements CHMetricFactory {
 	/** Not a CHMetric */
-	NOTAMETRIC(null, 0, Collections.unmodifiableSet(EnumSet.noneOf(SubMetric.class)), 0, Collections.unmodifiableSet(EnumSet.noneOf(SubMetric.class))){@Override public Metric createNewMetric() {return null;}},
+	NOTAMETRIC(null, null, 0, Collections.unmodifiableSet(EnumSet.noneOf(SubMetric.class)), 0, Collections.unmodifiableSet(EnumSet.noneOf(SubMetric.class))){@Override public Metric createNewMetric() {return null;}},
 	/** The {@link Gauge} metric */
-	GAUGE(Gauge.class, SubMetric.GAUGE_SUBMETRIC_MASK, SubMetric.GAUGE_SUBMETRICS, SubMetric.DEFAULT_GAUGE_SUBMETRIC_MASK, SubMetric.DEFAULT_GAUGE_SUBMETRICS){@Override public Metric createNewMetric() {return null;}},
+	GAUGE(Gauge.class, new GaugeMetricWriter(), SubMetric.GAUGE_SUBMETRIC_MASK, SubMetric.GAUGE_SUBMETRICS, SubMetric.DEFAULT_GAUGE_SUBMETRIC_MASK, SubMetric.DEFAULT_GAUGE_SUBMETRICS){@Override public Metric createNewMetric() {return new UpdateableLongGauge();}},
 	/** The {@link Timer} metric */
-	TIMER(Timer.class, SubMetric.TIMER_SUBMETRIC_MASK, SubMetric.TIMER_SUBMETRICS, SubMetric.DEFAULT_TIMER_SUBMETRIC_MASK, SubMetric.DEFAULT_TIMER_SUBMETRICS){@Override public Timer createNewMetric() {return new Timer();}},
+	TIMER(Timer.class, new TimerMetricWriter(), SubMetric.TIMER_SUBMETRIC_MASK, SubMetric.TIMER_SUBMETRICS, SubMetric.DEFAULT_TIMER_SUBMETRIC_MASK, SubMetric.DEFAULT_TIMER_SUBMETRICS){@Override public Timer createNewMetric() {return new Timer();}},
 	/** The {@link Meter} metric */
-	METER(Meter.class, SubMetric.METER_SUBMETRIC_MASK, SubMetric.METER_SUBMETRICS, SubMetric.DEFAULT_METER_SUBMETRIC_MASK, SubMetric.DEFAULT_METER_SUBMETRICS){@Override public Meter createNewMetric() {return new Meter();}},
+	METER(Meter.class, new MeterMetricWriter(), SubMetric.METER_SUBMETRIC_MASK, SubMetric.METER_SUBMETRICS, SubMetric.DEFAULT_METER_SUBMETRIC_MASK, SubMetric.DEFAULT_METER_SUBMETRICS){@Override public Meter createNewMetric() {return new Meter();}},
 	/** The {@link Histogram} metric */
-	HISTOGRAM(Histogram.class, SubMetric.HISTOGRAM_SUBMETRIC_MASK, SubMetric.HISTOGRAM_SUBMETRICS, SubMetric.DEFAULT_HISTOGRAM_SUBMETRIC_MASK, SubMetric.DEFAULT_HISTOGRAM_SUBMETRICS){@Override public Histogram createNewMetric() {return new Histogram(new UniformReservoir());}},
+	HISTOGRAM(Histogram.class, new HistogramMetricWriter(), SubMetric.HISTOGRAM_SUBMETRIC_MASK, SubMetric.HISTOGRAM_SUBMETRICS, SubMetric.DEFAULT_HISTOGRAM_SUBMETRIC_MASK, SubMetric.DEFAULT_HISTOGRAM_SUBMETRICS){@Override public Histogram createNewMetric() {return new Histogram(new UniformReservoir());}},
 	/** The {@link Counter} metric */
-	COUNTER(Counter.class, SubMetric.COUNTER_SUBMETRIC_MASK, SubMetric.COUNTER_SUBMETRICS, SubMetric.DEFAULT_COUNTER_SUBMETRIC_MASK, SubMetric.DEFAULT_COUNTER_SUBMETRICS){@Override public Counter createNewMetric() {return new Counter();}};
+	COUNTER(Counter.class, new CounterMetricWriter(), SubMetric.COUNTER_SUBMETRIC_MASK, SubMetric.COUNTER_SUBMETRICS, SubMetric.DEFAULT_COUNTER_SUBMETRIC_MASK, SubMetric.DEFAULT_COUNTER_SUBMETRICS){@Override public Counter createNewMetric() {return new Counter();}};
 	
-	private CHMetric(final Class<? extends Metric> type, final int subMetricMask, final Set<SubMetric> subMetrics, final int defaultSubMetricMask, final Set<SubMetric> defaultSubMetrics) {
+	private CHMetric(final Class<? extends Metric> type, final MetricWriter metricWriter, final int subMetricMask, final Set<SubMetric> subMetrics, final int defaultSubMetricMask, final Set<SubMetric> defaultSubMetrics) {
 		this.type = type;
 		this.subMetricMask = subMetricMask;
 		this.bordinal = Util.pow2ByteIndex(ordinal());
 		this.subMetrics = subMetrics;
 		this.defaultSubMetricMask = defaultSubMetricMask;
 		this.defaultSubMetrics = defaultSubMetrics;
+		this.metricWriter = metricWriter;
 	}
 	
 	public static void main(String[] args) {
@@ -79,7 +82,8 @@ public enum CHMetric implements CHMetricFactory {
 	final int defaultSubMetricMask;
 	/** The default sub-metrics */
 	final Set<SubMetric> defaultSubMetrics;	
-	
+	/** The metric writer for this metric type */
+	public final MetricWriter metricWriter;
 	/** A set of the submetrics used by this CHMetric */
 	public final Set<SubMetric> subMetrics;
 	
@@ -106,6 +110,37 @@ public enum CHMetric implements CHMetricFactory {
 			if(chm.type.isAssignableFrom(metricType)) return chm;
 		}
 		throw new RuntimeException("The type [" + metricType + "] does not map to any defined CHMetric");
+	}
+	
+	public static class UpdateableLongGauge implements Gauge<Long> {
+		/** The current value */
+		protected final AtomicLong value = new AtomicLong(0L);
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.codahale.metrics.Gauge#getValue()
+		 */
+		@Override
+		public Long getValue() {
+			return value.get();
+		}
+		
+		/**
+		 * Sets the current gauge value
+		 * @param v the value to set
+		 */
+		public void setLong(final long v) {
+			value.set(v);
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Object#toString()
+		 */
+		@Override
+		public String toString() {
+			return "GaugeValue:" + value.get();
+		}
 	}
 	
 	/**
@@ -165,5 +200,73 @@ public enum CHMetric implements CHMetricFactory {
 		}
 		return bitMask;
 	}	
+	
+	public static class CounterMetricWriter implements MetricWriter<Counter> {
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.MetricWriter#writeValue(long, com.codahale.metrics.Metric)
+		 */
+		@Override
+		public void writeValue(final long value, final Counter metric) {
+			if(metric!=null) {
+				metric.inc(value);
+			}
+		}
+	}
+	
+	public static class HistogramMetricWriter implements MetricWriter<Histogram> {
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.MetricWriter#writeValue(long, com.codahale.metrics.Metric)
+		 */
+		@Override
+		public void writeValue(final long value, final Histogram metric) {
+			if(metric!=null) {
+				metric.update(value);
+			}			
+		}
+	}
+	
+	public static class MeterMetricWriter implements MetricWriter<Meter> {
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.MetricWriter#writeValue(long, com.codahale.metrics.Metric)
+		 */
+		@Override
+		public void writeValue(final long value, final Meter metric) {
+			if(metric!=null) {
+				metric.mark(value);
+			}			
+		}
+	}
+	
+	public static class TimerMetricWriter implements MetricWriter<Timer> {
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.MetricWriter#writeValue(long, com.codahale.metrics.Metric)
+		 */
+		@Override
+		public void writeValue(final long value, final Timer metric) {
+			if(metric!=null) {
+				metric.update(value, TimeUnit.NANOSECONDS);
+			}			
+		}
+	}
+	
+	
+	public static class GaugeMetricWriter implements MetricWriter<Gauge> {
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.MetricWriter#writeValue(long, com.codahale.metrics.Metric)
+		 */
+		@Override
+		public void writeValue(final long value, final Gauge metric) {
+			if(metric!=null && (metric instanceof UpdateableLongGauge)) {
+				((UpdateableLongGauge)metric).setLong(value);
+			}
+			
+		}
+	}
+	
 
 }

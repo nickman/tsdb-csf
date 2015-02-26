@@ -35,14 +35,6 @@ import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement.WaitTimeMeasuremen
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.opt.Measurers</code></p>
  */
-
-/**
- * <p>Title: Measurers</p>
- * <p>Description: </p> 
- * <p>Company: Helios Development Group LLC</p>
- * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.opentsdb.opt.Measurers</code></p>
- */
 public interface Measurers {
 	/**  */
 	public static final ElapsedMeasurement ELAPSED_MEAS = new ElapsedMeasurement();

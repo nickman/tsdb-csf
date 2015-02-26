@@ -281,15 +281,27 @@ public class MetricBuilder {
 	/**
 	 * Creates a new metric builder from an existing {@link OTMetric}.
 	 * @param otMetric The {@link OTMetric} to build from
+	 * @param makeParent If true, the passed OTMetric will be made the parent of the built metric.
 	 * @return the metric builder
 	 */
-	public static MetricBuilder metric(final OTMetric otMetric) {
+	public static MetricBuilder metric(final OTMetric otMetric, final boolean makeParent) {
 		if(otMetric==null) throw new IllegalArgumentException("The passed otMetric was null");
 		MetricBuilder mb = new MetricBuilder(otMetric.getMetricName());
+		if(makeParent) {
+			mb.parent(otMetric.longHashCode());
+		}
 		mb.tags(otMetric.getTags());
 		return mb;
 	}
 	
+	/**
+	 * Creates a new metric builder from an existing {@link OTMetric}.
+	 * @param otMetric The {@link OTMetric} to build from
+	 * @return the metric builder
+	 */
+	public static MetricBuilder metric(final OTMetric otMetric) {
+		return metric(otMetric, false);
+	}
 	
 	/**
 	 * Creates a new MetricBuilder

@@ -84,6 +84,8 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 			.weakKeys()
 			.removalListener(this)
 			.build();
+	/** Sets of submetrics keyed by the parent id */
+	final NonBlockingHashMapLong<NonBlockingHashMapLong<OTMetric>> subMetrics = new NonBlockingHashMapLong<NonBlockingHashMapLong<OTMetric>>(); 
 	
 	/** A set of registered metric id listeners */
 	final NonBlockingHashSet<OTMetricIdListener> metricIdListeners = new NonBlockingHashSet<OTMetricIdListener>(); 
@@ -131,6 +133,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 				counters.invalidate(otm);
 				final long metricId = otm.longHashCode();
 				cache.remove(metricId);
+				subMetrics.remove(metricId);
 				final Set<OTMetricIdListener> listeners = new HashSet<OTMetricIdListener>(metricIdListeners);
 				Threading.getInstance().async(new Runnable() {
 					@Override
@@ -390,7 +393,53 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 	 * @return true if the metric was added, false if it was already in the cache
 	 */
 	public boolean put(final OTMetric otMetric) {
-		return this.cache.putIfAbsent(otMetric.longHashCode(), otMetric)==null;
+		if(otMetric==null) throw new IllegalArgumentException("The passed OTMetric was null");
+		final boolean added = this.cache.putIfAbsent(otMetric.longHashCode(), otMetric)==null;
+		if(added) postCachePut(otMetric);
+		return added;
+	}
+	
+	/**
+	 * Registers the OTMetric as a subMetric if it has a parent
+	 * @param otMetric The OTMetric that was just added to cache
+	 */
+	protected void postCachePut(final OTMetric otMetric) {
+		if(otMetric!=null) {
+			if(otMetric.getParentId()!=0L) {
+				NonBlockingHashMapLong<OTMetric> subMetricSet = subMetrics.get(otMetric.getParentId());
+				if(subMetricSet==null) {
+					synchronized(subMetrics) {
+						subMetricSet = subMetrics.get(otMetric.getParentId());
+						if(subMetricSet==null) {
+							subMetricSet = new NonBlockingHashMapLong<OTMetric>();
+							subMetrics.put(otMetric.getParentId(), subMetricSet);
+						}
+					}
+				}
+				subMetricSet.put(otMetric.longHashCode(), otMetric);
+			}
+		}
+	}
+	
+	public NonBlockingHashMapLong<OTMetric> getSubMetrics(final long metricId, final boolean recurse) {
+		final NonBlockingHashMapLong<OTMetric> subs = new NonBlockingHashMapLong<OTMetric>();
+		if(!recurse) {
+			NonBlockingHashMapLong<OTMetric> readSubs = subMetrics.get(metricId);
+			if(readSubs!=null) {
+				subs.putAll(readSubs);  // FIXME: optimize to not auto-box 
+			}
+		} else {
+			
+		}
+		
+		return subs;
+	}
+	
+	protected void getSubMetricsRecursive(final long metricId, final NonBlockingHashMapLong<OTMetric> accumulator) {
+		NonBlockingHashMapLong<OTMetric> readSubs = subMetrics.get(metricId);
+		if(readSubs!=null) {
+			final LongIterator li = (LogIterator) readSubs.keySet();
+		}
 	}
 	
 	
@@ -435,6 +484,7 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 				if(otm==null) {
 					otm = metricBuilder.buildNoCache();
 					this.cache.put(id, otm);
+					postCachePut(otm);
 					enqueueWatcher.put(otm, ENQUEUE_VALUE);
 				}
 			}

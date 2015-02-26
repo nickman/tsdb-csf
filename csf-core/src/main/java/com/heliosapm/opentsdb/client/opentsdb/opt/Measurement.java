@@ -185,7 +185,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 
 	
 	/** The number of header longs in the long array value buffer */
-	public static final int VALUEBUFFER_HEADER_SIZE = 2;
+	public static final int VALUEBUFFER_HEADER_SIZE = 3;
 	
 	/** An empty Measurement array const */
 	public static final Measurement[] EMPTY_MEASUREMENT_ARR = {};
@@ -545,6 +545,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public static final void exit(final long[] buffer) {
 		final int mask = (int)buffer[0];
 		int index = VALUEBUFFER_HEADER_SIZE;
+		buffer[2] = System.currentTimeMillis();
 		final boolean ti = (mask & ~TI_REQUIRED_MASK) != mask;
 		try {
 			for(Measurement m: getEnabled((mask & ~ERROR.mask))) {

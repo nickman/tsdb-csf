@@ -17,6 +17,7 @@
 package com.heliosapm.opentsdb.client.opentsdb.sink;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -28,13 +29,19 @@ import jsr166e.LongAdder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.jboss.netty.buffer.ChannelBuffer;
 
+import com.codahale.metrics.Metric;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
+import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
+import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdMetricRegistry;
 import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache;
 import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOpenTSDBReporter;
+import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
+import com.heliosapm.opentsdb.client.opentsdb.opt.ValueArrayAggregator;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
 
 /**
@@ -75,7 +82,17 @@ public class MetricSink implements Runnable, IMetricSink {
 	protected final LongIdOpenTSDBReporter reporter = LongIdOpenTSDBReporter.forRegistry(registry).build();
 	/** The opt cache */
 	protected final LongIdOTMetricCache otCache = LongIdOTMetricCache.getInstance(); 
+	
+	// ==================================================================================================
+	//		Temp Dev Constructs
+	// ==================================================================================================
+	/** The aggregate metrics */
+	protected final NonBlockingHashMapLong<Map<Measurement, Metric>> aggregateMetrics = new NonBlockingHashMapLong<Map<Measurement, Metric>>();
+	/** Keeps references for metrics in play */
+	protected final NonBlockingHashMapLong<OTMetric> refKeeper = new NonBlockingHashMapLong<OTMetric>();
 
+	// ==================================================================================================
+	
 	/** The buffer metrics are appended to */
 	protected ChannelBuffer metricBuffer = bufferFactory.getBuffer(4096);
 	/** The last flush time */
@@ -114,6 +131,10 @@ public class MetricSink implements Runnable, IMetricSink {
 		inputQueue = new ArrayBlockingQueue<long[]>(inputQueueSize, inputQueueFair); 
 	}
 	
+	/**
+	 * Creates the input queue processor task
+	 * @return the input queue processor task
+	 */
 	protected Runnable getQProcessorTask() {
 		return new Runnable() {			
 			final Set<long[]> submissions = new HashSet<long[]>(); 
@@ -125,6 +146,23 @@ public class MetricSink implements Runnable, IMetricSink {
 						final int qsize = inputQueue.size();
 						if(qsize>0) {
 							inputQueue.drainTo(submissions, maxDrain);
+						}
+						for(long[] valueArr: submissions) {
+							final long metricId = valueArr[1];
+							final OTMetric otMetric = otCache.getOTMetric(metricId);
+							if(refKeeper.putIfAbsent(metricId, otMetric)==null) {
+								for(Measurement m: otMetric.getMeasurements()) {
+									final OTMetric subMetric = MetricBuilder.metric(otMetric, true).tag("submetric", m.shortName).optBuild();
+									refKeeper.put(subMetric.longHashCode(), subMetric);
+								}
+							}
+							Map<Measurement, Metric> metricMap = aggregateMetrics.get(metricId);
+							if(metricMap==null) {
+								metricMap = ValueArrayAggregator.aggregate(valueArr, metricMap);
+								aggregateMetrics.put(metricId, metricMap);
+							} else {
+								ValueArrayAggregator.aggregate(valueArr, aggregateMetrics.get(metricId));
+							}
 						}
 					} catch (InterruptedException iex) {
 						if(inputInProgress.get()) {
@@ -139,6 +177,19 @@ public class MetricSink implements Runnable, IMetricSink {
 			}
 		};
 	}
+	
+	//NonBlockingHashMapLong<Map<Measurement, Metric>> aggregateMetrics 
+	
+	/**
+	 * Renders the current state of the aggregated metrics to a formated string
+	 * @return the metric report
+	 */
+	public String renderMetrics() {
+		final StringBuilder b = new StringBuilder();
+		
+		return b.toString();
+	}
+	
 	
 	/**
 	 * {@inheritDoc}
