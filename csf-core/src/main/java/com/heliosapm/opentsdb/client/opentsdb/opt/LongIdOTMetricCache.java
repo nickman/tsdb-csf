@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import com.google.common.cache.Cache;
@@ -421,6 +422,22 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 		}
 	}
 	
+	/**
+	 * Returns a map of direct submetrics for the OTMetric identified by the passed metricId
+	 * @param metricId The metricId of the parent to report
+	 * @return the map of metrics
+	 */
+	public NonBlockingHashMapLong<OTMetric> getSubMetrics(final long metricId) {
+		return getSubMetrics(metricId, false);
+	}
+	
+	
+	/**
+	 * Returns a map of submetrics for the OTMetric identified by the passed metricId
+	 * @param metricId The metricId of the parent to report
+	 * @param recurse if true, the metric tree will be recursed, otherwise will only report one level
+	 * @return the map of metrics
+	 */
 	public NonBlockingHashMapLong<OTMetric> getSubMetrics(final long metricId, final boolean recurse) {
 		final NonBlockingHashMapLong<OTMetric> subs = new NonBlockingHashMapLong<OTMetric>();
 		if(!recurse) {
@@ -429,16 +446,23 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 				subs.putAll(readSubs);  // FIXME: optimize to not auto-box 
 			}
 		} else {
-			
-		}
-		
+			getSubMetricsRecursive(metricId, subs);
+		}		
 		return subs;
 	}
 	
 	protected void getSubMetricsRecursive(final long metricId, final NonBlockingHashMapLong<OTMetric> accumulator) {
 		NonBlockingHashMapLong<OTMetric> readSubs = subMetrics.get(metricId);
 		if(readSubs!=null) {
-			final LongIterator li = (LogIterator) readSubs.keySet();
+			final IteratorLong li = (IteratorLong) readSubs.keySet().iterator();
+			while(li.hasNext()) {
+				final long key = li.nextLong();
+				final OTMetric metric = readSubs.get(key);
+				accumulator.put(key, metric);
+				if(metric.isSubMetric()) {
+					getSubMetricsRecursive(metric.getParentId(), accumulator);
+				}
+			}
 		}
 	}
 	

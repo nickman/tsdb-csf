@@ -27,6 +27,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -67,10 +68,10 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	WAIT("waitcount", "waits", false, true, CHMetric.COUNTER, WAIT_MEAS),
 	/** Number of thread blocks */
 	BLOCK("blockcount", "blocks", false, true, CHMetric.COUNTER, BLOCK_MEAS),
-	/** Number of thread waits */	
-	WAITRATE("waitrate", "waits/call", false, true, CHMetric.METER, WAIT_MEAS),
-	/** Number of thread blocks */
-	BLOCKRATE("blockrate", "blocks/call", false, true, CHMetric.METER, BLOCK_MEAS),	
+//	/** Number of thread waits */	
+//	WAITRATE("waitrate", "waits/call", false, true, CHMetric.METER, WAIT_MEAS),
+//	/** Number of thread blocks */
+//	BLOCKRATE("blockrate", "blocks/call", false, true, CHMetric.METER, BLOCK_MEAS),	
 	/** Thread wait time in ms. */
 	WAITTIME("waittime", "ms", false, true, CHMetric.TIMER, WAIT_TIME_MEAS),
 	/** Thread block time in ms. */
@@ -82,13 +83,13 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	/** Total return count */
 	RETURN("exit", "returns", true, false, CHMetric.COUNTER, RETURN_MEAS),
 	/** Total exception count */
-	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, ERROR_MEAS, false, true),
-	/** The invocation rate */
-	INVOKERATE("entryrate", "invocations/ms", false, false, CHMetric.METER, COUNT_MEAS),
-	/** The return rate */
-	RETURNRATE("exitrate", "exits/ms", true, false, CHMetric.METER, RETURN_MEAS),
-	/** The exception rate */
-	ERRORRATE("errorrate", "exceptions/ms", false, false, CHMetric.METER, ERROR_MEAS, false, true);
+	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, ERROR_MEAS, false, true);
+//	/** The invocation rate */
+//	INVOKERATE("entryrate", "invocations/ms", false, false, CHMetric.METER, COUNT_MEAS),
+//	/** The return rate */
+//	RETURNRATE("exitrate", "exits/ms", false, false, CHMetric.METER, RETURN_MEAS),
+//	/** The exception rate */
+//	ERRORRATE("errorrate", "exceptions/ms", false, false, CHMetric.METER, ERROR_MEAS, false, true);
 	
 	
 	
@@ -327,7 +328,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	 * @return the allocated array
 	 */
 	public static long[] allocate(final long otMetricId, final int mask) {
-		final long[] alloc = new long[getEnabled(mask & ~DISABLED_MASK).length + 2];
+		final long[] alloc = new long[getEnabled(mask & ~DISABLED_MASK).length + VALUEBUFFER_HEADER_SIZE];
 		alloc[0] = mask;
 		alloc[1] = otMetricId;
 		return alloc;
@@ -1019,7 +1020,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		for(Measurement ot: values()) {
 			if((mask & ot.mask) != 0) set.add(ot);
 		}
-		return set.toArray(new Measurement[set.size()]);
+		return new TreeSet<Measurement>(set).toArray(new Measurement[set.size()]);
 	}
 
 	

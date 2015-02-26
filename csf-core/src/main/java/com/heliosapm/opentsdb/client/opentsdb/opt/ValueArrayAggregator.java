@@ -50,12 +50,17 @@ public class ValueArrayAggregator {
 			metricMap = aggregate;
 		}
 
-		int index = Measurement.VALUEBUFFER_HEADER_SIZE-1;
+		int index = Measurement.VALUEBUFFER_HEADER_SIZE;
 		for(Measurement m: Measurement.getEnabled(mask)) {
-			m.chMetric.metricWriter.writeValue(valueArray[index], metricMap.get(m));
+			Metric met = metricMap.get(m);
+			if(met==null) {
+				met = m.chMetric.createNewMetric();
+				metricMap.put(m, met);
+			}
+			m.chMetric.metricWriter.writeValue(valueArray[index], met);
 			index++;
 		}
-		return aggregate;
+		return metricMap;
 	}
 	
 	/**

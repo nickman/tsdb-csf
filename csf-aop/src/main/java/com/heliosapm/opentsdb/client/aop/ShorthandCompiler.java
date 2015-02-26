@@ -28,6 +28,7 @@ import java.io.File;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Member;
 import java.security.ProtectionDomain;
 import java.util.Collections;
@@ -36,6 +37,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javassist.ClassPool;
 import javassist.CtClass;
@@ -195,7 +202,7 @@ public class ShorthandCompiler {
 	static class TestClass {
 		final Random r = new Random(System.currentTimeMillis());		
 		public void sleep(final long time) {
-			//if(time%4==0) throw new RuntimeException();
+			if(time%4==0) throw new RuntimeException();
 			try { Thread.currentThread().join(1); } catch (Exception ex) {/* No Op */}
 		}
 	}
@@ -211,15 +218,35 @@ public class ShorthandCompiler {
 
 	
 	public static void main(String args[]) {
-		LoggingConfiguration.getInstance();
-		final TestClass tc = new TestClass();
-		long start = System.currentTimeMillis();
-		for(int i = 0; i < 10000; i++) {
-			try { tc.sleep(i); } catch (Exception ex) {  }
-		}
-		long elapsed = System.currentTimeMillis()-start;
-		log("PreInstrument Time: %s ns.", elapsed);
 		log("Shorthand compiler test");
+		ManagementFactory.getThreadMXBean().setThreadContentionMonitoringEnabled(true);
+		ManagementFactory.getThreadMXBean().setThreadCpuTimeEnabled(true);
+		final int cores = Constants.CORES;
+		LoggingConfiguration.getInstance();
+		final ThreadFactory tf = new ThreadFactory() {
+			private final AtomicInteger serial = new AtomicInteger();
+			@Override
+			public Thread newThread(final Runnable r) {
+				Thread t = new Thread(r, "TestWorkerThread#" + serial.incrementAndGet());
+				t.setDaemon(true);
+				return t;
+			}
+		};
+		final ThreadPoolExecutor tpe = new ThreadPoolExecutor(cores, cores, 180, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(120, true), tf);
+		tpe.prestartAllCoreThreads();
+		final int LOOPS = 10000;
+		long start = System.currentTimeMillis();
+		testMulti(tpe, LOOPS);
+		final long noInstElapsed = System.currentTimeMillis() - start;
+		log("PreInstrument Time: %s ms.", noInstElapsed);
+//		final TestClass tc = new TestClass();
+//		long start = System.currentTimeMillis();
+//		for(int i = 0; i < 10000; i++) {
+//			try { tc.sleep(i); } catch (Exception ex) {  }
+//		}
+//		long elapsed = System.currentTimeMillis()-start;
+//		log("PreInstrument Time: %s ns.", elapsed);
+		
 		final ShorthandCompiler compiler = ShorthandCompiler.getInstance();
 		final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " sleep m:[" + Measurement.ALL_MASK + "] 'class=TestClass,method=${method}'");
 		log("Script: %s", script);
@@ -227,11 +254,58 @@ public class ShorthandCompiler {
 		compileJob.put(TestClass.class, Collections.singleton(script));
 		compiler.compile(compileJob);
 		start = System.currentTimeMillis();
-		for(int i = 0; i < 10000; i++) {
-			try { tc.sleep(i); } catch (Exception ex) { }
+		testMulti(tpe, LOOPS);
+		final long instElapsed = System.currentTimeMillis() - start;
+		log("Instrument Time: %s ms.", instElapsed);
+		log(MetricSink.sink().renderMetrics());
+		System.exit(0);
+		
+//		start = System.currentTimeMillis();
+//		for(int i = 0; i < 10000; i++) {
+//			try { tc.sleep(i); } catch (Exception ex) { }
+//			if(i%1000==0) log(MetricSink.sink().renderMetrics());
+//		}
+//		elapsed = System.currentTimeMillis()-start;
+//		log("PostInstrument Time: %s ns.", elapsed);
+		
+	}
+	
+	protected static void testMulti(final ThreadPoolExecutor threadPool, final int loopsPerThread) {
+		final int threads = threadPool.getMaximumPoolSize();
+		final CountDownLatch latch = new CountDownLatch(threads);
+		final CountDownLatch startLatch = new CountDownLatch(1);
+		final TestClass tc = new TestClass();
+		for(int x = 0; x < threads; x++) {
+			threadPool.execute(new Runnable(){
+				final Random r = new Random(System.currentTimeMillis());
+				public void run() {
+					try {
+						startLatch.await();
+						log("Started Worker Thread [%s]", Thread.currentThread().getName());
+					} catch (Exception ex) {
+						ex.printStackTrace(System.err);
+						throw new RuntimeException(ex);
+					}
+					double d = 0;
+					for(int i = 0; i < 10000; i++) {
+						try { tc.sleep(i); } catch (Exception ex) { }	
+						for(int z = 0; z < 10; z++) {
+							d += Math.IEEEremainder(r.nextDouble(), r.nextDouble());
+						}
+					}
+					latch.countDown();
+					log("Worker Thread [%s] Done. Result: %s", Thread.currentThread().getName(), d);
+				}
+			});
 		}
-		elapsed = System.currentTimeMillis()-start;
-		log("PostInstrument Time: %s ns.", elapsed);
+		startLatch.countDown();
+		try {
+			log("Waiting for test to complete");
+			latch.await();
+			log("RUN COMPLETE");
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+		}
 	}
 	
 	/**
