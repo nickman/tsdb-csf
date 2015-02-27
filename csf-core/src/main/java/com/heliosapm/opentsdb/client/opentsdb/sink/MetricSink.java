@@ -36,6 +36,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Snapshot;
@@ -275,6 +276,14 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 		if(metric instanceof Gauge) {
 			values.put("value", ((Gauge)metric).getValue());
 			type = "Gauge:";
+		} else if(metric instanceof Histogram) {
+			type = "Histogram:";
+			Histogram hist = (Histogram)metric;
+			Snapshot snap = hist.getSnapshot();
+			values.put("max", snap.getMax());
+			values.put("min", snap.getMin());
+			values.put("med", snap.getMedian());
+			values.put("mean", snap.getMean());
 		} else if(metric instanceof Timer) {
 			type = "Timer:";
 			Timer timer = (Timer)metric;

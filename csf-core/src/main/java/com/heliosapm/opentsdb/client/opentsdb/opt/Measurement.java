@@ -77,7 +77,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	/** Thread block time in ms. */
 	BLOCKTIME("blocktime", "ms", false, true, CHMetric.TIMER, BLOCK_TIME_MEAS),
 	/** Concurrent threads with entry/exit block */
-	CONCURRENT("concurrency", "concurrency highwater", false, false, CHMetric.GAUGE, CONCURRENT_MEAS, true, false),  
+	CONCURRENT("concurrency", "concurrent-threads", false, false, CHMetric.HISTOGRAM, CONCURRENT_MEAS, true, false),  
 	/** Total invocation count */
 	INVOKE("entry", "invocations", false, false, CHMetric.COUNTER, COUNT_MEAS),
 	/** Total return count */
@@ -180,7 +180,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	 * @return true if enabled, false otherwise
 	 */
 	public boolean isEnabledFor(final int mask) {
-		return (mask & this.mask)==mask;
+		return (mask | this.mask)==mask;
 	}
 	
 
@@ -863,7 +863,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 
 		@Override
 		protected long post(final long pre) {
-			return CPUTIMEON.getValue() ? TMX.getCurrentThreadCpuTime()-pre : -1L;
+			return CPUTIMEON.getValue() ? (TMX.getCurrentThreadCpuTime()-pre) : -1L;
 		}
 	}
 	
@@ -878,7 +878,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 
 		@Override
 		protected long post(final long pre) {
-			return CPUTIMEON.getValue() ? (TMX.getCurrentThreadCpuTime() + TMX.getCurrentThreadUserTime())-pre : -1L;
+			return CPUTIMEON.getValue() ? ((TMX.getCurrentThreadCpuTime() + TMX.getCurrentThreadUserTime())-pre) : -1L;
 		}
 	}
 	
@@ -894,7 +894,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 
 		@Override
 		protected long post(final long pre) {
-			return CPUTIMEON.getValue() ? TMX.getCurrentThreadUserTime()-pre : -1L;
+			return CPUTIMEON.getValue() ? (TMX.getCurrentThreadUserTime()-pre) : -1L;
 		}
 	}
 	

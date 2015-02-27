@@ -30,7 +30,13 @@ import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Member;
+import java.math.BigInteger;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
 import java.security.ProtectionDomain;
+import java.security.spec.RSAPrivateKeySpec;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -201,9 +207,19 @@ public class ShorthandCompiler {
 	
 	static class TestClass {
 		final Random r = new Random(System.currentTimeMillis());		
-		public void sleep(final long time) {
-			if(time%4==0) throw new RuntimeException();
-			try { Thread.currentThread().join(1); } catch (Exception ex) {/* No Op */}
+		public Collection<PrivateKey> keys(final int count) {
+			//if(time%4==0) throw new RuntimeException();
+			Collection<PrivateKey> keys = new ArrayList<PrivateKey>(count);
+			try { 
+				Thread.currentThread().join(0, 1);
+				final KeyFactory kf = KeyFactory.getInstance("RSA");
+				final RSAPrivateKeySpec spec = new RSAPrivateKeySpec(new BigInteger(1024, 10, r), new BigInteger(1024, 10, r));				
+				for(int z = 0; z < count; z++) {									
+					keys.add(kf.generatePrivate(spec));
+				}
+				
+			} catch (Exception ex) {/* No Op */}
+			return keys;
 		}
 	}
 	
@@ -234,7 +250,7 @@ public class ShorthandCompiler {
 		};
 		final ThreadPoolExecutor tpe = new ThreadPoolExecutor(cores, cores, 180, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(120, true), tf);
 		tpe.prestartAllCoreThreads();
-		final int LOOPS = 10000;
+		final int LOOPS = 10;
 		long start = System.currentTimeMillis();
 		testMulti(tpe, LOOPS);
 		final long noInstElapsed = System.currentTimeMillis() - start;
@@ -248,7 +264,7 @@ public class ShorthandCompiler {
 //		log("PreInstrument Time: %s ns.", elapsed);
 		
 		final ShorthandCompiler compiler = ShorthandCompiler.getInstance();
-		final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " sleep m:[" + Measurement.ALL_MASK + "] 'class=TestClass,method=${method}'");
+		final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " keys m:[" + Measurement.ALL_MASK + "] 'class=TestClass,method=${method}'");
 		log("Script: %s", script);
 		final Map<Class<?>, Set<ShorthandScript>> compileJob = new HashMap<Class<?>, Set<ShorthandScript>>(1);
 		compileJob.put(TestClass.class, Collections.singleton(script));
@@ -287,11 +303,8 @@ public class ShorthandCompiler {
 						throw new RuntimeException(ex);
 					}
 					double d = 0;
-					for(int i = 0; i < 10000; i++) {
-						try { tc.sleep(i); } catch (Exception ex) { }	
-						for(int z = 0; z < 10; z++) {
-							d += Math.IEEEremainder(r.nextDouble(), r.nextDouble());
-						}
+					for(int i = 0; i < loopsPerThread; i++) {
+						try { tc.keys(20); } catch (Exception ex) { }	
 					}
 					latch.countDown();
 					log("Worker Thread [%s] Done. Result: %s", Thread.currentThread().getName(), d);
