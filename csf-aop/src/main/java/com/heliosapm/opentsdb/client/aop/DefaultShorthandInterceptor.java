@@ -51,8 +51,6 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	protected final IMetricSink sink;
 	/** The exception submission if error tracking is enabled */
 	protected final long[] exSub;
-	/** The concurrency counter accessor for the calling thread */
-	protected static final ThreadLocal<AtomicInteger> concurrencyAccessor = Measurement.ConcurrencyMeasurement.concurrencyAccessor;	
 	/** A map of interceptors keyed by the mask within a map of interceptors keyed by the metricId */
 	private static final NonBlockingHashMapLong<NonBlockingHashMapLong<DefaultShorthandInterceptor>> interceptors = new NonBlockingHashMapLong<NonBlockingHashMapLong<DefaultShorthandInterceptor>>();
 	
@@ -148,20 +146,8 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	 */
 	@Override
 	public long[] enter(final int mask, final long parentMetricId) {
-		if(hasConcurrent) {
-			final AtomicInteger ai = concurrencyAccessor.get(); 
-			try {				
-				concurrencyAccessor.set(concurrencyCounter);
-				return Measurement.enter(mask, parentMetricId);
-			} finally {
-				if(ai!=null) concurrencyAccessor.set(ai);
-				else concurrencyAccessor.remove();
-			}			
-		}
+		if(hasConcurrent) concurrencyCounter.incrementAndGet();
 		return Measurement.enter(mask, parentMetricId);
-//		final long[] values = Measurement.enter(mask, parentMetricId);
-//		log("Values: %s", Arrays.toString(values));
-//		return values;
 	}
 
 	/**

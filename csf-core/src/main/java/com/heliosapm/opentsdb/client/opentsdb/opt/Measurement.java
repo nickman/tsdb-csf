@@ -68,28 +68,29 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	WAIT("waitcount", "waits", false, true, CHMetric.COUNTER, WAIT_MEAS),
 	/** Number of thread blocks */
 	BLOCK("blockcount", "blocks", false, true, CHMetric.COUNTER, BLOCK_MEAS),
-//	/** Number of thread waits */	
-//	WAITRATE("waitrate", "waits/call", false, true, CHMetric.METER, WAIT_MEAS),
-//	/** Number of thread blocks */
-//	BLOCKRATE("blockrate", "blocks/call", false, true, CHMetric.METER, BLOCK_MEAS),	
 	/** Thread wait time in ms. */
 	WAITTIME("waittime", "ms", false, true, CHMetric.TIMER, WAIT_TIME_MEAS),
 	/** Thread block time in ms. */
 	BLOCKTIME("blocktime", "ms", false, true, CHMetric.TIMER, BLOCK_TIME_MEAS),
 	/** Concurrent threads with entry/exit block */
-	CONCURRENT("concurrency", "concurrent-threads", false, false, CHMetric.HISTOGRAM, CONCURRENT_MEAS, true, false),  
+	CONCURRENT("concurrency", "concurrent-threads", false, false, CHMetric.HISTOGRAM, NOOP_MEAS, true, false),  
 	/** Total invocation count */
 	INVOKE("entry", "invocations", false, false, CHMetric.COUNTER, COUNT_MEAS),
 	/** Total return count */
 	RETURN("exit", "returns", true, false, CHMetric.COUNTER, RETURN_MEAS),
 	/** Total exception count */
-	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, ERROR_MEAS, false, true);
-//	/** The invocation rate */
-//	INVOKERATE("entryrate", "invocations/ms", false, false, CHMetric.METER, COUNT_MEAS),
-//	/** The return rate */
-//	RETURNRATE("exitrate", "exits/ms", false, false, CHMetric.METER, RETURN_MEAS),
-//	/** The exception rate */
-//	ERRORRATE("errorrate", "exceptions/ms", false, false, CHMetric.METER, ERROR_MEAS, false, true);
+	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, ERROR_MEAS, false, true),
+	/** The invocation rate */
+	INVOKERATE("entryrate", "invocations/ms", false, false, CHMetric.METER, NOOP_MEAS, INVOKE),
+	/** The return rate */
+	RETURNRATE("exitrate", "exits/ms", false, false, CHMetric.METER, NOOP_MEAS, RETURN),
+	/** The exception rate */
+	ERRORRATE("errorrate", "exceptions/ms", false, false, CHMetric.METER, NOOP_MEAS, false, true, ERROR),
+	/** Number of thread waits */	
+	WAITRATE("waitrate", "waits/call", false, true, CHMetric.METER, NOOP_MEAS, WAIT),
+	/** Number of thread blocks */
+	BLOCKRATE("blockrate", "blocks/call", false, true, CHMetric.METER, NOOP_MEAS, BLOCK);	
+	
 	
 	
 	
@@ -99,7 +100,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 //	USER_CPU(seed.next(), false, true, "CPU Time (\u00b5s)", "usercpu", "CPU Thread Execution Time In User Mode", new DefaultUserCpuMeasurer(1), DataStruct.getInstance(Primitive.LONG, 3, Long.MAX_VALUE, Long.MIN_VALUE, -1L), "Min", "Max", "Avg"),
 	
 	
-	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader, final boolean isFinally, final boolean isCatch) {
+	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader, final boolean isFinally, final boolean isCatch, final Measurement...dependency) {
 		this.mask = Util.pow2Index(ordinal());
 		this.isDefault = isDefault;
 		this.chMetric = chMetric;
@@ -110,10 +111,11 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		this.isFinally = isFinally;
 		this.isCatch = isCatch;
 		isBody = (!this.isFinally && !this.isCatch);
+		dependentOn = (dependency!=null && dependency.length>0) ? dependency[0] : null;
 	}
 	
-	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader) {
-		this(shortName, unit, isDefault, requiresTinfo, chMetric, reader, false, false);
+	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader, final Measurement...dependency) {
+		this(shortName, unit, isDefault, requiresTinfo, chMetric, reader, false, false, dependency);
 	}
 
 	/** Indicates if this is a default measurement */
@@ -137,6 +139,9 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public final String shortName;
 	/** The unit of the measurement */
 	public final String unit;
+	
+	/** If a measurement has NOOP thread reader, it relies on another measurement to do it's thing. This is the other. */
+	public final Measurement dependentOn;
 	
 	/**
 	 * {@inheritDoc}
@@ -183,6 +188,14 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		return (mask | this.mask)==mask;
 	}
 	
+	/**
+	 * Determines if this measurment member is enabled in the passed mask AND has a non NOOP measurement.
+	 * @param mask The mask to test
+	 * @return true if enabled, false otherwise
+	 */
+	public boolean isReaderEnabledFor(final int mask) {
+		return dependentOn!=null ? false : (mask | this.mask)==mask;
+	}
 
 	
 	/** The number of header longs in the long array value buffer */
@@ -223,6 +236,9 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	public static final int FINALLY_MASK;
 	/** The measurements mask for measurements captured in the method body (i.e. !catch && !finally) */
 	public static final int BODY_MASK;
+	/** The measurements mask for dependent measurements */
+	public static final int DEPENDENT_MASK;
+	
 	
 	/** Maps the member bitmask to the member */
 	public static final Map<Integer, Measurement> MASK2ENUM;
@@ -233,6 +249,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		int finallyMask = 0;
 		int catchMask = 0;
 		int bodyMask = 0;
+		int dependentMask = 0;
 		if(!THREADCONTTIMEAVAIL) disabledMask = (disabledMask | CONT_CONDITIONAL_MASK);
 		if(!CPUTIMEAVAIL) disabledMask = (disabledMask | CPU_CONDITIONAL_MASK);
 		DISABLED_MASK = disabledMask;
@@ -246,11 +263,13 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 			if(m.isFinally) finallyMask = (finallyMask | m.mask);
 			if(m.isCatch) catchMask = (catchMask | m.mask);
 			if(m.isBody) bodyMask = (bodyMask | m.mask);
+			if(m.dependentOn!=null) dependentMask = (dependentMask | m.mask);
 		}
 		DEFAULT_MASK = dm;
 		FINALLY_MASK = finallyMask;
 		CATCH_MASK = catchMask;
 		BODY_MASK = bodyMask;
+		DEPENDENT_MASK = dependentMask;
 		MASK2ENUM = Collections.unmodifiableMap(tmp);
 	}
 	
@@ -328,7 +347,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	 * @return the allocated array
 	 */
 	public static long[] allocate(final long otMetricId, final int mask) {
-		final long[] alloc = new long[getEnabled(mask & ~DISABLED_MASK).length + VALUEBUFFER_HEADER_SIZE];
+		final long[] alloc = new long[getReaderEnabled(mask & ~DISABLED_MASK).length + VALUEBUFFER_HEADER_SIZE];
 		alloc[0] = mask;
 		alloc[1] = otMetricId;
 		return alloc;
@@ -716,29 +735,16 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		
 	}
 	
-	public static class ConcurrencyMeasurement implements ThreadMetricReader {
-		/** The concurrency counter accessor for the calling thread */
-		public static final ThreadLocal<AtomicInteger> concurrencyAccessor = new ThreadLocal<AtomicInteger>();
+	public static final class NoopMeasurement implements ThreadMetricReader {
 
 		/**
 		 * {@inheritDoc}
 		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#pre(long[], int)
 		 */
 		@Override
-		public void pre(long[] values, int index) {
-			final AtomicInteger ai = concurrencyAccessor.get();
-			values[index] = ai==null ? 1 : ai.incrementAndGet();
+		public void pre(final long[] values, final int index) {
+			/* No Op */
 		}
-		
-		/**
-		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postFinal()
-		 */
-		@Override
-		public void postFinal() {
-			/* No Op, the concurrency counter is decremented by the interceptor */
-		}
-
 
 		/**
 		 * {@inheritDoc}
@@ -746,20 +752,29 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		 */
 		@Override
 		public void post(long[] values, int index) {
-			/* No Op */
+			/* No Op */			
 		}
-		
-		
+
 		/**
 		 * {@inheritDoc}
 		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postCatch()
 		 */
 		@Override
 		public void postCatch() throws Throwable {
+			/* No Op */
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postFinal()
+		 */
+		@Override
+		public void postFinal() {
 			/* No Op */			
 		}
 		
 	}
+	
 	
 	public static class IncrementMeasurement implements ThreadMetricReader {
 		/** The Measurement being measured */
@@ -1017,12 +1032,25 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	 */
 	public static Measurement[] getEnabled(final int mask) {
 		final EnumSet<Measurement> set = EnumSet.noneOf(Measurement.class);
-		for(Measurement ot: values()) {
-			if((mask & ot.mask) != 0) set.add(ot);
+		for(Measurement m: values()) {
+			if(m.isEnabledFor(mask)) set.add(m);
 		}
-		return new TreeSet<Measurement>(set).toArray(new Measurement[set.size()]);
+		return set.toArray(new Measurement[set.size()]);
 	}
 
+	/**
+	 * Returns an array of the Measurements that have real readers (not the Noop) enabled by the passed mask 
+	 * @param mask The mask
+	 * @return an array of Measurements
+	 */
+	public static Measurement[] getReaderEnabled(final int mask) {
+		final EnumSet<Measurement> set = EnumSet.noneOf(Measurement.class);
+		for(Measurement m: values()) {
+			if(m.isReaderEnabledFor(mask)) set.add(m);
+		}
+		return set.toArray(new Measurement[set.size()]);
+	}
+	
 	
 	
 }
