@@ -32,11 +32,12 @@ public class ValueArrayAggregator {
 
 	/**
 	 * @param valueArray
+	 * @param swapMap 
 	 * @param aggregate
 	 * @return
 	 */
 	@SuppressWarnings("unchecked")
-	public static final Map<Measurement, Metric> aggregate(final long[] valueArray, final Map<Measurement, Metric> aggregate) {
+	public static final Map<Measurement, Metric> aggregate(final long[] valueArray, final Map<Measurement, Integer> swapMap, final Map<Measurement, Metric> aggregate) {
 		if(valueArray==null || valueArray.length < Measurement.VALUEBUFFER_HEADER_SIZE+1) return aggregate;
 		final int mask = (int)valueArray[0];
 		final Measurement[] measurements = Measurement.getEnabled(mask);
@@ -50,15 +51,13 @@ public class ValueArrayAggregator {
 			metricMap = aggregate;
 		}
 
-		int index = Measurement.VALUEBUFFER_HEADER_SIZE;
 		for(Measurement m: Measurement.getEnabled(mask)) {
 			Metric met = metricMap.get(m);
 			if(met==null) {
 				met = m.chMetric.createNewMetric();
 				metricMap.put(m, met);
 			}
-			m.chMetric.metricWriter.writeValue(valueArray[index], met);
-			index++;
+			m.chMetric.metricWriter.writeValue(valueArray[swapMap.get(m)], met);
 		}
 		return metricMap;
 	}

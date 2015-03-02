@@ -27,10 +27,8 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 import com.codahale.metrics.CachedGauge;
@@ -64,10 +62,6 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	UCPU("usercpu", "ns", false, false, CHMetric.TIMER, UCPU_MEAS),
 	/** The Total Elapsed (User + System Mode) CPU time in ns. */
 	TCPU("totalcpu", "ns", false, false, CHMetric.TIMER, TCPU_MEAS),	
-	/** Number of thread waits */	
-	WAIT("waitcount", "waits", false, true, CHMetric.COUNTER, WAIT_MEAS),
-	/** Number of thread blocks */
-	BLOCK("blockcount", "blocks", false, true, CHMetric.COUNTER, BLOCK_MEAS),
 	/** Thread wait time in ms. */
 	WAITTIME("waittime", "ms", false, true, CHMetric.TIMER, WAIT_TIME_MEAS),
 	/** Thread block time in ms. */
@@ -80,6 +74,10 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	RETURN("exit", "returns", true, false, CHMetric.COUNTER, RETURN_MEAS),
 	/** Total exception count */
 	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, ERROR_MEAS, false, true),
+	/** Number of thread waits */	
+	WAIT("waitcount", "waits", false, true, CHMetric.COUNTER, WAIT_MEAS),
+	/** Number of thread blocks */
+	BLOCK("blockcount", "blocks", false, true, CHMetric.COUNTER, BLOCK_MEAS),	
 	/** The invocation rate */
 	INVOKERATE("entryrate", "invocations/ms", false, false, CHMetric.METER, NOOP_MEAS, INVOKE),
 	/** The return rate */
@@ -111,7 +109,13 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		this.isFinally = isFinally;
 		this.isCatch = isCatch;
 		isBody = (!this.isFinally && !this.isCatch);
-		dependentOn = (dependency!=null && dependency.length>0) ? dependency[0] : null;
+		if(dependency!=null && dependency.length>0) {
+			dependentOn = dependency[0];
+			dOffset = ordinal() - dependentOn.ordinal(); 
+		} else {
+			dependentOn = null;
+			dOffset = 0;
+		}
 	}
 	
 	private Measurement(final String shortName, final String unit, final boolean isDefault, final boolean requiresTinfo, final CHMetric chMetric, final ThreadMetricReader reader, final Measurement...dependency) {
@@ -138,10 +142,11 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	/** The short name of the measurement */
 	public final String shortName;
 	/** The unit of the measurement */
-	public final String unit;
-	
+	public final String unit;	
 	/** If a measurement has NOOP thread reader, it relies on another measurement to do it's thing. This is the other. */
 	public final Measurement dependentOn;
+	/** The offset between this dependent ordinal and the dependee's ordinal */
+	public final int dOffset;
 	
 	/**
 	 * {@inheritDoc}
@@ -598,10 +603,10 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	}
 	
 	public static void main(String[] args) {
-		for(Measurement m: Measurement.values()) {
+//		for(Measurement m: Measurement.values()) {
 //			System.out.println(m);
 //			System.out.println("Name:" + m.name() + ", Reader:" + (m.reader==null ? "<None>" : m.reader.getClass().getSimpleName()) + ", CHMetric:" + m.chMetric.name());
-		}
+//		}
 //		for(Measurement m: Measurement.values()) {
 //			if(m.isDefault) {
 //				System.out.println(String.format("\t\t\t\t\t<option value=\"%s\" selected=\"selected\" >%s</option>", m.mask, m.name()));
@@ -613,22 +618,22 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 //			}
 //		}
 		
-		final Map<CHMetric, Map<Measurement, Metric>> map = getDefaultCHMetricInstances();
-		int subMetricMask = 0;
-		for(Map.Entry<CHMetric, Map<Measurement, Metric>> entry: map.entrySet()) {
-			final CHMetric chm = entry.getKey();
-			log("CHMetric: %s", chm);
-			for(Map.Entry<Measurement, Metric> inst: entry.getValue().entrySet()) {
-				final Measurement m = inst.getKey();
-				final Metric metric = inst.getValue();
-				log("\tInstance:   for: %s  in: %s", m.name(), metric.getClass().getSimpleName());
-				for(SubMetric sm: m.chMetric.defaultSubMetrics) {
-					subMetricMask = subMetricMask | sm.mask;
-					log("\t\tSubMetric: %s", sm);
-				}
-			}
-		}
-		log("SubMetricMask: %s  --->  %s", subMetricMask, Arrays.toString(SubMetric.getEnabled(subMetricMask)));
+//		final Map<CHMetric, Map<Measurement, Metric>> map = getDefaultCHMetricInstances();
+//		int subMetricMask = 0;
+//		for(Map.Entry<CHMetric, Map<Measurement, Metric>> entry: map.entrySet()) {
+//			final CHMetric chm = entry.getKey();
+//			log("CHMetric: %s", chm);
+//			for(Map.Entry<Measurement, Metric> inst: entry.getValue().entrySet()) {
+//				final Measurement m = inst.getKey();
+//				final Metric metric = inst.getValue();
+//				log("\tInstance:   for: %s  in: %s", m.name(), metric.getClass().getSimpleName());
+//				for(SubMetric sm: m.chMetric.defaultSubMetrics) {
+//					subMetricMask = subMetricMask | sm.mask;
+//					log("\t\tSubMetric: %s", sm);
+//				}
+//			}
+//		}
+//		log("SubMetricMask: %s  --->  %s", subMetricMask, Arrays.toString(SubMetric.getEnabled(subMetricMask)));
 //		TMX.setThreadCpuTimeEnabled(false);
 //		TMX.setThreadContentionMonitoringEnabled(false);
 //		final CountDownLatch latch = new CountDownLatch(1);
@@ -654,7 +659,24 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 //		try { Thread.sleep(200); } catch (Exception ex) {}		
 ////		try { Thread.currentThread().join(500); } catch (Exception ex) {}
 //		exit(alloc);
-//		log(renderAlloc(alloc));		
+//		log(renderAlloc(alloc));
+		
+		
+		int mask = DEFAULT_MASK | DEPENDENT_MASK;
+		final EnumMap<Measurement, Integer> swapMap = getSwapMap(mask); 
+		log("Swap Map: %s", swapMap);
+		Measurement[] ms = getEnabled(mask);
+		for(int i = 0; i < ms.length; i++) {
+			Measurement m = ms[i];
+			log("[%s] : %s : rindex[%s]", i, m.name(), swapMap.get(m));
+		}
+		log("=============================");
+		mask = swapDependees(mask);
+		ms = getEnabled(mask);
+		for(int i = 0; i < ms.length; i++) {
+			Measurement m = ms[i];
+			log("[%s] : %s", i, m.name());
+		}		
 	}
 	
 	private static synchronized void dropLatchAndSleep(final long time, final CountDownLatch latch) {
@@ -1049,6 +1071,65 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 			if(m.isReaderEnabledFor(mask)) set.add(m);
 		}
 		return set.toArray(new Measurement[set.size()]);
+	}
+	
+	/**
+	 * Returns a mask with the dependent measurement bits turned off 
+	 * @param mask The mask to modify
+	 * @return The modified mask
+	 */
+	public static int disableDependents(final int mask) {
+		return mask & ~DEPENDENT_MASK;
+	}
+	
+	/**
+	 * Scans the passed mask for dependent (noop reader) measurements and enables the measurements they depend on
+	 * @param mask The mask to modify
+	 * @return The modified mask
+	 */
+	public static int enableDependees(final int mask) {
+		int newMask = mask;
+		for(Measurement m: getEnabled(mask)) {
+			if(m.dependentOn!=null) {
+				newMask = (newMask | m.dependentOn.mask);
+			}
+		}
+		return newMask;
+	}
+	
+	/**
+	 * Scans the passed mask for dependent (noop reader) measurements and enables the measurements they depend on,
+	 * then disables the dependent measurements.
+	 * @param mask The mask to modify
+	 * @return The modified mask
+	 */
+	public static int swapDependees(final int mask) {
+		return disableDependents(enableDependees(mask));
+	}
+	
+	/**
+	 * Generates a swap map to map the requested metrics to the actual value array index.
+	 * This is because swapped value arrays may be of different sizes and in different order than the requested metrics.
+	 * @param mask The mask to generate a swap map for
+	 * @return the swap map
+	 */
+	public static EnumMap<Measurement, Integer> getSwapMap(final int mask) {	
+		final EnumMap<Measurement, Integer> swapMap = new EnumMap<Measurement, Integer>(Measurement.class);
+		Measurement[] swapped = getEnabled(swapDependees(mask));
+		for(int i = 0; i < swapped.length; i++) {
+			Measurement m = swapped[i];
+			swapMap.put(m, i);
+		}		
+		Measurement[] original = getEnabled(mask);
+		for(int i = 0; i < original.length; i++) {
+			Measurement m = original[i];
+			if(m.dependentOn==null) {
+				swapMap.put(m, swapMap.get(m)+2);
+			} else {
+				swapMap.put(m, swapMap.get(m.dependentOn)+2);
+			}						
+		}
+		return swapMap;
 	}
 	
 	

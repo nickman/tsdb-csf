@@ -16,6 +16,9 @@
 
 package com.heliosapm.opentsdb.client.opentsdb.sink;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -103,6 +106,8 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 	protected final NonBlockingHashMapLong<Map<Measurement, Metric>> aggregateMetrics = new NonBlockingHashMapLong<Map<Measurement, Metric>>();
 	/** Keeps references for metrics in play */
 	protected final NonBlockingHashMapLong<OTMetric> refKeeper = new NonBlockingHashMapLong<OTMetric>();
+	/** Keeps a cache of swap maps */
+	protected final NonBlockingHashMapLong<Map<Measurement, Integer>> swapMaps = new NonBlockingHashMapLong<Map<Measurement, Integer>>();
 
 	// ==================================================================================================
 	
@@ -181,12 +186,15 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 									refKeeper.put(subMetric.longHashCode(), subMetric);
 								}
 							}
+							final int mask = (int)valueArr[0];
+							Map<Measurement, Integer> swapMap = getSwapMap(mask);
+							log.info(printSwapMap(mask, swapMap, valueArr));
 							Map<Measurement, Metric> metricMap = aggregateMetrics.get(metricId);
 							if(metricMap==null) {
-								metricMap = ValueArrayAggregator.aggregate(valueArr, metricMap);
+								metricMap = ValueArrayAggregator.aggregate(valueArr, swapMap, metricMap);
 								aggregateMetrics.put(metricId, metricMap);
 							} else {
-								ValueArrayAggregator.aggregate(valueArr, aggregateMetrics.get(metricId));
+								ValueArrayAggregator.aggregate(valueArr, swapMap, aggregateMetrics.get(metricId));
 							}
 						}
 					} catch (InterruptedException iex) {
@@ -203,6 +211,77 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 				}
 			}
 		};
+	}
+	
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.sink.IMetricSink#getSwapMapCount()
+	 */
+	@Override
+	public int getSwapMapCount() {
+		return swapMaps.size();
+	}
+	
+	/**
+	 * Returns the SwapMap for the passed measurement map
+	 * @param mask The mask to get a SwapMap for
+	 * @return the SwapMap
+	 */
+	public Map<Measurement, Integer> getSwapMap(final int mask) {
+		Map<Measurement, Integer> swapMap = swapMaps.get(mask);
+		if(swapMap==null) {
+			synchronized(swapMaps) {
+				swapMap = swapMaps.get(mask);
+				if(swapMap==null) {
+					swapMap = Collections.unmodifiableMap(Measurement.getSwapMap(mask));
+					swapMaps.put(mask, swapMap);					
+				}
+			}
+		}
+		return swapMap;
+	}
+	
+	protected String printSwapMap(final int mask, final Map<Measurement, Integer> swapMap, final long[] valueArray) {
+		final StringBuilder b = new StringBuilder("\n\t=============================================\n\tSwapMap for Mask:").append(mask).append("\n\t=============================================");
+//		final long[] valueArray = new long[valueArrayX.length-2];
+//		System.arraycopy(valueArrayX, 2, valueArray, 0, valueArrayX.length-2);
+//		b.append("\n\tSwap Map:").append(swapMap);
+		
+		final Measurement[] nonoops = Measurement.getEnabled(Measurement.swapDependees(mask));
+		final Measurement[] ms = Measurement.getEnabled(mask);
+		b.append("\n\tOriginal Mask:\n\t\t");
+		for(int i = 0; i < ms.length; i++) {
+			b.append(ms[i].name()).append("[").append(i).append("]").append(", ");
+		}
+		b.deleteCharAt(b.length()-1); b.deleteCharAt(b.length()-1);
+		b.append("\n\tNoNoop Mask:\n\t\t");
+		for(int i = 0; i < nonoops.length; i++) {
+			b.append(nonoops[i].name()).append("[").append(i).append("]").append(", ");
+		}
+		b.deleteCharAt(b.length()-1); b.deleteCharAt(b.length()-1);
+		b.append("\n\tRaw Values:\n\t\t").append(Arrays.toString(valueArray));
+		b.append("\n\tValues:\n\t\t");
+		for(int i = 0; i < nonoops.length; i++) {
+			b.append(nonoops[i].name()).append("[").append(i).append("]:").append(valueArray[swapMap.get(nonoops[i])]).append(", ");
+		}
+		b.deleteCharAt(b.length()-1); b.deleteCharAt(b.length()-1);
+		
+		b.append("\n\tMappings:");
+		for(final Map.Entry<Measurement, Integer> entry: swapMap.entrySet()) {
+			final Measurement m = entry.getKey();
+			final int index = entry.getValue();
+			final int mapIndex = swapMap.get(m);
+			b.append("\n\t\t")
+				.append(m.name())
+				.append("---mapped to--->[")
+				.append(nonoops[mapIndex-2])
+				.append("<").append(index).append(">], value: [")
+				.append(valueArray[mapIndex])
+				.append("]");
+		}
+		
+		return b.toString();
 	}
 	
 	/**

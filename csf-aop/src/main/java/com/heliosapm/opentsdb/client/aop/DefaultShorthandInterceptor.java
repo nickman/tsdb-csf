@@ -16,7 +16,7 @@
 package com.heliosapm.opentsdb.client.aop;
 
 import java.lang.reflect.Field;
-import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
@@ -43,16 +43,23 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	protected final long metricId;
 	/** The enabled measurement mask */
 	protected final int mask;
+	/** The non-noop enabled measurement mask */
+	protected final int nonoopmask;	
 	/** Indicates if the measurement mask is enabled for the concurrency measurement */
 	protected final boolean hasConcurrent;
 	/** The concurrency counter */
 	protected final AtomicInteger concurrencyCounter;
 	/** The metric sink hub */
-	protected final IMetricSink sink;
+	protected final MetricSink sink;
 	/** The exception submission if error tracking is enabled */
 	protected final long[] exSub;
+	/** The swap map for this interceptor's mask */
+	protected final Map<Measurement, Integer> swapMap;
 	/** A map of interceptors keyed by the mask within a map of interceptors keyed by the metricId */
 	private static final NonBlockingHashMapLong<NonBlockingHashMapLong<DefaultShorthandInterceptor>> interceptors = new NonBlockingHashMapLong<NonBlockingHashMapLong<DefaultShorthandInterceptor>>();
+	
+	/** A noop interceptor */
+	private static final DefaultShorthandInterceptor NOOP_INTERCEPTOR = new NoopShorthandInterceptor();
 	
     /** The unsafe instance */    	
 	private static final Unsafe UNSAFE;
@@ -66,15 +73,25 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 		System.out.println(String.format(fmt.toString(), args));
 	}
 
+	/**
+	 * System err pattern logger
+	 * @param fmt The message format
+	 * @param args The tokens
+	 */
+	public static void loge(final Object fmt, final Object...args) {
+		System.err.println(String.format(fmt.toString(), args));
+	}
 	
 	static {
+		Unsafe us = null;
         try {        	
             Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
             theUnsafe.setAccessible(true);
-            UNSAFE = (Unsafe) theUnsafe.get(null);
-        } catch (Exception ex) {
-        	throw new RuntimeException(ex);
+            us = (Unsafe) theUnsafe.get(null);
+        } catch (Throwable ex) {
+        	us = null;
         }
+        UNSAFE = null;
 		// register a listener on metricId removal
 		LongIdOTMetricCache.getInstance().registerMetricIdListener(new OTMetricIdListener() {
 			@Override
@@ -123,7 +140,12 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	 * @return the interceptor
 	 */
 	public static DefaultShorthandInterceptor get(final long metricId, final int mask) {
-		return interceptors.get(metricId).get(mask);
+		try {
+			return interceptors.get(metricId).get(mask);
+		} catch (NullPointerException npe) {
+			loge("Failed to get DefaultShorthandInterceptor for [%s]/[%s] because it was not installed first. Programmer error");
+			return NOOP_INTERCEPTOR;
+		}
 	}
 
 	/**
@@ -133,11 +155,24 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	 */
 	private DefaultShorthandInterceptor(final long metricId, final int mask) {
 		this.metricId = metricId;
-		this.mask = mask;	
+		this.mask = mask;			
+		nonoopmask = Measurement.swapDependees(mask);
 		hasConcurrent = Measurement.CONCURRENT.isEnabledFor(mask);
-		sink = MetricSink.sink();		
+		sink = MetricSink.sink();
+		swapMap = sink.getSwapMap(mask);
 		concurrencyCounter = Measurement.CONCURRENT.isEnabledFor(this.mask) ? sink.getConcurrencyCounter(metricId) : null;
-		exSub = Measurement.hasFinallyBlock(mask) ? new long[]{Measurement.ERROR.mask, metricId, -1, 1} : null;		
+		exSub = Measurement.hasFinallyBlock(mask) ? new long[]{Measurement.swapDependees(Measurement.ERROR.mask), metricId, -1, 1} : null;		
+	}
+	
+	private DefaultShorthandInterceptor() {
+		sink = null;
+		nonoopmask = -1;
+		mask = -1;
+		metricId = -1;
+		hasConcurrent = false;
+		exSub = null;
+		concurrencyCounter = null;
+		swapMap = null;
 	}
 
 	/**
@@ -146,8 +181,11 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	 */
 	@Override
 	public long[] enter(final int mask, final long parentMetricId) {
-		if(hasConcurrent) concurrencyCounter.incrementAndGet();
-		return Measurement.enter(mask, parentMetricId);
+		final int concurrency = hasConcurrent ?  concurrencyCounter.incrementAndGet() : 0;		
+		log("Concurrency -------------> %s   id: %s", concurrency, System.identityHashCode(concurrencyCounter));
+		final long[] valueArr = Measurement.enter(nonoopmask, parentMetricId);
+		if(hasConcurrent) valueArr[swapMap.get(Measurement.CONCURRENT)] = concurrency;
+		return valueArr;
 	}
 
 	/**
@@ -161,7 +199,7 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 		} catch (Throwable t) {
 			t.printStackTrace(System.err);
 		}
-//		log("Exit Values: %s", Arrays.toString(entryState));
+		entryState[0] = mask;
 		sink.submit(entryState);
 	}
 	
@@ -179,10 +217,53 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	 * @see com.heliosapm.opentsdb.client.aop.ShorthandInterceptor#throwExit(java.lang.Throwable)
 	 */
 	@Override
-	public void throwExit(final Throwable t) {
+	public void throwExit(final Throwable t) {			
 		sink.submit(exSub);
-		if(t!=null) UNSAFE.throwException(t);
+		if(t!=null) {
+			t.printStackTrace(System.err);
+//			if(UNSAFE!=null) 
+				UNSAFE.throwException(t);
+//			throw new RuntimeException(t.getMessage(), t);  // FIXME: we should take note of the methods declared exceptions, try to match the type and cast/throw. 
+		}
 	}
 	
+	/**
+	 * <p>Title: NoopShorthandInterceptor</p>
+	 * <p>Description: A noop shorthand interceptor returned when an error occurs trying to get one.</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.aop.DefaultShorthandInterceptor.NoopShorthandInterceptor</code></p>
+	 */
+	private static final class NoopShorthandInterceptor extends DefaultShorthandInterceptor {
+		private static final long[] EMPTY_LONG_ARR = {};
+		/**
+		 * Creates a new NoopShorthandInterceptor
+		 */
+		public NoopShorthandInterceptor() {
+			super();
+		}
+
+		@Override
+		public final long[] enter(final int mask, final long parentMetricId) {
+			/* No Op */
+			return EMPTY_LONG_ARR;
+		}
+
+		@Override
+		public final void exit(final long[] entryState) {
+			/* No Op */			
+		}
+
+		@Override
+		public final void finalExit() {
+			/* No Op */			
+		}
+
+		@Override
+		public final void throwExit(Throwable t) {
+			/* No Op */			
+		}
+		
+	}
 
 }
