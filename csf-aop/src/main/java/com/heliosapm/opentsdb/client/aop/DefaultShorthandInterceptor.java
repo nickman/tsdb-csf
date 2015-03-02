@@ -161,7 +161,11 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 		sink = MetricSink.sink();
 		swapMap = sink.getSwapMap(mask);
 		concurrencyCounter = Measurement.CONCURRENT.isEnabledFor(this.mask) ? sink.getConcurrencyCounter(metricId) : null;
-		exSub = Measurement.hasFinallyBlock(mask) ? new long[]{Measurement.swapDependees(Measurement.ERROR.mask), metricId, -1, 1} : null;		
+		if(Measurement.INVOKE.isEnabledFor(mask) || Measurement.INVOKERATE.isEnabledFor(mask)) {
+			exSub = Measurement.hasCatchBlock(mask) ? new long[]{Measurement.swapDependees(Measurement.ERROR.mask | Measurement.INVOKE.mask), metricId, -1, 1, 1} : null;
+		} else {
+			exSub = Measurement.hasCatchBlock(mask) ? new long[]{Measurement.swapDependees(Measurement.ERROR.mask), metricId, -1, 1} : null;
+		}
 	}
 	
 	private DefaultShorthandInterceptor() {
@@ -226,6 +230,8 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 //			throw new RuntimeException(t.getMessage(), t);  // FIXME: we should take note of the methods declared exceptions, try to match the type and cast/throw. 
 		}
 	}
+	
+	
 	
 	/**
 	 * <p>Title: NoopShorthandInterceptor</p>

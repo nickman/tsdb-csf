@@ -73,7 +73,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	/** Total return count */
 	RETURN("exit", "returns", true, false, CHMetric.COUNTER, RETURN_MEAS),
 	/** Total exception count */
-	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, ERROR_MEAS, false, true),
+	ERROR("errors", "exceptions", false, false, CHMetric.COUNTER, NOOP_MEAS, false, true),
 	/** Number of thread waits */	
 	WAIT("waitcount", "waits", false, true, CHMetric.COUNTER, WAIT_MEAS),
 	/** Number of thread blocks */
@@ -285,12 +285,28 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		protected Boolean loadValue() {
 			return TMX.isThreadCpuTimeEnabled();
 		}
+		@Override
+		public Boolean getValue() {
+			Boolean b = super.getValue();
+			if(b==null) {
+				return loadValue();
+			}
+			return super.getValue();
+		}
 	};
 	/** A cached gauge that periodically tests if thread contention monitoring is enabled */
 	public static final CachedGauge<Boolean> CONTENTIONON = new CachedGauge<Boolean>(5, TimeUnit.SECONDS) {
 		@Override
 		protected Boolean loadValue() {
 			return TMX.isThreadContentionMonitoringEnabled();
+		}
+		@Override
+		public Boolean getValue() {
+			Boolean b = super.getValue();
+			if(b==null) {
+				return loadValue();
+			}
+			return super.getValue();
 		}
 	};
 	
@@ -352,9 +368,10 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 	 * @return the allocated array
 	 */
 	public static long[] allocate(final long otMetricId, final int mask) {
-		final long[] alloc = new long[getReaderEnabled(mask & ~DISABLED_MASK).length + VALUEBUFFER_HEADER_SIZE];
+		final long[] alloc = new long[getReaderEnabled(mask & ~DISABLED_MASK).length + VALUEBUFFER_HEADER_SIZE];		
 		alloc[0] = mask;
 		alloc[1] = otMetricId;
+		log("Fresh Allocated: %s", Arrays.toString(alloc));
 		return alloc;
 	}
 	
@@ -554,7 +571,9 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 				TINFO.get();
 			}
 			for(Measurement m: getEnabled(mask)) {
-				m.reader.pre(valueBuffer, index);
+				if(m.reader!=NOOP_MEAS) {
+					m.reader.pre(valueBuffer, index);
+				}
 				index++;
 			}
 		} finally {
@@ -573,8 +592,10 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		buffer[2] = System.currentTimeMillis();
 		final boolean ti = (mask & ~TI_REQUIRED_MASK) != mask;
 		try {
-			for(Measurement m: getEnabled((mask & ~ERROR.mask))) {
-				m.reader.post(buffer, index);
+			for(Measurement m: getEnabled((mask))) {
+				if(m.reader!=NOOP_MEAS) {
+					m.reader.post(buffer, index);
+				}
 				index++;
 			}
 		} finally {
@@ -757,6 +778,13 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		
 	}
 	
+	/**
+	 * <p>Title: NoopMeasurement</p>
+	 * <p>Description: A No-Op Measurement implementation</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.opentsdb.opt.Measurement.NoopMeasurement</code></p>
+	 */
 	public static final class NoopMeasurement implements ThreadMetricReader {
 
 		/**
@@ -764,7 +792,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#pre(long[], int)
 		 */
 		@Override
-		public void pre(final long[] values, final int index) {
+		public final void pre(final long[] values, final int index) {
 			/* No Op */
 		}
 
@@ -773,7 +801,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#post(long[], int)
 		 */
 		@Override
-		public void post(long[] values, int index) {
+		public final void post(final long[] values, final int index) {
 			/* No Op */			
 		}
 
@@ -782,7 +810,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postCatch()
 		 */
 		@Override
-		public void postCatch() throws Throwable {
+		public final void postCatch() throws Throwable {
 			/* No Op */
 		}
 
@@ -791,7 +819,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		 * @see com.heliosapm.opentsdb.client.opentsdb.opt.ThreadMetricReader#postFinal()
 		 */
 		@Override
-		public void postFinal() {
+		public final void postFinal() {
 			/* No Op */			
 		}
 		
@@ -1124,9 +1152,9 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		for(int i = 0; i < original.length; i++) {
 			Measurement m = original[i];
 			if(m.dependentOn==null) {
-				swapMap.put(m, swapMap.get(m)+2);
+				swapMap.put(m, swapMap.get(m) + VALUEBUFFER_HEADER_SIZE);
 			} else {
-				swapMap.put(m, swapMap.get(m.dependentOn)+2);
+				swapMap.put(m, swapMap.get(m.dependentOn) + VALUEBUFFER_HEADER_SIZE);
 			}						
 		}
 		return swapMap;

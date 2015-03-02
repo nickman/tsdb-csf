@@ -275,8 +275,8 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 			b.append("\n\t\t")
 				.append(m.name())
 				.append("---mapped to--->[")
-				.append(nonoops[mapIndex-2])
-				.append("<").append(index).append(">], value: [")
+				.append(nonoops[mapIndex-Measurement.VALUEBUFFER_HEADER_SIZE])
+				.append("<").append(index-Measurement.VALUEBUFFER_HEADER_SIZE).append(">], value: [")
 				.append(valueArray[mapIndex])
 				.append("]");
 		}

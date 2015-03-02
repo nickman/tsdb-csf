@@ -210,11 +210,11 @@ public class ShorthandCompiler {
 		final Random r = new Random(System.currentTimeMillis());		
 		static final AtomicLong invokeCount = new AtomicLong(0);
 		public Collection<PrivateKey> keys(final int count) {
-			invokeCount.incrementAndGet();
-			//if(time%4==0) throw new RuntimeException();
+			final long ic = invokeCount.incrementAndGet();
+			if(ic%4==0) throw new RuntimeException();
 			Collection<PrivateKey> keys = new ArrayList<PrivateKey>(count);
 			try { 
-				Thread.currentThread().join(0, 1);
+				Thread.currentThread().join(1, 1);
 				final KeyFactory kf = KeyFactory.getInstance("RSA");
 				final RSAPrivateKeySpec spec = new RSAPrivateKeySpec(new BigInteger(1024, 10, r), new BigInteger(1024, 10, r));				
 				for(int z = 0; z < count; z++) {									
@@ -238,7 +238,7 @@ public class ShorthandCompiler {
 	
 	public static void main(String args[]) {
 		log("Shorthand compiler test");
-//		ManagementFactory.getThreadMXBean().setThreadContentionMonitoringEnabled(true);
+		ManagementFactory.getThreadMXBean().setThreadContentionMonitoringEnabled(true);
 //		ManagementFactory.getThreadMXBean().setThreadCpuTimeEnabled(true);
 		final int cores = Constants.CORES;
 		LoggingConfiguration.getInstance();
@@ -260,8 +260,8 @@ public class ShorthandCompiler {
 		final long noInstElapsed = System.currentTimeMillis() - start;
 		log("PreInstrument Time: %s ms.", noInstElapsed);
 		final ShorthandCompiler compiler = ShorthandCompiler.getInstance();
-		//final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " keys m:[" + Measurement.ALL_MASK + "] 'class=TestClass,method=${method}'");
-		final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " keys m:[4095] 'class=TestClass,method=${method}'");
+		final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " keys m:[" + Measurement.ALL_MASK + "] 'class=TestClass,method=${method}'");
+		//final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " keys m:[4095] 'class=TestClass,method=${method}'");
 		
 		log("Script: %s", script);
 		final Map<Class<?>, Set<ShorthandScript>> compileJob = new HashMap<Class<?>, Set<ShorthandScript>>(1);
