@@ -221,7 +221,7 @@ public class ShorthandCompiler {
 		static final AtomicLong invokeCount = new AtomicLong(0);
 		public Collection<PrivateKey> keys(final int count) {
 			final long ic = invokeCount.incrementAndGet();
-			if(ic%4==0) throw new RuntimeException();
+//			if(ic%4==0) throw new RuntimeException();
 			Collection<PrivateKey> keys = new ArrayList<PrivateKey>(count);
 			try { 
 //				Thread.currentThread().join(1, 1);
@@ -256,8 +256,15 @@ public class ShorthandCompiler {
 		log("Shorthand compiler test");
 		ManagementFactory.getThreadMXBean().setThreadContentionMonitoringEnabled(true);
 		ManagementFactory.getThreadMXBean().setThreadCpuTimeEnabled(true);
-		final int cores = Constants.CORES;
+		
+		// ===================================================================================
+		// ===================================================================================
+		final int cores = 1; //Constants.CORES;
+		final int LOOPS = 1; //100;
+		// ===================================================================================
+		// ===================================================================================
 		LoggingConfiguration.getInstance();
+		
 		final ThreadFactory tf = new ThreadFactory() {
 			private final AtomicInteger serial = new AtomicInteger();
 			@Override
@@ -269,7 +276,7 @@ public class ShorthandCompiler {
 		};
 		final ThreadPoolExecutor tpe = new ThreadPoolExecutor(cores, cores, 180, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(120, true), tf);
 		tpe.prestartAllCoreThreads();
-		final int LOOPS = 100;
+		
 		long start = System.currentTimeMillis();
 		testMulti(tpe, LOOPS);
 		log("Invocation Count: %s", TestClass.invokeCount);
