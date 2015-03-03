@@ -57,10 +57,21 @@ public class ValueArrayAggregator {
 				met = m.chMetric.createNewMetric();
 				metricMap.put(m, met);
 			}
+			//log("Writing [%s] value to [%s] in SwapMap: %s", m, swapMap.get(m), swapMap);
 			m.chMetric.metricWriter.writeValue(valueArray[swapMap.get(m)], met);
 		}
 		return metricMap;
 	}
+	
+	/**
+	 * System out pattern logger
+	 * @param fmt The message format
+	 * @param args The tokens
+	 */
+	public static void log(final Object fmt, final Object...args) {
+		System.out.println(String.format(fmt.toString(), args));
+	}
+	
 	
 	/**
 	 * Calcs a double average incorporating a new value

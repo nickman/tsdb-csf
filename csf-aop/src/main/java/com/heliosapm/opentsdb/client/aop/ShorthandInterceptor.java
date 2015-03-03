@@ -29,11 +29,11 @@ public interface ShorthandInterceptor {
 
 	/**
 	 * Entry point for the interceptor
-	 * @param mask The enabled measurement bit mask
-	 * @param parentMetricId The long hash code of the OTMetric associated to this interceptor
+//	 * @param mask The enabled measurement bit mask
+//	 * @param parentMetricId The long hash code of the OTMetric associated to this interceptor
 	 * @return the captured entry state for the interceptor
 	 */
-	public long[] enter(int mask, long parentMetricId);
+	public long[] enter(/* int mask, long parentMetricId */);
 	
 	/**
 	 * Exit point for the interceptor

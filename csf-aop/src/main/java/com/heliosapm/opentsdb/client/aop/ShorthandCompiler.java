@@ -207,22 +207,38 @@ public class ShorthandCompiler {
 	}
 	
 	static class TestClass {
-		final Random r = new Random(System.currentTimeMillis());		
+		final Random r = new Random(System.currentTimeMillis());
+		final KeyFactory kf;
+		
+		public TestClass() {
+			try {
+				kf = KeyFactory.getInstance("RSA");
+			} catch (Exception ex) {
+				throw new RuntimeException(ex);
+			}
+		}
+		
 		static final AtomicLong invokeCount = new AtomicLong(0);
 		public Collection<PrivateKey> keys(final int count) {
 			final long ic = invokeCount.incrementAndGet();
 			if(ic%4==0) throw new RuntimeException();
 			Collection<PrivateKey> keys = new ArrayList<PrivateKey>(count);
 			try { 
-				Thread.currentThread().join(1, 1);
-				final KeyFactory kf = KeyFactory.getInstance("RSA");
+//				Thread.currentThread().join(1, 1);
+				
 				final RSAPrivateKeySpec spec = new RSAPrivateKeySpec(new BigInteger(1024, 10, r), new BigInteger(1024, 10, r));				
-				for(int z = 0; z < count; z++) {									
-					keys.add(kf.generatePrivate(spec));					
-				}
+//				for(int z = 0; z < count; z++) {									
+					keys.add(kf.generatePrivate(spec));
+					//blockNoop();
+//				}
+				
 				
 			} catch (Exception ex) {/* No Op */}
 			return keys;
+		}
+		
+		public synchronized void blockNoop() {
+			try { Thread.currentThread().join(0, 1); } catch (Exception x) {}
 		}
 	}
 	
@@ -239,7 +255,7 @@ public class ShorthandCompiler {
 	public static void main(String args[]) {
 		log("Shorthand compiler test");
 		ManagementFactory.getThreadMXBean().setThreadContentionMonitoringEnabled(true);
-//		ManagementFactory.getThreadMXBean().setThreadCpuTimeEnabled(true);
+		ManagementFactory.getThreadMXBean().setThreadCpuTimeEnabled(true);
 		final int cores = Constants.CORES;
 		LoggingConfiguration.getInstance();
 		final ThreadFactory tf = new ThreadFactory() {
@@ -253,17 +269,17 @@ public class ShorthandCompiler {
 		};
 		final ThreadPoolExecutor tpe = new ThreadPoolExecutor(cores, cores, 180, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(120, true), tf);
 		tpe.prestartAllCoreThreads();
-		final int LOOPS = 1;
+		final int LOOPS = 100;
 		long start = System.currentTimeMillis();
 		testMulti(tpe, LOOPS);
 		log("Invocation Count: %s", TestClass.invokeCount);
 		final long noInstElapsed = System.currentTimeMillis() - start;
 		log("PreInstrument Time: %s ms.", noInstElapsed);
 		final ShorthandCompiler compiler = ShorthandCompiler.getInstance();
-		final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " keys m:[" + Measurement.ALL_MASK + "] 'class=TestClass,method=${method}'");
-		//final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " keys m:[4095] 'class=TestClass,method=${method}'");
+		//final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " keys m:[" + Measurement.ALL_MASK + "] 'class=TestClass,method=${method}'");
+		final ShorthandScript script = ShorthandScript.parse(TestClass.class.getName() + " keys m:[4095] 'class=TestClass,method=${method}'");
 		
-		log("Script: %s", script);
+//		log("Script: %s", script);
 		final Map<Class<?>, Set<ShorthandScript>> compileJob = new HashMap<Class<?>, Set<ShorthandScript>>(1);
 		compileJob.put(TestClass.class, Collections.singleton(script));
 		compiler.compile(compileJob);
@@ -273,10 +289,11 @@ public class ShorthandCompiler {
 		log("Invocation Count: %s", TestClass.invokeCount);
 		final long instElapsed = System.currentTimeMillis() - start;
 		log("Instrument Time: %s ms.", instElapsed);
-		long diff = TimeUnit.NANOSECONDS.convert((instElapsed - noInstElapsed), TimeUnit.MILLISECONDS);
-		log("Total Instr Diff: %s ns, Diff Per Call: %s ns", diff, diff/(TestClass.invokeCount.get()));
+		long diffMs = (instElapsed - noInstElapsed);
+		long diffNs = TimeUnit.NANOSECONDS.convert(diffMs, TimeUnit.MILLISECONDS);		
 		log(MetricSink.sink().renderMetrics());
-		try { Thread.currentThread().join(3000); } catch (Exception x) {}
+		log("Total Instr Diff: %s ns, Diff Per Call: %s ns,  %s ms", diffNs, diffNs/(TestClass.invokeCount.get()), diffMs/(TestClass.invokeCount.get()));
+		//try { Thread.currentThread().join(3000); } catch (Exception x) {}
 		System.exit(0);
 		
 //		start = System.currentTimeMillis();
@@ -409,7 +426,9 @@ public class ShorthandCompiler {
 				ctMethod.addLocalVariable(interceptorFieldName, interceptorCtClass);
 				final String bodyCode = "{ \n\t" +  
 						interceptorFieldName + " = DefaultShorthandInterceptor.get(" + metricId + "L," + measurementMask + ");\n\t"
-						+ valueFieldName + " = " + interceptorFieldName +  ".enter(" + measurementMask + "," + metricId + "L);\n\t"
+						+ valueFieldName + " = " + interceptorFieldName +  
+//							".enter(" + measurementMask + "," + metricId + "L);\n\t"
+						".enter();\n\t"
 				+ " }";
 				log("Body Code:\n" + bodyCode);
 				ctMethod.insertBefore(bodyCode);

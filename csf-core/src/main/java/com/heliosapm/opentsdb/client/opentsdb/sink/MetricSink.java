@@ -188,7 +188,7 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 							}
 							final int mask = (int)valueArr[0];
 							Map<Measurement, Integer> swapMap = getSwapMap(mask);
-							log.info(printSwapMap(mask, swapMap, valueArr));
+//							log.info(printSwapMap(mask, swapMap, valueArr));
 							Map<Measurement, Metric> metricMap = aggregateMetrics.get(metricId);
 							if(metricMap==null) {
 								metricMap = ValueArrayAggregator.aggregate(valueArr, swapMap, metricMap);
@@ -266,19 +266,24 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 			b.append(nonoops[i].name()).append("[").append(i).append("]:").append(valueArray[swapMap.get(nonoops[i])]).append(", ");
 		}
 		b.deleteCharAt(b.length()-1); b.deleteCharAt(b.length()-1);
-		
+		b.append("\n\tRaw Mappings:").append(swapMap);
 		b.append("\n\tMappings:");
 		for(final Map.Entry<Measurement, Integer> entry: swapMap.entrySet()) {
 			final Measurement m = entry.getKey();
 			final int index = entry.getValue();
 			final int mapIndex = swapMap.get(m);
-			b.append("\n\t\t")
-				.append(m.name())
-				.append("---mapped to--->[")
-				.append(nonoops[mapIndex-Measurement.VALUEBUFFER_HEADER_SIZE])
-				.append("<").append(index-Measurement.VALUEBUFFER_HEADER_SIZE).append(">], value: [")
-				.append(valueArray[mapIndex])
-				.append("]");
+			try {
+				b.append("\n\t\t")
+					.append(m.name())
+					.append("---mapped to--->[")
+					.append(nonoops[mapIndex-Measurement.VALUEBUFFER_HEADER_SIZE])
+					.append("<").append(index-Measurement.VALUEBUFFER_HEADER_SIZE).append(">], value: [")
+					.append(valueArray[mapIndex])
+					.append("]");
+			} catch (Exception ex) {
+				ex.printStackTrace(System.err);
+				break;
+			}
 		}
 		
 		return b.toString();
@@ -416,6 +421,7 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 	public void submit(final long[] measurements) {
 		if(!inputQueue.offer(measurements)) {
 			fullQueueDrops.increment();
+			System.err.println("\n\t !!!!!  QUEUE DROP :" + inputQueue.size() + "  !!!!!!\n");
 		}		
 	}
 

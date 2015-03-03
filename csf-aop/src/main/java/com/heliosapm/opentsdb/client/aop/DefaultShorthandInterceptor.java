@@ -179,15 +179,14 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 		swapMap = null;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.aop.ShorthandInterceptor#enter(int, long)
-	 */
+//	/**
+//	 * {@inheritDoc}
+//	 * @see com.heliosapm.opentsdb.client.aop.ShorthandInterceptor#enter(int, long)
+//	 */
 	@Override
-	public long[] enter(final int mask, final long parentMetricId) {
-		final int concurrency = hasConcurrent ?  concurrencyCounter.incrementAndGet() : 0;		
-		log("Concurrency -------------> %s   id: %s", concurrency, System.identityHashCode(concurrencyCounter));
-		final long[] valueArr = Measurement.enter(nonoopmask, parentMetricId);
+	public long[] enter(/*final int mask, final long parentMetricId*/) {
+		final int concurrency = hasConcurrent ?  concurrencyCounter.incrementAndGet() : 0;			
+		final long[] valueArr = Measurement.enter(nonoopmask, metricId);
 		if(hasConcurrent) valueArr[swapMap.get(Measurement.CONCURRENT)] = concurrency;
 		return valueArr;
 	}
@@ -224,7 +223,7 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 	public void throwExit(final Throwable t) {			
 		sink.submit(exSub);
 		if(t!=null) {
-			t.printStackTrace(System.err);
+//			t.printStackTrace(System.err);
 //			if(UNSAFE!=null) 
 				UNSAFE.throwException(t);
 //			throw new RuntimeException(t.getMessage(), t);  // FIXME: we should take note of the methods declared exceptions, try to match the type and cast/throw. 
@@ -250,7 +249,7 @@ public class DefaultShorthandInterceptor implements ShorthandInterceptor {
 		}
 
 		@Override
-		public final long[] enter(final int mask, final long parentMetricId) {
+		public final long[] enter(/* final int mask, final long parentMetricId */) {
 			/* No Op */
 			return EMPTY_LONG_ARR;
 		}

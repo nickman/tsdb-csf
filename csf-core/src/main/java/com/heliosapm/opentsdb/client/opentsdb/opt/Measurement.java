@@ -288,7 +288,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		@Override
 		public Boolean getValue() {
 			Boolean b = super.getValue();
-			if(b==null) {
+			if(b==null) {				
 				return loadValue();
 			}
 			return super.getValue();
@@ -371,7 +371,6 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 		final long[] alloc = new long[getReaderEnabled(mask & ~DISABLED_MASK).length + VALUEBUFFER_HEADER_SIZE];		
 		alloc[0] = mask;
 		alloc[1] = otMetricId;
-		log("Fresh Allocated: %s", Arrays.toString(alloc));
 		return alloc;
 	}
 	
@@ -1154,7 +1153,7 @@ public enum Measurement implements Measurers, ThreadMetricReader {
 			if(m.dependentOn==null) {
 				swapMap.put(m, swapMap.get(m) + VALUEBUFFER_HEADER_SIZE);
 			} else {
-				swapMap.put(m, swapMap.get(m.dependentOn) + VALUEBUFFER_HEADER_SIZE);
+				swapMap.put(m, swapMap.get(m.dependentOn));
 			}						
 		}
 		return swapMap;
