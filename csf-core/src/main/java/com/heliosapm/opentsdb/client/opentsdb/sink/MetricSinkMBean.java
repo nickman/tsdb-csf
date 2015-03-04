@@ -38,11 +38,6 @@ public interface MetricSinkMBean {
 	 */
 	public long getProcessedArrays();
 	
-	/**
-	 * Returns the number of metric maps currently being accumulated
-	 * @return the number of metric maps
-	 */
-	public int getMetricMapCount();
 	
 	/**
 	 * Returns the number of submissions in the input queue

@@ -65,5 +65,22 @@ public interface LongIdOTMetricCacheMBean {
 	 * @return The OTMetric for the id, or null if it was not found
 	 */
 	public OTMetric getOTMetric(final long id);
+	
+	/**
+	 * Returns the number of cached swap maps
+	 * @return the number of cached swap maps
+	 */
+	public int getSwapMapCount();
+	
+	/**
+	 * Returns the number of metric maps currently being accumulated
+	 * @return the number of metric maps
+	 */
+	public int getMetricMapCount();
+	
+	
+	
+	
+	
 
 }

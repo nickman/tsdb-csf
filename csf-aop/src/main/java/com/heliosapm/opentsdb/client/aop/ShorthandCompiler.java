@@ -68,6 +68,7 @@ import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
+import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
 import com.heliosapm.opentsdb.client.opentsdb.sink.MetricSink;
 import com.heliosapm.opentsdb.client.util.StringHelper;
@@ -298,9 +299,9 @@ public class ShorthandCompiler {
 		log("Instrument Time: %s ms.", instElapsed);
 		long diffMs = (instElapsed - noInstElapsed);
 		long diffNs = TimeUnit.NANOSECONDS.convert(diffMs, TimeUnit.MILLISECONDS);		
-		log(MetricSink.sink().renderMetrics());
+		log(LongIdOTMetricCache.getInstance().renderMetrics());
 		log("Total Instr Diff: %s ns, Diff Per Call: %s ns,  %s ms", diffNs, diffNs/(TestClass.invokeCount.get()), diffMs/(TestClass.invokeCount.get()));
-		//try { Thread.currentThread().join(3000); } catch (Exception x) {}
+		try { Thread.currentThread().join(); } catch (Exception x) {}
 		System.exit(0);
 		
 //		start = System.currentTimeMillis();
@@ -376,7 +377,7 @@ public class ShorthandCompiler {
 						for(Member member: targetMembers) {
 //							final MetricNameProvider mnp = getNameProvider(clazz, member, script.getMetricNameTemplate());
 							final String metricName = "instrumented:method=sleep,class=TestClass";
-							final OTMetric metric = MetricBuilder.metric(metricName).optBuild();
+							final OTMetric metric = MetricBuilder.metric(metricName).measurement(script.measurementBitMask).subMetric(script.measurementBitMask).optBuild();
 							final CtMethod ctMethod = targetCtClass.getMethod(member.getName(), StringHelper.getMemberDescriptor(member));
 							targetCtClass.removeMethod(ctMethod);
 							instrument(ctMethod, metric.longHashCode(), script.getMeasurementBitMask());

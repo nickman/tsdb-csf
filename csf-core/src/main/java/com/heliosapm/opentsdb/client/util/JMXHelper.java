@@ -88,6 +88,37 @@ import com.heliosapm.opentsdb.client.opentsdb.Threading;
  * <p><code>com.heliosapm.jmx.util.helpers.JMXHelper</code></p>
  */
 public class JMXHelper {
+	/*
+	 * import com.sun.jmx.mbeanserver.DefaultMXBeanMappingFactory;
+		import com.sun.jmx.mbeanserver.MXBeanMapping;
+		protected static final MXBeanMapping mapping; 
+	
+	static {
+		try {
+			mapping = DefaultMXBeanMappingFactory.DEFAULT.mappingForType(DecoratedChannelMBean.class, DefaultMXBeanMappingFactory.DEFAULT);
+		} catch (Exception ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+	
+//	/**
+//	 * Replaces this object with an opentype when being serialized
+//	 * @return an open type data object representing this channel
+//	 * @throws ObjectStreamException
+//	 */
+//	private Object writeReplace() throws ObjectStreamException {
+//		try {
+//			return mapping.toOpenValue(this);
+//		} catch (Exception ex) {
+//			throw new RuntimeException(ex);
+//		}
+//	}
+	
+
+//	 */
+	
+	
+	
 	/** The default jmx default domain is referenced */
 	public static final String JMX_DOMAIN_DEFAULT = ConfigurationReader.conf(Constants.PROP_JMX_DOMAIN_PROPERTY, Constants.DEFAULT_JMX_DOMAIN_PROPERTY); 
 	/** Regex WildCard Support Pattern for ObjectName key values */

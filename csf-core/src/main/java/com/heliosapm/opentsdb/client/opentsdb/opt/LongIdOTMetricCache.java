@@ -19,6 +19,9 @@ package com.heliosapm.opentsdb.client.opentsdb.opt;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -31,6 +34,13 @@ import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.Snapshot;
+import com.codahale.metrics.Timer;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
@@ -40,6 +50,7 @@ import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
+import com.heliosapm.opentsdb.client.util.ManagedNonBlockingMap;
 
 /**
  * <p>Title: LongIdOTMetricCache</p>
@@ -95,6 +106,19 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 	/** The space for speed option of the opt cache */
 	final boolean space4Speed;
 	
+	// ==================================================================================================
+	//		Temp Dev Constructs
+	// ==================================================================================================
+	/** The aggregate metrics */
+	protected final NonBlockingHashMapLong<Map<Measurement, Metric>> aggregateMetrics = new NonBlockingHashMapLong<Map<Measurement, Metric>>();
+	/** Keeps references for metrics in play */
+	protected final NonBlockingHashMapLong<OTMetric> refKeeper = new NonBlockingHashMapLong<OTMetric>();
+	/** Keeps a cache of swap maps */
+	protected final NonBlockingHashMapLong<Map<Measurement, Integer>> swapMaps = new NonBlockingHashMapLong<Map<Measurement, Integer>>();
+
+	// ==================================================================================================
+	
+	
 	
 	
 	/**
@@ -120,6 +144,13 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 		this.initialSize = ConfigurationReader.confInt(Constants.PROP_OPT_CACHE_INIT_SIZE, Constants.DEFAULT_OPT_CACHE_INIT_SIZE);
 		this.space4Speed = ConfigurationReader.confBool(Constants.PROP_OPT_CACHE_SPACE_FOR_SPEED, Constants.DEFAULT_OPT_CACHE_SPACE_FOR_SPEED);
 		this.cache = new NonBlockingHashMapLong<OTMetric>(this.initialSize, this.space4Speed);
+		ManagedNonBlockingMap.manage(cache, "OTMetricCache");
+		ManagedNonBlockingMap.manage(aggregateMetrics, "AggregateMetrics");
+		ManagedNonBlockingMap.manage(refKeeper, "RefKeeper");
+		ManagedNonBlockingMap.manage(swapMaps, "SwapMaps");
+		ManagedNonBlockingMap.manage(subMetrics, "OTSubMetricCache");
+		
+		
 	}
 	
 	/**
@@ -581,7 +612,161 @@ public class LongIdOTMetricCache implements LongIdOTMetricCacheMBean, RemovalLis
 			metricIdListeners.remove(listener);
 		}
 	}
-
+	
+	
+	/**
+	 * Puts a new OTMetric refkeeper instance if it is not registered already
+	 * @param metricId The long hash code of the metric
+	 * @param otMetric The OTMetric to keep a reference for
+	 * @return Null if no mapping already existed, the OTMetric for the passed key if one did
+	 */
+	public OTMetric putRefKeeperIfAbsent(final long metricId, final OTMetric otMetric) {
+		return refKeeper.putIfAbsent(metricId, otMetric);
+	}
+	
+	/**
+	 * Puts an OTMetric refkeeper instance
+	 * @param metricId The long hash code of the metric
+	 * @param otMetric The OTMetric to keep a reference for
+	 * @return The prior OTMetric bound to the key or null if no mapping existed
+	 */
+	public OTMetric putRefKeeper(final long metricId, final OTMetric otMetric) {
+		return refKeeper.put(metricId, otMetric);
+	}
+	
+	/**
+	 * Returns the SwapMap for the passed measurement map
+	 * @param mask The mask to get a SwapMap for
+	 * @return the SwapMap
+	 */
+	public Map<Measurement, Integer> getSwapMap(final int mask) {
+		Map<Measurement, Integer> swapMap = swapMaps.get(mask);
+		if(swapMap==null) {
+			synchronized(swapMaps) {
+				swapMap = swapMaps.get(mask);
+				if(swapMap==null) {
+					swapMap = Collections.unmodifiableMap(Measurement.getSwapMap(mask));
+					swapMaps.put(mask, swapMap);					
+				}
+			}
+		}
+		return swapMap;
+	}
+	
+	/**
+	 * Renders the current state of the aggregated metrics to a formated string
+	 * @return the metric report
+	 */
+	@SuppressWarnings("rawtypes")
+	public String renderMetrics() {
+		final StringBuilder b = new StringBuilder("=====================================");
+		final IteratorLong il = (IteratorLong)aggregateMetrics.keySet().iterator();
+		while(il.hasNext()) {
+			final long metricId = il.nextLong();
+			final Map<Measurement, Metric> metricMap = aggregateMetrics.get(metricId);
+			final OTMetric metric = getOTMetric(metricId);
+			b.append("\nMetric:").append(metric.toString());
+			for(Map.Entry<Measurement, Metric> entry: metricMap.entrySet()) {
+				b.append("\n\t").append(entry.getKey().shortName).append(":").append(print(entry.getValue()));
+			}
+		}
+		return b.toString();
+	}
+	
+	protected String print(final Metric metric) {
+		final Map<String, Object> values = new HashMap<String, Object>();
+		String type = "Unknown:";
+		if(metric instanceof Gauge) {
+			values.put("value", ((Gauge)metric).getValue());
+			type = "Gauge:";
+		} else if(metric instanceof Histogram) {
+			type = "Histogram:";
+			Histogram hist = (Histogram)metric;
+			Snapshot snap = hist.getSnapshot();
+			values.put("max", snap.getMax());
+			values.put("min", snap.getMin());
+			values.put("med", snap.getMedian());
+			values.put("mean", snap.getMean());
+		} else if(metric instanceof Timer) {
+			type = "Timer:";
+			Timer timer = (Timer)metric;
+			values.put("count", timer.getCount());
+			values.put("15m", timer.getFifteenMinuteRate());
+			values.put("5m", timer.getFiveMinuteRate());
+			values.put("1m", timer.getOneMinuteRate());
+			values.put("meanRate", timer.getMeanRate());
+			Snapshot snap = timer.getSnapshot();
+			values.put("max", snap.getMax());
+			values.put("min", snap.getMin());
+			values.put("med", snap.getMedian());
+			values.put("mean", snap.getMean());
+			values.put("stdev", snap.getStdDev());
+			values.put("75pct", snap.get75thPercentile());
+			values.put("95pct", snap.get95thPercentile());
+			values.put("98pct", snap.get98thPercentile());
+			values.put("99pct", snap.get99thPercentile());
+			values.put("999pct", snap.get999thPercentile());			
+		} else if(metric instanceof Counter) {
+			type = "Counter:";
+			Counter counter = (Counter)metric;
+			values.put("count", counter.getCount());
+		} else if(metric instanceof Meter) {
+			type = "Meter:";
+			Meter meter = (Meter)metric;
+			values.put("count", meter.getCount());
+			values.put("15m", meter.getFifteenMinuteRate());
+			values.put("5m", meter.getFiveMinuteRate());
+			values.put("1m", meter.getOneMinuteRate());
+			values.put("meanRate", meter.getMeanRate());
+		}				
+		return type + values.toString();
+	}
+	
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCacheMBean#getSwapMapCount()
+	 */
+	@Override
+	public int getSwapMapCount() {
+		return swapMaps.size();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCacheMBean#getMetricMapCount()
+	 */
+	@Override
+	public int getMetricMapCount() {
+		return aggregateMetrics.size();
+	}
+	
+	
+	/**
+	 * Returns a map of Metrics keyed by the measurement type for the sub-metrics of the passed parent metric id
+	 * @param parentMetricId The parent metric id
+	 * @return the metric map
+	 */
+	public Map<Measurement, Metric> getMetricMap(final long parentMetricId) {
+		Map<Measurement, Metric> metricMap = aggregateMetrics.get(parentMetricId);
+		if(metricMap==null) {
+			synchronized(aggregateMetrics) {
+				metricMap = aggregateMetrics.get(parentMetricId);
+				if(metricMap==null) {
+					metricMap = new EnumMap<Measurement, Metric>(Measurement.class);
+					final OTMetric parentMetric = getOTMetric(parentMetricId);
+					for(Measurement m: parentMetric.getMeasurements()) {
+						MetricBuilder.metric(parentMetric).tag("m", m.shortName).parent(parentMetricId).optBuild();
+						metricMap.put(m, m.chMetric.createNewMetric());
+					}
+					aggregateMetrics.put(parentMetricId, metricMap);
+					
+				}
+			}
+		}
+		return metricMap;
+	}
+	
 
 	/**
 	 * <p>Title: OTMetricIdListener</p>

@@ -99,17 +99,6 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 	
 	
 	
-	// ==================================================================================================
-	//		Temp Dev Constructs
-	// ==================================================================================================
-	/** The aggregate metrics */
-	protected final NonBlockingHashMapLong<Map<Measurement, Metric>> aggregateMetrics = new NonBlockingHashMapLong<Map<Measurement, Metric>>();
-	/** Keeps references for metrics in play */
-	protected final NonBlockingHashMapLong<OTMetric> refKeeper = new NonBlockingHashMapLong<OTMetric>();
-	/** Keeps a cache of swap maps */
-	protected final NonBlockingHashMapLong<Map<Measurement, Integer>> swapMaps = new NonBlockingHashMapLong<Map<Measurement, Integer>>();
-
-	// ==================================================================================================
 	
 	/** The buffer metrics are appended to */
 	protected ChannelBuffer metricBuffer = bufferFactory.getBuffer(4096);
@@ -180,22 +169,17 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 						for(long[] valueArr: submissions) {
 							final long metricId = valueArr[1];
 							final OTMetric otMetric = otCache.getOTMetric(metricId);
-							if(refKeeper.putIfAbsent(metricId, otMetric)==null) {
+							if(otCache.putRefKeeperIfAbsent(metricId, otMetric)==null) {
 								for(Measurement m: otMetric.getMeasurements()) {
 									final OTMetric subMetric = MetricBuilder.metric(otMetric, true).tag("submetric", m.shortName).measurement(m).optBuild();
-									refKeeper.put(subMetric.longHashCode(), subMetric);
+									otCache.putRefKeeper(subMetric.longHashCode(), subMetric);
 								}
 							}
 							final int mask = (int)valueArr[0];
-							Map<Measurement, Integer> swapMap = getSwapMap(mask);
+							Map<Measurement, Integer> swapMap = otCache.getSwapMap(mask);
 //							log.info(printSwapMap(mask, swapMap, valueArr));
-							Map<Measurement, Metric> metricMap = aggregateMetrics.get(metricId);
-							if(metricMap==null) {
-								metricMap = ValueArrayAggregator.aggregate(valueArr, swapMap, metricMap);
-								aggregateMetrics.put(metricId, metricMap);
-							} else {
-								ValueArrayAggregator.aggregate(valueArr, swapMap, aggregateMetrics.get(metricId));
-							}
+							final Map<Measurement, Metric> metricMap = otCache.getMetricMap(metricId);
+							ValueArrayAggregator.aggregate(valueArr, swapMap, metricMap);
 						}
 					} catch (InterruptedException iex) {
 						if(inputInProgress.get()) {
@@ -214,33 +198,6 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 	}
 	
 	
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.sink.IMetricSink#getSwapMapCount()
-	 */
-	@Override
-	public int getSwapMapCount() {
-		return swapMaps.size();
-	}
-	
-	/**
-	 * Returns the SwapMap for the passed measurement map
-	 * @param mask The mask to get a SwapMap for
-	 * @return the SwapMap
-	 */
-	public Map<Measurement, Integer> getSwapMap(final int mask) {
-		Map<Measurement, Integer> swapMap = swapMaps.get(mask);
-		if(swapMap==null) {
-			synchronized(swapMaps) {
-				swapMap = swapMaps.get(mask);
-				if(swapMap==null) {
-					swapMap = Collections.unmodifiableMap(Measurement.getSwapMap(mask));
-					swapMaps.put(mask, swapMap);					
-				}
-			}
-		}
-		return swapMap;
-	}
 	
 	protected String printSwapMap(final int mask, final Map<Measurement, Integer> swapMap, final long[] valueArray) {
 		final StringBuilder b = new StringBuilder("\n\t=============================================\n\tSwapMap for Mask:").append(mask).append("\n\t=============================================");
@@ -307,14 +264,6 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 		return inputQueue.remainingCapacity();
 	}
 	
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.sink.MetricSinkMBean#getMetricMapCount()
-	 */
-	@Override
-	public int getMetricMapCount() {
-		return aggregateMetrics.size();
-	}
 	
 	/**
 	 * {@inheritDoc}
@@ -334,74 +283,6 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 		return fullQueueDrops.longValue();
 	}
 	
-	/**
-	 * Renders the current state of the aggregated metrics to a formated string
-	 * @return the metric report
-	 */
-	public String renderMetrics() {
-		final StringBuilder b = new StringBuilder("=====================================");
-		//NonBlockingHashMapLong<Map<Measurement, Metric>> aggregateMetrics
-		final IteratorLong il = (IteratorLong)aggregateMetrics.keySet().iterator();
-		while(il.hasNext()) {
-			final long metricId = il.nextLong();
-			final Map<Measurement, Metric> metricMap = aggregateMetrics.get(metricId);
-			final OTMetric metric = otCache.getOTMetric(metricId);
-			b.append("\nMetric:").append(metric.toString());
-			for(Map.Entry<Measurement, Metric> entry: metricMap.entrySet()) {
-				b.append("\n\t").append(entry.getKey().shortName).append(":").append(print(entry.getValue()));
-			}
-		}
-		return b.toString();
-	}
-	
-	protected String print(final Metric metric) {
-		final Map<String, Object> values = new HashMap<String, Object>();
-		String type = "Unknown:";
-		if(metric instanceof Gauge) {
-			values.put("value", ((Gauge)metric).getValue());
-			type = "Gauge:";
-		} else if(metric instanceof Histogram) {
-			type = "Histogram:";
-			Histogram hist = (Histogram)metric;
-			Snapshot snap = hist.getSnapshot();
-			values.put("max", snap.getMax());
-			values.put("min", snap.getMin());
-			values.put("med", snap.getMedian());
-			values.put("mean", snap.getMean());
-		} else if(metric instanceof Timer) {
-			type = "Timer:";
-			Timer timer = (Timer)metric;
-			values.put("count", timer.getCount());
-			values.put("15m", timer.getFifteenMinuteRate());
-			values.put("5m", timer.getFiveMinuteRate());
-			values.put("1m", timer.getOneMinuteRate());
-			values.put("meanRate", timer.getMeanRate());
-			Snapshot snap = timer.getSnapshot();
-			values.put("max", snap.getMax());
-			values.put("min", snap.getMin());
-			values.put("med", snap.getMedian());
-			values.put("mean", snap.getMean());
-			values.put("stdev", snap.getStdDev());
-			values.put("75pct", snap.get75thPercentile());
-			values.put("95pct", snap.get95thPercentile());
-			values.put("98pct", snap.get98thPercentile());
-			values.put("99pct", snap.get99thPercentile());
-			values.put("999pct", snap.get999thPercentile());			
-		} else if(metric instanceof Counter) {
-			type = "Counter:";
-			Counter counter = (Counter)metric;
-			values.put("count", counter.getCount());
-		} else if(metric instanceof Meter) {
-			type = "Meter:";
-			Meter meter = (Meter)metric;
-			values.put("count", meter.getCount());
-			values.put("15m", meter.getFifteenMinuteRate());
-			values.put("5m", meter.getFiveMinuteRate());
-			values.put("1m", meter.getOneMinuteRate());
-			values.put("meanRate", meter.getMeanRate());
-		}				
-		return type + values.toString();
-	}
 	
 	
 	/**
@@ -441,6 +322,15 @@ public class MetricSink implements Runnable, IMetricSink, MetricSinkMBean {
 	}
 	
 	protected void flush() {
+	}
+
+	/**
+	 * Returns the swap map for the passed mask
+	 * @param mask The mask to get a swap map for
+	 * @return the swap map
+	 */
+	public Map<Measurement, Integer> getSwapMap(final int mask) {
+		return otCache.getSwapMap(mask);
 	}
 	
 //	public long instrument(final Method method, final String namingPattern, final int measurementMask, final int subMetricMask) {

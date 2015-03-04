@@ -43,11 +43,6 @@ public interface IMetricSink {
 	public AtomicInteger getConcurrencyCounter(final long parentMetricId);
 	
 	
-	/**
-	 * Returns the number of cached SwapMaps
-	 * @return the number of cached SwapMaps
-	 */
-	public int getSwapMapCount();
 	
 
 }
