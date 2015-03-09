@@ -47,6 +47,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,6 +58,7 @@ import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanInfo;
 import javax.management.MBeanNotificationInfo;
 import javax.management.MBeanServer;
+import javax.management.MBeanServerBuilder;
 import javax.management.MBeanServerConnection;
 import javax.management.MBeanServerDelegate;
 import javax.management.MBeanServerFactory;
@@ -144,6 +146,52 @@ public class JMXHelper {
 	/** The legacy debug agent library */
 	public static final String LEGACY_AGENT_LIB = "-Xrunjdwp:";
 	
+	/** The system property where one might find the MBeanServerBuilder class name */
+	public static final String BUILDER_CLASS_NAME_PROP = "javax.management.builder.initial";
+	
+	/** A retained reference to the Helios MBeanServer */
+	private static final AtomicReference<MBeanServer> HELIOS_MBEANSERVER = new AtomicReference<MBeanServer>(null); 
+	/** The known system install mbeanserver builder classloader */
+	private static final AtomicReference<ClassLoader> MBEANSERVER_BUILDER = new AtomicReference<ClassLoader>(null);
+	
+	/**
+	 * Sets the Helios MBeanServer if it is not already set
+	 * @param server The server to set
+	 */
+	public static void setHeliosMBeanServer(final MBeanServer server) {
+		if(server!=null) {
+			HELIOS_MBEANSERVER.compareAndSet(null, server);
+		}
+	}
+	
+	protected static void findMBeanServerBuilder() {
+		if(MBEANSERVER_BUILDER.get()!=null) return;
+		final String builderClassName = System.getProperty(BUILDER_CLASS_NAME_PROP);
+		if(builderClassName==null) {
+			MBEANSERVER_BUILDER.set(MBeanServerBuilder.class.getClassLoader());
+			return;
+		}
+		try {
+			Class<MBeanServerBuilder> clazz = (Class<MBeanServerBuilder>) Class.forName(builderClassName);
+			MBEANSERVER_BUILDER.set(clazz.getClassLoader());
+		} catch (Exception ex) {
+			/* No Op */
+		}
+		if(MBEANSERVER_BUILDER.get()!=null) return;
+		for(MBeanServer server: MBeanServerFactory.findMBeanServer(null)) {
+			final ClassLoader cl = Thread.currentThread().getContextClassLoader();
+			try {
+				Thread.currentThread().setContextClassLoader(server.getClass().getClassLoader());
+				Class<MBeanServerBuilder> clazz = (Class<MBeanServerBuilder>) Thread.currentThread().getContextClassLoader().loadClass(builderClassName);
+				MBEANSERVER_BUILDER.set(clazz.getClassLoader());
+				return;
+			} catch (Exception ex) {
+				continue;
+			} finally {
+				Thread.currentThread().setContextClassLoader(cl);
+			}
+		}
+	}
 	
 	
 	/**
@@ -178,8 +226,7 @@ public class JMXHelper {
 	 * @return a new JMXServiceURL
 	 */
 	public static JMXServiceURL serviceUrl(String format, Object...args) {		
-		try {
-			
+		try {			
 			return new JMXServiceURL(String.format(format, args));
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to create JMXServiceURL for [" + format +  "]", ex);
@@ -191,14 +238,18 @@ public class JMXHelper {
 	 * @return An MBeanServer.
 	 */
 	public static MBeanServer getHeliosMBeanServer() {
-		MBeanServer server = null;
+		MBeanServer server = HELIOS_MBEANSERVER.get();
+		if(server!=null) return server;
+		boolean sethmbs = false;
 		String jmxDomain = ConfigurationReader.conf(Constants.PROP_JMX_DOMAIN_PROPERTY, Constants.DEFAULT_JMX_DOMAIN_PROPERTY);
 		if(jmxDomain!=null) {
 			server = getLocalMBeanServer(jmxDomain, true);
+			sethmbs = true;
 		}
 		if(server==null) {
-			return ManagementFactory.getPlatformMBeanServer();
+			server = ManagementFactory.getPlatformMBeanServer();
 		}		
+		if(server!=null && sethmbs) setHeliosMBeanServer(server); 
 		return server;
 	}
 	
@@ -464,17 +515,25 @@ public class JMXHelper {
 	 * @return The located MBeanServerConnection or null if one cannot be found and returnNullIfNotFound is true. 
 	 */
 	public static MBeanServer getLocalMBeanServer(String domain, boolean returnNullIfNotFound) {
-		if(domain==null || domain.equals("") || domain.equalsIgnoreCase("DefaultDomain") || domain.equalsIgnoreCase("Default")) {
-			return ManagementFactory.getPlatformMBeanServer();
+		findMBeanServerBuilder();
+		final ClassLoader cl = MBEANSERVER_BUILDER.get();
+		final ClassLoader crnt = Thread.currentThread().getContextClassLoader();
+		if(cl!=null) Thread.currentThread().setContextClassLoader(cl);
+		try {
+			if(domain==null || domain.equals("") || domain.equalsIgnoreCase("DefaultDomain") || domain.equalsIgnoreCase("Default")) {
+				return ManagementFactory.getPlatformMBeanServer();
+			}
+			List<MBeanServer> servers = MBeanServerFactory.findMBeanServer(null);
+			for(MBeanServer server: servers) {
+				if(server.getDefaultDomain().equals(domain)) return server;
+			}
+			if(returnNullIfNotFound) {
+				return null;
+			}
+			throw new RuntimeException("No MBeanServer located for domain [" + domain + "]");
+		} finally {
+			Thread.currentThread().setContextClassLoader(crnt);
 		}
-		List<MBeanServer> servers = MBeanServerFactory.findMBeanServer(null);
-		for(MBeanServer server: servers) {
-			if(server.getDefaultDomain().equals(domain)) return server;
-		}
-		if(returnNullIfNotFound) {
-			return null;
-		}
-		throw new RuntimeException("No MBeanServer located for domain [" + domain + "]");
 	}
 	
 	/**

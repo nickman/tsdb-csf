@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<csf-config>
+<csf-config domain="com.heliosapm">
 	<sysprops><![CDATA[
 		tsdb.http.compression.enabled=false
 		tsdb.http.tsdb.url=http://pdk-pt-cetsd-01:8080
@@ -12,5 +12,6 @@
 	</lite-instrumentation>
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
+		<server port="1901" iface="0.0.0.0" jmxdomain="com.heliosapm"/>
 	</jmxmp>
 </csf-config>

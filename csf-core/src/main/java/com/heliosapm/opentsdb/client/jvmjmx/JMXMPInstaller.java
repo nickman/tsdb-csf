@@ -67,6 +67,7 @@ public class JMXMPInstaller {
 				final Map<String, String> env = new HashMap<String, String>();
 				env.put(JMXMPConnectorServer.SERVER_ADDRESS_WILDCARD, "" + isWildcardAddress(iface));
 				JMXMPConnectorServer jmxmpServer = new JMXMPConnectorServer(surl, env, mbs);
+				// FIXME:  start in daemon thread
 				jmxmpServer.start();
 				log("Started JMXMP Server on [%s]", surl);
 			} catch (Exception ex) {

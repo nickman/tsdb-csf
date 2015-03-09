@@ -17,6 +17,7 @@ package com.heliosapm.opentsdb.client.boot;
 
 import java.io.StringReader;
 import java.lang.instrument.Instrumentation;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -24,9 +25,12 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
+import javax.management.MBeanServerFactory;
+import javax.management.remote.JMXServiceURL;
 
 import org.w3c.dom.Node;
 
+import com.heliosapm.opentsdb.client.util.HeliosMBeanServer;
 import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.URLHelper;
 import com.heliosapm.opentsdb.client.util.XMLHelper;
@@ -47,6 +51,12 @@ public class XMLLoader {
 	/** The default instrumentation provider package */
 	public static final String DEFAULT_INSTR_PACKAGE = "com.heliosapm.opentsdb.instrumentation";
 	
+	/** The MBeanServer tsf will deploy it's MBeans to */
+	public static MBeanServer deploymentMBeanServer = null;
+	/** The HeiosMBeanServer if one was created  */
+	public static Object heliosMBeanServer = null;
+
+	
 	/**
 	 * Boots the XMLConfig
 	 * @param source The soure of the XML. Can be a URL, URI or file name
@@ -60,15 +70,45 @@ public class XMLLoader {
 		}
 		try {
 			final Node configRoot = XMLHelper.parseXML(url).getDocumentElement();
+			final String heliosDomain = XMLHelper.getAttributeByName(configRoot, "domain", "com.heliosapm");
+			for(MBeanServer mbs: MBeanServerFactory.findMBeanServer(null)) {
+				String dd = mbs.getDefaultDomain();
+				if(dd==null) dd = "DefaultDomain";
+				if(heliosDomain.equals(dd)) {
+					deploymentMBeanServer = mbs;
+					break;
+				}
+			}						
+			if(deploymentMBeanServer==null) {
+				createHeliosMBean(heliosDomain);
+			}
+			System.setProperty("tsdb.jmx.server.domain", heliosDomain);
+			
+			
+			
 			loadSysProps(XMLHelper.getChildNodeByName(configRoot, "sysprops"));
 			initLogging();
 			jmxmpServer(configRoot);
 			initJmxCollector(configRoot);
-			initAop(configRoot);			
-			
+			initAop(configRoot);						
 		} catch (Exception ex) {
 			loge("Failed to parse configuration [%s]. Stack trace follows:", url);
 			ex.printStackTrace(System.err);
+		}
+	}
+	
+	/**
+	 * Creates a seperate helios domain MBeanServer
+	 * @param domain The default domain of the new MBeanServer
+	 */
+	protected static void createHeliosMBean(final String domain) {
+		try {
+			Class<?> clazz = Class.forName("com.heliosapm.opentsdb.client.util.HeliosMBeanServer");
+			Constructor<?> ctor = clazz.getDeclaredConstructor(String.class, boolean.class, JMXServiceURL.class);
+			heliosMBeanServer = ctor.newInstance(domain, true, null);
+			deploymentMBeanServer = (MBeanServer)clazz.getDeclaredMethod("getMBeanServer").invoke(heliosMBeanServer);
+		} catch (Exception ex) {
+			throw new RuntimeException(ex);
 		}
 	}
 	
@@ -213,6 +253,8 @@ public class XMLLoader {
 	public static void initLogging() {
 		log("Initializing Agent Logging...");
 		try {
+			final Class<?> log4jServerClazz = Class.forName("org.apache.logging.log4j.core.jmx.Server");
+			log4jServerClazz.getDeclaredMethod("reregisterMBeansAfterReconfigure", MBeanServer.class).invoke(null, deploymentMBeanServer);
 			final Class<?> logConfClazz = Class.forName("com.heliosapm.opentsdb.client.logging.LoggingConfiguration");
 			logConfClazz.getDeclaredMethod("getInstance").invoke(null);
 			log("Initialized tsdb-csf Logging");

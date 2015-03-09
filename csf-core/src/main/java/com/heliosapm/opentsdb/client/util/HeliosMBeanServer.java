@@ -22,6 +22,8 @@ import java.lang.management.MemoryPoolMXBean;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.MBeanServer;
@@ -32,8 +34,6 @@ import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXConnectorServerFactory;
 import javax.management.remote.JMXServiceURL;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * <p>Title: HeliosMBeanServer</p>
@@ -46,8 +46,6 @@ import org.apache.logging.log4j.Logger;
  */
 
 public class HeliosMBeanServer {
-	/** Instance logger */
-	protected final Logger log = LogManager.getLogger(getClass());
 	/** The MBeanServer's default domain */
 	protected final String defaultDomain;
 	/** The optional remoting URL to define the connector server to start */
@@ -63,10 +61,19 @@ public class HeliosMBeanServer {
 	/** The NIO Buffer Pool MX Domain Type */
 	public static final String NIO_BUFFER_POOL_MXBEAN_DOMAIN_TYPE = "java.nio:type=BufferPool";
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) {		
 		try {			
-			new HeliosMBeanServer("com.heliosapm", true, new JMXServiceURL("service:jmx:jmxmp://localhost:9091"));
-			Thread.currentThread().join();
+			HeliosMBeanServer hms = new HeliosMBeanServer("com.heliosapm", true, new JMXServiceURL("service:jmx:jmxmp://localhost:9091"));
+			System.out.println("STARTED:\nMBeanServers:");
+			for(MBeanServer m: MBeanServerFactory.findMBeanServer(null)) {
+				System.out.println("\t" + m.getDefaultDomain());
+			}
+			hms.stop();
+			System.out.println("STOPPED:\nMBeanServers:");
+			for(MBeanServer m: MBeanServerFactory.findMBeanServer(null)) {
+				System.out.println("\t" + m.getDefaultDomain());
+			}			
+			//Thread.currentThread().join();
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 			System.exit(-1);
@@ -88,19 +95,61 @@ public class HeliosMBeanServer {
 			Constructor<? extends MBeanServer> ctor = clazz.getDeclaredConstructor(String.class, MBeanServer.class, MBeanServerDelegate.class, boolean.class);
 			ctor.setAccessible(true);
 			mbs = ctor.newInstance(defaultDomain, null,  new MBeanServerDelegate(), true);
-			// TODO:
-			// stop
-			// unregister
+			JMXHelper.setHeliosMBeanServer(mbs);
 			registerMXBeans();
-			log.info("Registered MXBeans");
-			remotingServer = startConnectorServer();
-			log.info("Started JMXConnectorServer on [{}]", remotingUrl);
+			log("Registered MXBeans");
+			remotingServer = startConnectorServer();			
+			List<MBeanServer> servers = MBeanServerFactory.findMBeanServer(null);
+			for(MBeanServer server: servers) {
+				String dd = server.getDefaultDomain();
+				if(dd==null || dd.trim().isEmpty()) dd = "DefaultDomain";
+				log("Registered MBeanServer [%s]", dd);
+				log("\tClass: %s", server.getClass().getName());
+				log("\tClassLoader: %s", server.getClass().getClassLoader());
+			}
 			if(register) {
 				registerMBeanServer();
 			}
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to create HeliosMBeanServer[" + defaultDomain + "]", ex);
 		}
+	}
+	
+	/**
+	 * System out pattern logger
+	 * @param fmt The message format
+	 * @param args The tokens
+	 */
+	public static void log(final Object fmt, final Object...args) {
+		System.out.println(String.format(fmt.toString(), args));
+	}	
+	
+	/**
+	 * Returns the created MBeanServer
+	 * @return the created MBeanServer
+	 */
+	public MBeanServer getMBeanServer() {
+		return mbs;
+	}
+	
+	/**
+	 * Stops the connector server and disposes the MBeanServer.
+	 */
+	public void stop() {		
+		for(ObjectName on: mbs.queryNames(JMXHelper.objectName("*:*"), null)) {
+			if(on.equals(MBeanServerDelegate.DELEGATE_NAME)) continue;
+			try {
+				mbs.unregisterMBean(on);
+			} catch (Exception x) {/* No Op */}
+		}
+		try {
+			mbs.unregisterMBean(MBeanServerDelegate.DELEGATE_NAME);
+		} catch (Exception x) {/* No Op */}
+		try {
+			MBeanServerFactory.releaseMBeanServer(mbs);
+		} catch (Exception x) {/* No Op */}
+		if(remotingServer!=null) try { remotingServer.stop(); } catch (Exception x) {/* No Op */}
+
 	}
 	
 	/**
@@ -180,12 +229,36 @@ public class HeliosMBeanServer {
 	 */
 	protected JMXConnectorServer startConnectorServer() {
 		if(remotingUrl!=null) {
+			final CountDownLatch latch = new CountDownLatch(1);
+			final JMXConnectorServer[] server = new JMXConnectorServer[1];
+			final Thread t = new Thread("JMXConnectorServerDaemon Starter") {
+				public void run() {
+					try {
+						JMXConnectorServer remotingServer = JMXConnectorServerFactory.newJMXConnectorServer(remotingUrl, null, mbs);
+						remotingServer.start();
+						server[0] = remotingServer;
+					} catch (Exception ex) {
+						ex.printStackTrace(System.err);				
+					} finally {
+						latch.countDown();
+					}
+				}
+			};
+			t.setDaemon(true);
+			t.start();
 			try {
-				JMXConnectorServer remotingServer = JMXConnectorServerFactory.newJMXConnectorServer(remotingUrl, null, mbs);
-				remotingServer.start();
-				return remotingServer;
-			} catch (Exception ex) {
-				ex.printStackTrace(System.err);				
+				if(!latch.await(5, TimeUnit.SECONDS)) {
+					log("ERROR: Timed out waiting for JMXConnectorServer to start on [%s]", remotingUrl);
+				} else {
+					if(server[0]==null) {
+						log("ERROR: JMXConnectorServer was null on start completion. Programmer error ?");						
+					} else {
+						log("Started JMXConnectorServer on [%s]", remotingUrl);
+						return server[0];
+					}
+				}
+			} catch (InterruptedException iex) {
+				log("ERROR: Thread interrupted while waiting for JMXConnectorServer to start on [%s]", remotingUrl);
 			}
 		}
 		return null;

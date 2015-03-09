@@ -53,6 +53,9 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 	/** A map of the derived OS merics keyed by the attribute name */
 	protected final Map<String, OTMetric> otDerivedMetrics;
 	
+	/** The number of processors available to the target JVM */
+	protected int processorCount = 1;
+	
 	/** A map of all the values keyed by the OS attribute enum member */
 	protected final Map<OperatingSystemAttribute, Number> attributeValues = new EnumMap<OperatingSystemAttribute, Number>(OperatingSystemAttribute.class);
 	
@@ -100,8 +103,8 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 	 */
 	public OperatingSystemCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
 		super(mbeanServerConn, OPERATING_SYSTEM_MXBEAN, tags, publishObserverMBean);		
-		final EnumSet<OperatingSystemAttribute> enabled = OperatingSystemAttribute.getEnabledNonOneTimers(attributeNames);
-				
+		final EnumSet<OperatingSystemAttribute> enabled = OperatingSystemAttribute.getEnabledNonOneTimers(attributeNames);		
+		processorCount = (Integer)mbs.getAttribute(OPERATING_SYSTEM_MXBEAN.objectName, "AvailableProcessors");
 		enabledOneTimers = OperatingSystemAttribute.getEnabledOneTimers(attributeNames);
 		final EnumSet<OperatingSystemAttribute> allEnabled = EnumSet.copyOf(enabled);
 		allEnabled.addAll(enabledOneTimers);
@@ -165,7 +168,7 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 		for(Map.Entry<String, OTMetric> entry: otMetrics.entrySet()) {
 			OTMetric otm = entry.getValue();
 			Object value = osValues.get(entry.getKey());
-			log.info("Tracing [{}] for metric [{}]  with key [{}]", value, otm, entry.getKey());
+			log.debug("Tracing [{}] for metric [{}]  with key [{}]", value, otm, entry.getKey());
 			entry.getValue().trace(currentTime, osValues.get(entry.getKey()));
 		}
 		try {
