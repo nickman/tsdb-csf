@@ -14,4 +14,12 @@
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
 		<server port="1901" iface="0.0.0.0" jmxdomain="com.heliosapm"/>
 	</jmxmp>
+	<customjmx freq="5">
+		<mbeanserver domain="DefaultDomain" prefix="Hadoop:service=HBase">
+			<monitor objectName="name=*">
+				<attributes include="" exclude="" numericsonly="true" />
+				<keys pattern="tag\.(.*)?" delim="" include="" exclude=""/>
+			</monitor>
+		</mbeanserver>
+	</customjmx> 
 </csf-config>
