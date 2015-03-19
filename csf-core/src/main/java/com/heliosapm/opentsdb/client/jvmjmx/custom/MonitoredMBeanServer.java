@@ -15,7 +15,12 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.custom;
 
+import javax.management.MBeanServer;
+
 import org.w3c.dom.Node;
+
+import com.heliosapm.opentsdb.client.util.JMXHelper;
+import com.heliosapm.opentsdb.client.util.XMLHelper;
 
 /**
  * <p>Title: MonitoredMBeanServer</p>
@@ -37,9 +42,39 @@ public class MonitoredMBeanServer {
 	</customjmx> 
 
  */
+	/** The monitored mbeanserver */
+	final MBeanServer server;
+	/** The monitored mbeanserver's default domain name */
+	final String defaultDomain;
+	/** The default object name prefix for mbean monitors operating against this mbean server */
+	String defaultPrefix = "";
 
-	MonitoredMBeanServer(final Node configNode) {
-		
+	/**
+	 * Creates a new MonitoredMBeanServer
+	 * @param configNode the XML configuration node
+	 */
+	MonitoredMBeanServer(final Node configNode) {	
+		if(configNode==null) throw new IllegalArgumentException("The passed configuration node was null");
+		defaultDomain = XMLHelper.getAttributeByName(configNode, "domain", "DefaultDomain");
+		server = JMXHelper.getLocalMBeanServer(defaultDomain, false);
+		configure(configNode, true);
+	}
+	
+	/**
+	 * Introduces a new configuration
+	 * @param configNode The XML configuration node 
+	 * @param init true if this is the first call, false if it is a refresh
+	 */
+	void configure(final Node configNode, final boolean init) {
+		if(configNode==null) throw new IllegalArgumentException("The passed configuration node was null");
+	}
+	
+	/**
+	 * Called when this monitored mbean server is no longer needed, which can be at shutdown, agent removal or a refreshed
+	 * configuration which did not configure this targetted mbeanserver.
+	 */
+	void shutdown() {
+		// TODO:
 	}
 	
 }

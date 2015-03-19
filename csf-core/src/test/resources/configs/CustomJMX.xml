@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<csf-config domain="com.heliosapm">
+	<sysprops><![CDATA[
+		tsdb.http.compression.enabled=false
+		tsdb.http.tsdb.url=http://pdk-pt-cetsd-01:8080
+		tsdb.id.app=ecs
+	]]></sysprops>
+	<platform-mbeanobserver period="5" mbeans="true" />
+	<lite-instrumentation>
+		<instrumentation class="com.heliosapm.opentsdb.instrumentation.JBossAOPInstrumentationProvider"/>
+		<cftransformerfix/>
+	</lite-instrumentation>
+	<jmxmp>
+		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
+		<server port="1901" iface="0.0.0.0" jmxdomain="com.heliosapm"/>
+	</jmxmp>
+	<custom-jmx>
+		<domain jmxdomain="jboss">
+		</domain>
+	</custom-jmx>
+</csf-config>
