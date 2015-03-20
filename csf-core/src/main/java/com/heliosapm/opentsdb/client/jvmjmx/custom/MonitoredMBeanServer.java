@@ -15,6 +15,9 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.custom;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import javax.management.MBeanServer;
 
 import org.w3c.dom.Node;
@@ -48,15 +51,22 @@ public class MonitoredMBeanServer {
 	final String defaultDomain;
 	/** The default object name prefix for mbean monitors operating against this mbean server */
 	String defaultPrefix = "";
+	/** The installer defined default period */
+	int defaultPeriod = 15;
+	/** A map of monitors that run against this MBeanServer keyed by the monitor's object name */
+	final Map<String, DefaultMonitor> monitors = new ConcurrentHashMap<String, DefaultMonitor>();
 
 	/**
 	 * Creates a new MonitoredMBeanServer
-	 * @param configNode the XML configuration node
+	 * @param configNode The XML configuration node
+	 * @param defaultPeriod The installer defined default period
+	 * @param customPrefix The installer defined object name prefix
 	 */
-	MonitoredMBeanServer(final Node configNode) {	
+	MonitoredMBeanServer(final Node configNode, final int defaultPeriod) {	
 		if(configNode==null) throw new IllegalArgumentException("The passed configuration node was null");
 		defaultDomain = XMLHelper.getAttributeByName(configNode, "domain", "DefaultDomain");
 		server = JMXHelper.getLocalMBeanServer(defaultDomain, false);
+		this.defaultPeriod = defaultPeriod;
 		configure(configNode, true);
 	}
 	
@@ -67,6 +77,11 @@ public class MonitoredMBeanServer {
 	 */
 	void configure(final Node configNode, final boolean init) {
 		if(configNode==null) throw new IllegalArgumentException("The passed configuration node was null");
+		defaultPrefix = XMLHelper.getAttributeByName(configNode, "prefix", "");
+		for(Node monitorNode: XMLHelper.getChildNodesByName(configNode, "monitor", false)) {
+			DefaultMonitor monitor = new DefaultMonitor(monitorNode, defaultPeriod, defaultPrefix);
+			
+		}
 	}
 	
 	/**

@@ -59,7 +59,7 @@ public class XMLHelper {
 	   * @param name String
 	   * @return String
 	   */
-	  public static String getAttributeValueByName(NamedNodeMap nnm, String name) {
+	  public static String getAttributeValueByName(final NamedNodeMap nnm, final String name) {
 	    for(int i = 0; i < nnm.getLength(); i++) {
 	      Attr attr = (Attr)nnm.item(i);
 	      if(attr.getName().equalsIgnoreCase(name)) {
@@ -68,6 +68,49 @@ public class XMLHelper {
 	    }
 	    return null;
 	  }
+	  
+	/**
+	 * Indicates if the passed node has the named atribute
+	 * @param node The node to inspect
+	 * @param name The name of the attribute to look for
+	 * @return true if the named attribute exists, false otherwise
+	 */
+	  public static boolean hasAttribute(final Node node, final String name) {
+		  if(name==null || node==null) return false;
+		  final NamedNodeMap nnm = node.getAttributes();
+		  for(int i = 0; i < nnm.getLength(); i++) {
+			  Attr attr = (Attr)nnm.item(i);
+			  if(attr.getName().equalsIgnoreCase(name)) {
+				  return true;
+			  }
+		  }
+		  return false;		  
+	  }
+	  
+	/**
+	 * Indicates if the passed node has a child node of the passed name 
+	 * @param element The node to inspect
+	 * @param nodeName The name of the child node to look for
+	 * @param caseSensitive true for a case sensitive node, false for case insensitive
+	 * @return true if the named child node exists, false otherwise
+	 */
+	public static boolean hasChildNodeByName(Node element, CharSequence nodeName, boolean caseSensitive) {
+		if(element==null) return false;
+		if(nodeName==null) return false;
+		final String name = nodeName.toString().trim();
+		if(name.isEmpty()) return false;		
+	    NodeList list = element.getChildNodes();
+	    for(int i = 0; i < list.getLength(); i++) {
+	      Node node = list.item(i);
+	      if(caseSensitive) {
+	        if(node.getNodeName().equals(name)) return true;
+	      } else {
+	        if(node.getNodeName().equalsIgnoreCase(name)) return true;
+	      }
+	    }
+	    return false;
+	  }
+	  
 	  
 	/**
 	 * Returns the attribute value for the passed name in the passed node.

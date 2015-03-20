@@ -109,7 +109,7 @@ public class CustomMBeanMonitorInstaller {
 			MonitoredMBeanServer mmbs = copyOfMBeanServers.remove(dd);
 			try {
 				if(mmbs==null) {
-					this.mbeanServers.put(dd, new MonitoredMBeanServer(mbsNode));
+					this.mbeanServers.put(dd, new MonitoredMBeanServer(mbsNode, defaultPeriod.get()));
 				} else {
 					mmbs.configure(mbsNode, false);
 				}
