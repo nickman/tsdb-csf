@@ -811,6 +811,44 @@ public class RuntimeMBeanServerConnection implements MBeanServerConnection, Noti
     		// or perhaps not registered at all
     	}
     }
+    
+	// ==============================================================================
+	//   MBeanServer only wrapper methods
+	// ==============================================================================
+    
+    /**
+     * Returns the JMX named class loader
+     * @param loaderName The ObjectName of the ClassLoader. May be null, in which case the MBean server's own ClassLoader is returned. 
+     * @return The named ClassLoader.
+     */
+    public ClassLoader getClassLoader(final ObjectName loaderName) {
+    	if(delegate instanceof MBeanServer) {
+    		try {
+    			return ((MBeanServer)delegate).getClassLoader(loaderName);
+    		} catch (Exception ex) {
+    			throw new RuntimeException("Failed to get ClassLoader from ObjectName [" + loaderName + "]", ex);
+    		}
+    	}
+    	throw new RuntimeException("Cannot get classloader for [" + loaderName + "] since delegate is not an MBeanServer");
+    }
+    
+    /**
+     * Returns the ClassLoader that was used for loading the class of the named MBean.
+     * @param mbeanName The ObjectName of the MBean. 
+     * @return The ClassLoader used for that MBean.
+     */
+    public ClassLoader getClassLoaderFor(final ObjectName mbeanName) {
+    	if(mbeanName==null) throw new IllegalArgumentException("The passed ObjectName was null");
+    	if(delegate instanceof MBeanServer) {
+    		try {
+    			return ((MBeanServer)delegate).getClassLoaderFor(mbeanName);
+    		} catch (Exception ex) {
+    			throw new RuntimeException("Failed to get ClassLoader for ObjectName [" + mbeanName + "]", ex);
+    		}
+    	}
+    	throw new RuntimeException("Cannot get classloader for [" + mbeanName + "] since delegate is not an MBeanServer");    	
+    }
+    
 
 
 }
