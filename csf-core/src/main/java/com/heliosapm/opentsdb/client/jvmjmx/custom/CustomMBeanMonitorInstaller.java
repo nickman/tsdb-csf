@@ -15,6 +15,8 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.custom;
 
+import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +27,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Node;
 
+import com.google.common.hash.Funnel;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
+import com.google.common.hash.PrimitiveSink;
+import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.XMLHelper;
 
@@ -55,11 +62,14 @@ public class CustomMBeanMonitorInstaller {
 	
 	/** The default period in seconds */
 	private final AtomicInteger defaultPeriod = new AtomicInteger(15);
-	
+	/** The long hash code for the installer configuration node */
+	private long configHashCode = -1L;
 	/** The map of monitored mbean servers keyed by the default domain of the mbeanserver */
 	private Map<String, MonitoredMBeanServer> mbeanServers = new ConcurrentHashMap<String, MonitoredMBeanServer>(8);
 	/** Instance logger */
 	protected final Logger log = LogManager.getLogger(getClass());
+	
+
 
 	
 	/**
@@ -84,6 +94,7 @@ public class CustomMBeanMonitorInstaller {
 	 * @param configNode The XML configuration node 
 	 */
 	private CustomMBeanMonitorInstaller(final Node configNode) {
+		configHashCode = XMLHelper.longHashCode(configNode);
 		configure(configNode, true);
 		log.info("CustomMBeanMonitorInstaller Started. Installed [{}] MBeanServers and [{}] monitors", mbeanServers.size(), 0);  // FIXME
 	}
@@ -95,6 +106,12 @@ public class CustomMBeanMonitorInstaller {
 	 */
 	void configure(final Node configNode, final boolean init) {
 		if(configNode==null) throw new IllegalArgumentException("The passed configuration node was null");
+		long evalHashCode = -1L;
+		if(!init) {
+			// If we're refreshing the config, but the node hash code is unchanged, we eject.
+			evalHashCode = XMLHelper.longHashCode(configNode);
+			if(evalHashCode == configHashCode) return;
+		}
 		final Map<String, MonitoredMBeanServer> copyOfMBeanServers = new HashMap<String, MonitoredMBeanServer>(mbeanServers);
 		
 		
@@ -125,6 +142,10 @@ public class CustomMBeanMonitorInstaller {
 				mmbs.shutdown();
 				log.info("Stopped monitoring for MBeanServer[{}]", dd);
 			}
+		}
+		copyOfMBeanServers.clear();
+		if(!init && evalHashCode!= -1L) {			
+			configHashCode = evalHashCode;
 		}
 	}
 	

@@ -29,7 +29,6 @@ import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_A
 import static com.heliosapm.opentsdb.client.aop.ShorthandToken.IND_TARGETCLASS_CL;
 
 import java.lang.annotation.Annotation;
-import java.lang.management.ManagementFactory;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -52,10 +51,10 @@ import java.util.regex.Pattern;
 import org.reflections.Reflections;
 import org.reflections.scanners.SubTypesScanner;
 import org.reflections.scanners.TypeAnnotationsScanner;
-import org.reflections.scanners.TypeElementsScanner;
 import org.reflections.util.ConfigurationBuilder;
 
 import com.google.common.collect.Multimap;
+import com.heliosapm.opentsdb.client.classloaders.ClassLoaderRepository;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;

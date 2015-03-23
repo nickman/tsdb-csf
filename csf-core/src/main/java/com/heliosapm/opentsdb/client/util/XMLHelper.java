@@ -18,6 +18,11 @@ package com.heliosapm.opentsdb.client.util;
 import org.w3c.dom.*;
 import org.xml.sax.InputSource;
 
+import com.google.common.hash.Funnel;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
+import com.google.common.hash.PrimitiveSink;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.Transformer;
@@ -27,11 +32,13 @@ import javax.xml.transform.stream.StreamResult;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathFactory;
+
 import java.io.*;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
 import static javax.xml.xpath.XPathConstants.NODE;
 import static javax.xml.xpath.XPathConstants.NODESET;
 /**
@@ -49,6 +56,38 @@ public class XMLHelper {
 			System.setProperty("org.xml.sax.parser", "com.sun.org.apache.xerces.internal.parsers.SAXParser");
 		}		
 	}
+	
+	/** The hashing function to compute hashes for monitor configuration nodes */
+	static final HashFunction MONITOR_HASH = Hashing.murmur3_128();
+	
+	/** The hashing funnel for configuration nodes */
+	static final Funnel<Node> MONITOR_NODE_FUNNEL = new Funnel<Node>() {
+
+		/**  */
+		private static final long serialVersionUID = 7641058557146455113L;
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.google.common.hash.Funnel#funnel(java.lang.Object, com.google.common.hash.PrimitiveSink)
+		 */
+		@Override
+		public void funnel(final Node node, final PrimitiveSink into) {
+	    	 into.putString(XMLHelper.renderNode(node), UTF8);	    	 
+	     }		
+	};
+	
+	
+	
+	/**
+	 * Computes the long hash code for the passed node
+	 * @param node The node to compute the hash code for
+	 * @return the long hash code
+	 */
+	public static long longHashCode(final Node node) {
+		if(node==null) return -1L;
+		return MONITOR_HASH.hashObject(node, MONITOR_NODE_FUNNEL).padToLong();
+	}
+	
 	
 
 
@@ -425,9 +464,19 @@ public class XMLHelper {
 		}				
 	}
 	
-	public static String getNodeTextValue(Node node) {
+	public static String getNodeTextValue(final Node node) {
 		return node.getFirstChild().getNodeValue();
+	}
+	public static String getNodeTextValue(final Node node, final String defaultValue) {
+		try {
+			String text = node.getFirstChild().getNodeValue();
+			if(text==null || text.trim().isEmpty()) return defaultValue;
+			return text.trim();
+		} catch (Exception ex) {
+			return defaultValue;
+		}
 	}	
+	
 	
 	/**
 	 * Locates the element defined by the XPath expression in the XML file and replaces the child text with the passed value.

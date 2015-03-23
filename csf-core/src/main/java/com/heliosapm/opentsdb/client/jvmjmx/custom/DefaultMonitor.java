@@ -15,12 +15,25 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.custom;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
+import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanFeatureInfo;
 import javax.management.MBeanInfo;
+import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.logging.log4j.LogManager;
@@ -29,6 +42,9 @@ import org.jboss.netty.util.Timeout;
 import org.w3c.dom.Node;
 
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
+import com.heliosapm.opentsdb.client.opentsdb.Threading;
+import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.XMLHelper;
 
 /**
@@ -39,7 +55,7 @@ import com.heliosapm.opentsdb.client.util.XMLHelper;
  * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.DefaultMonitor</code></p>
  */
 
-public class DefaultMonitor {
+public class DefaultMonitor implements Runnable {
 /*
 			<monitor objectName="name=*">
 				<attributes include="" exclude="" numericsonly="true" />
@@ -52,11 +68,14 @@ public class DefaultMonitor {
 	
 	/** The collection period in seconds */
 	final AtomicInteger collectionPeriod = new AtomicInteger(15);
-
+	/** The mbeanserver where the mbeans this monitor will poll are registered */
+	final RuntimeMBeanServerConnection rmbs;
+	final MBeanServer mbs;
+	
 	
 	String objectNamePrefix = null;
 	String objectNameSuffix = null;
-	ObjectName tagetObjectName = null;
+	ObjectName targetObjectName = null;
 	
 	boolean numericsOnly = true;
 	String attrInclude = null;
@@ -72,27 +91,60 @@ public class DefaultMonitor {
 	
 	int defaultPeriod = 15;
 	
+	/** The ObjectNames to be polled  */
+	final Set<ObjectName> polledObjectNames = new CopyOnWriteArraySet<ObjectName>();
+	/** The attribute names to be polled for */
+	final Set<String> polledAttributeNames = new CopyOnWriteArraySet<String>();
+	
+	
+	/** The map of attribute values that polling collects into, pre-created to avoid excess object creation */
+	final Map<ObjectName, Map<String, Object>> attrValueMap = new HashMap<ObjectName, Map<String, Object>>();
+	
+	
+	final Map<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>> metaData = new ConcurrentHashMap<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>>();
 	
 	final Map<ObjectName, MBeanInfo> beanInfos = new ConcurrentHashMap<ObjectName, MBeanInfo>();
 	final Map<ObjectName, Map<String, OTMetric>> otMetrics = new ConcurrentHashMap<ObjectName, Map<String, OTMetric>>();
 
 	/** The polling schedule handle */
 	Timeout scheduleHandle = null;
+	/** The long hash code for the monitor configuration node */
+	private long configHashCode = -1L;
+	
+	public static final Pattern TOKEN_PATTERN = Pattern.compile("\\$(.*)?\\{(.*?)\\((\\d+([,-]\\d+)*)\\)\\}");
+	
+	/** The known numeric class names */
+	static final Set<String> KNOWN_NUMERICS = new CopyOnWriteArraySet<String>(Arrays.asList(
+			Byte.class.getName(), Byte.TYPE.getName(),
+			Short.class.getName(), Short.TYPE.getName(),
+			Integer.class.getName(), Integer.TYPE.getName(),
+			Long.class.getName(), Long.TYPE.getName(),
+			Float.class.getName(), Float.TYPE.getName(),
+			Double.class.getName(), Double.TYPE.getName(),
+			BigInteger.class.getName(), BigDecimal.class.getName(),
+			AtomicInteger.class.getName(), AtomicLong.class.getName() 
+	));
+	
+	
+
 	
 	// MetricBuilder.metric(on).ext("classloading.loaded").tags(tags).build();
 	
 	/**
 	 * Creates a new DefaultMonitor
+	 * @param mbs The mbeanserver containing the mbeans this monitor will poll
 	 * @param configNode The configuration node
 	 * @param defaultPeriod The default polling period in seconds
 	 * @param prefix The default object name prefix
 	 */
-	public DefaultMonitor(final Node configNode, final int defaultPeriod, final String prefix) {
+	public DefaultMonitor(final MBeanServer mbs, final Node configNode, final int defaultPeriod, final String prefix) {
 		if(configNode==null) throw new IllegalArgumentException("The passed configuration node was null");
 		objectNamePrefix = prefix;
+		this.mbs = mbs;
+		this.rmbs = RuntimeMBeanServerConnection.newInstance(mbs);
 		this.defaultPeriod = defaultPeriod;
+		configHashCode = XMLHelper.longHashCode(configNode);
 		configure(configNode, true);
-
 	}
 	
 	/**
@@ -102,6 +154,19 @@ public class DefaultMonitor {
 	 */
 	void configure(final Node configNode, final boolean init) {
 		if(configNode==null) throw new IllegalArgumentException("The passed configuration node was null");
+		long evalHashCode = -1L;
+		if(!init) {
+			// If we're refreshing the config, but the node hash code is unchanged, we eject.
+			evalHashCode = XMLHelper.longHashCode(configNode);
+			if(evalHashCode == configHashCode) return;
+		}
+		// =================== ObjectName suffix
+		objectNameSuffix = XMLHelper.getAttributeByName(configNode, "objectName", null);
+		
+		// =================== Collection Period
+		if(XMLHelper.hasAttribute(configNode, "freq")) {
+			collectionPeriod.set(XMLHelper.getAttributeByName(configNode, "freq", defaultPeriod));
+		}
 		// =================== Attr Conf
 		Node attrNode = XMLHelper.getChildNodeByName(configNode, "attributes");		
 		if(attrNode!=null) {
@@ -127,10 +192,178 @@ public class DefaultMonitor {
 		}
 		keyIncludePattern = Pattern.compile(keyInclude);
 		keyExcludePattern = keyExclude==null ? null : Pattern.compile(keyExclude);
-
+		// =================== Build ObjectName Pattern
+		targetObjectName = buildObjectName(configNode);
+		// =================== Get MBeanInfo
+		updateMBeanMeta(configNode);
+		//attrValueMap = new HashMap<ObjectName, Map<String, Object>>(metaData.size());
 		
+		// =================== Calc final attr list to get
+		polledAttributeNames.addAll(getAttributeNames());
+		// =================== Register for MBeanInfo change notif
+		// TODO
+		// =================== Compile metric names
+		
+		// =================== Build OTMetrics
+		// =================== Update the hash code
+		if(!init && evalHashCode!= -1L) {			
+			configHashCode = evalHashCode;
+		}
+		// =================== Schedule
+		scheduleHandle = Threading.getInstance().schedule(this, 1, collectionPeriod.get(), TimeUnit.SECONDS);
+		log.info("Scheduled [{}] for a collection period of [{}] secs.");
 	}
 	
+	/**
+	 * Polls the target MBeans for the configured attribute values
+	 */
+	void poll() {
+		for(ObjectName objectName: polledObjectNames) {
+			Map<String, Object> values = JMXHelper.getAttributes(objectName, polledAttributeNames);
+			attrValueMap.get(objectName).clear();
+			attrValueMap.get(objectName).putAll(values);
+		}
+	}
+	
+	
+	/**
+	 * Updates the MBean meta-data catalog
+	 * @param configNode The monitor configuration node
+	 */
+	void updateMBeanMeta(final Node configNode) {
+		for(final ObjectName on: rmbs.queryNames(targetObjectName, null)) {
+			polledObjectNames.add(on);
+			attrValueMap.put(on, new HashMap<String, Object>());
+			final MBeanInfo info = rmbs.getMBeanInfo(on);
+			beanInfos.put(on, info);
+			Map<MBeanFeature, Map<String, MBeanFeatureInfo>> map = new EnumMap<MBeanFeature, Map<String, MBeanFeatureInfo>>(MBeanFeature.class);
+			for(MBeanFeature mbf: MBeanFeature.values()) {
+				final MBeanFeatureInfo[] finfos = mbf.getFeatures(info);
+				final Map<String, MBeanFeatureInfo> featureInfos = new HashMap<String, MBeanFeatureInfo>();
+				for(MBeanFeatureInfo finfo: finfos) {
+					featureInfos.put(finfo.getName(), finfo);
+				}
+				map.put(mbf, featureInfos);
+			}
+		}
+	}
+	
+	
+	/**
+	 * Builds the target ObjectName from the default suffix and configured ObjectName for the monitor
+	 * @param configNode the configuration node The monitor configuration node
+	 * @return the built ObjectName
+	 */
+	ObjectName buildObjectName(final Node configNode) {		
+		if((objectNameSuffix==null || objectNameSuffix.isEmpty()) && (objectNamePrefix==null || objectNamePrefix.isEmpty())) {
+			throw new RuntimeException("Failed to build ObjectName. Neither objectName or prefix was defined");
+		}
+		try {
+			String pre = objectNamePrefix==null ? "" : objectNamePrefix;
+			String suf = objectNameSuffix==null ? "" : objectNameSuffix;
+			return new ObjectName(pre + suf);  // FIXME:  need to do some more defensive massaging here
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to build ObjectName. prefix:[" + objectNamePrefix + "], suffix:[" + objectNameSuffix + "]", ex);
+		}
+	}
+	
+	/**
+	 * Returns the attribute names that should be polled for 
+	 * @return a set of attribute names
+	 */
+	Set<String> getAttributeNames() {
+		Set<String> attrNames = new HashSet<String>();
+		for(Map.Entry<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>> entry: metaData.entrySet()) {
+			final ObjectName objectName = entry.getKey();
+			Map<String, MBeanFeatureInfo> minfos = entry.getValue().get(MBeanFeature.ATTRIBUTE);
+			for(Map.Entry<String, MBeanFeatureInfo> mentry: minfos.entrySet()) {
+				String name = mentry.getKey();
+				MBeanAttributeInfo minfo = (MBeanAttributeInfo)entry.getValue();
+				if(shouldIncludeAttribute(name, minfo.getType(), objectName)) {
+					attrNames.add(name);
+				}
+			}
+		}
+		return attrNames;
+	}
+	
+	/**
+	 * Determines if the passed attribute name should be included in the MBean poll
+	 * @param attrName The attribute's name
+	 * @param className The attribute's type
+	 * @param objectName The attribute's ObjectName
+	 * @return true to include, false otherwise
+	 */
+	public boolean shouldIncludeAttribute(final String attrName, final String className, final ObjectName objectName) {
+		final boolean isNumeric = !numericsOnly ? true : isNumeric(className, objectName);
+		final boolean matchesAttr = matchesAttr(attrName);
+		final boolean matchesKeys = matchesKeys(attrName);
+		return (matchesAttr && isNumeric) || matchesKeys;
+	}
+	
+	/**
+	 * Determines if the passed name matches the attribute include/exclude patterns
+	 * @param name The name to test
+	 * @return true for match, false otherwise
+	 */
+	public boolean matchesAttr(final String name) {
+		return attrIncludePattern.matcher(name).matches()
+				&& (attrExcludePattern!=null && !attrExcludePattern.matcher(name).matches());
+	}
+	
+	/**
+	 * Determines if the passed name matches the key include/exclude patterns
+	 * @param name The name to test
+	 * @return true for match, false otherwise
+	 */
+	public boolean matchesKeys(final String name) {
+		return (keyIncludePattern!=null && !keyIncludePattern.matcher(name).matches())
+				&& (keyExcludePattern!=null && !keyExcludePattern.matcher(name).matches());
+	}
+	
+	/**
+	 * Determines if the named class is assignable as a numeric
+	 * @param className The class name
+	 * @param objectName The ObjectName in case we need the classloader
+	 * @return true if a numeric type, false if not or indeterminate
+	 */
+	public boolean isNumeric(final String className, final ObjectName objectName) {
+		if(KNOWN_NUMERICS.contains(className)) return true;
+		Class<?> clazz = null;
+		try {
+			clazz = Class.forName(className);
+		} catch (Exception x) {/* No Op */}
+		if(clazz == null) {
+			try {
+				clazz = Class.forName(className, true, rmbs.getClassLoaderFor(objectName));
+			} catch (Exception x) {
+				return false;
+			}
+		}
+		final boolean isNum = Number.class.isAssignableFrom(clazz);
+		if(isNum) {
+			KNOWN_NUMERICS.add(className);
+		}
+		return isNum;
+	}
+	
+	
+		/**
+		 * {@inheritDoc}
+		 * @see java.lang.Runnable#run()
+		 */
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			
+		}
+	
+		/**
+		 * Stops this monitor
+		 */
+		public void shutdown() {
+			
+		}
 	
 	
 }

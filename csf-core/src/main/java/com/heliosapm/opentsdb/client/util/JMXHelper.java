@@ -1011,6 +1011,18 @@ public class JMXHelper {
 		return getAttributes(on, getHeliosMBeanServer(), attributes);
 	}
 	
+	/**
+	 * Returns a String->Object Map of the named attributes from the Mbean in the helios mbeanserver
+	 * @param on The object name of the MBean.
+	 * @param attributes An array of attribute names to retrieve. If this is null or empty, retrieves all the names
+	 * @return A name value map of the requested attributes.
+	 */
+	public static Map<String, Object> getAttributes(ObjectName on, Collection<String> attributes) {
+		if(attributes==null || attributes.isEmpty()) return Collections.emptyMap();
+		return getAttributes(on, getHeliosMBeanServer(), new HashSet<String>(attributes).toArray(new String[0]));
+	}
+	
+	
 	
 	/**
 	 * Returns an array of the names of the attributes for the passed ObjectName reached through the helios mbeanserver

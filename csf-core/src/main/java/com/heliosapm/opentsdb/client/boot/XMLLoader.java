@@ -87,8 +87,9 @@ public class XMLLoader {
 			
 			
 			loadSysProps(XMLHelper.getChildNodeByName(configRoot, "sysprops"));
-			initLogging();
+			initLogging();			
 			jmxmpServer(configRoot);
+			loadResources(configRoot);
 			initJmxCollector(configRoot);
 			initAop(configRoot);						
 		} catch (Exception ex) {
@@ -154,6 +155,25 @@ public class XMLLoader {
 			loge("Failed to load transformations. Stack trace follows:");
 			ex.printStackTrace(System.err);
 		}		
+	}
+	
+	/**
+	 * Loads classloader and other resource type definitions
+	 * @param configRoot The configuration root
+	 */
+	public static void loadResources(final Node configRoot) {
+		for(Node resourcesNode: XMLHelper.getChildNodesByName(configRoot, "resources", false)) {
+			if(resourcesNode==null) return;
+			if(!XMLHelper.getChildNodesByName(resourcesNode, "resource", false).isEmpty()) {
+				try {
+					final Class<?> classLoaderRepoClass = Class.forName("com.heliosapm.opentsdb.client.classloaders.ClassLoaderRepository");				
+					classLoaderRepoClass.getDeclaredMethod("config", Node.class).invoke(null, resourcesNode);
+				} catch (Exception ex) {
+					loge("Failed to install resources. Stack trace follows:");
+					ex.printStackTrace(System.err);							
+				}				
+			}
+		}
 	}
 	
 	/**

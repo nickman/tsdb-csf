@@ -1,0 +1,21 @@
+* Metric Name Generator
+* Tokens
+* Accept Query Expr for ObjectName lookups / Builder for XML to QueryExpr
+* Op Invoker / Args Builder / Handler
+* Reset Stats / By Period / By Poll count
+* Script Manager: complex attr & op results, compress cardinality of longish metrics
+* Deltas
+
+
+
+Tokens:
+=======
+$a{attrname} : the value of an attribute
+$pa{attrname(n, n)} : the pattern key expression applied to an attribute valie
+$ond{(n,n)}: the object name domain
+$onp{(k)}: the keyed property in the object name
+$s{scriptname}: eval a script against kitchen sink
+$d{descriptorname}
+MBean Info:
+	classname
+	description

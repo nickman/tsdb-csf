@@ -20,6 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.management.MBeanServer;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Node;
 
 import com.heliosapm.opentsdb.client.util.JMXHelper;
@@ -45,6 +47,8 @@ public class MonitoredMBeanServer {
 	</customjmx> 
 
  */
+	/** Instance logger */
+	protected final Logger log = LogManager.getLogger(getClass());	
 	/** The monitored mbeanserver */
 	final MBeanServer server;
 	/** The monitored mbeanserver's default domain name */
@@ -53,6 +57,9 @@ public class MonitoredMBeanServer {
 	String defaultPrefix = "";
 	/** The installer defined default period */
 	int defaultPeriod = 15;
+	/** The long hash code for the server configuration node */
+	private long configHashCode = -1L;
+	
 	/** A map of monitors that run against this MBeanServer keyed by the monitor's object name */
 	final Map<String, DefaultMonitor> monitors = new ConcurrentHashMap<String, DefaultMonitor>();
 
@@ -67,8 +74,11 @@ public class MonitoredMBeanServer {
 		defaultDomain = XMLHelper.getAttributeByName(configNode, "domain", "DefaultDomain");
 		server = JMXHelper.getLocalMBeanServer(defaultDomain, false);
 		this.defaultPeriod = defaultPeriod;
+		configHashCode = XMLHelper.longHashCode(configNode);
 		configure(configNode, true);
 	}
+	
+	
 	
 	/**
 	 * Introduces a new configuration
@@ -77,12 +87,35 @@ public class MonitoredMBeanServer {
 	 */
 	void configure(final Node configNode, final boolean init) {
 		if(configNode==null) throw new IllegalArgumentException("The passed configuration node was null");
+		long evalHashCode = -1L;
+		if(!init) {
+			// If we're refreshing the config, but the node hash code is unchanged, we eject.
+			evalHashCode = XMLHelper.longHashCode(configNode);
+			if(evalHashCode == configHashCode) return;
+		}
+		
 		defaultPrefix = XMLHelper.getAttributeByName(configNode, "prefix", "");
+		
 		for(Node monitorNode: XMLHelper.getChildNodesByName(configNode, "monitor", false)) {
-			DefaultMonitor monitor = new DefaultMonitor(monitorNode, defaultPeriod, defaultPrefix);
-			
+			DefaultMonitor monitor = null;
+			final String objectNamePattern = XMLHelper.getAttributeByName(monitorNode, "objectName", null);
+			if(objectNamePattern != null && !objectNamePattern.trim().isEmpty()) {
+				monitor = monitors.get(objectNamePattern);
+				if(monitor!=null) {
+					monitor.configure(monitorNode, false);
+					continue;				
+				}
+				monitor = new DefaultMonitor(server, monitorNode, defaultPeriod, defaultPrefix);
+				monitors.put(objectNamePattern, monitor);
+			} else {
+				log.info("Skipping invalid monitor definition with undefined or blank objectName attribute: {}", XMLHelper.renderNode(monitorNode));
+			}
+		}
+		if(!init && evalHashCode!= -1L) {			
+			configHashCode = evalHashCode;
 		}
 	}
+
 	
 	/**
 	 * Called when this monitored mbean server is no longer needed, which can be at shutdown, agent removal or a refreshed

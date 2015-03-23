@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.aop;
+package com.heliosapm.opentsdb.client.classloaders;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
@@ -24,6 +24,10 @@ import java.util.concurrent.Callable;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.w3c.dom.Node;
+
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
@@ -32,13 +36,14 @@ import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.URLHelper;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.opentsdb.client.util.XMLHelper;
 
 /**
  * <p>Title: ClassLoaderRepository</p>
  * <p>Description: A repository and cache for the classloaders supporting AOP instrumentation</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.aop.ClassLoaderRepository</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.classloaders.ClassLoaderRepository</code></p>
  */
 
 public class ClassLoaderRepository implements RemovalListener<Object, ClassLoader> {
@@ -46,6 +51,10 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 	private static volatile ClassLoaderRepository instance = null;
 	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
+	
+	/** Instance logger */
+	private final Logger log = LogManager.getLogger(getClass());
+
 	
 	/**
 	 * Acquires and returns the ClassLoaderRepository singleton instance
@@ -76,6 +85,51 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 	 * Creates a new ClassLoaderRepository
 	 */
 	private ClassLoaderRepository() {}
+	
+	/**
+	 * Loads an agent XML configuration node
+	 * @param configNode The classloader config node
+	 */
+	public static void config(final Node configNode) {
+		getInstance().loadConfig(configNode);
+	}
+	
+	/**
+	 * Loads an agent XML configuration node
+	 * @param configNode The classloader config node
+	 * <pre><resource name="[arbitrary]" type="classloader" url="[location of classes]"/></pre>
+	 */
+	public void loadConfig(final Node configNode) {
+		if(configNode==null) return;
+		for(Node resourceNode: XMLHelper.getChildNodesByName(configNode, "resource", false)) {
+			final String name = XMLHelper.getAttributeByName(resourceNode, "name", "").trim();
+			if(name==null || name.isEmpty()) {
+				log.warn("No name defined for resource node [{}]", XMLHelper.renderNode(resourceNode));
+				continue;
+			}
+			final String type = XMLHelper.getAttributeByName(resourceNode, "type", "").trim();
+			if(type==null || type.isEmpty()) {
+				log.warn("No type defined for resource node [{}]", XMLHelper.renderNode(resourceNode));
+				continue;
+			}
+			if(!"classloader".equalsIgnoreCase(type)) {
+				continue;
+			}
+			final String url = XMLHelper.getAttributeByName(resourceNode, "type", "").trim();
+			if(url==null || url.isEmpty()) {
+				log.warn("No url defined for resource node [{}]", XMLHelper.renderNode(resourceNode));
+				continue;
+			}
+			try { 
+				ClassLoader classLoader = getClassLoader(url);
+				classLoaderCache.put(name, classLoader);
+				log.info("Loaded Resource class loader [{}] / [{}]", name, url);
+			} catch (Exception ex) {
+				log.warn("Failed to create classloader for resource node [{}]", XMLHelper.renderNode(resourceNode), ex);
+				continue;
+			}
+		}
+	}
 	
 	/**
 	 * Returns the classloader for the passed key

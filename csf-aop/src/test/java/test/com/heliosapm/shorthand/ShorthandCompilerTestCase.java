@@ -31,9 +31,9 @@ import org.junit.Test;
 import test.com.heliosapm.base.BaseTest;
 import test.com.heliosapm.shorthand.testclasses.DynamicClassCompiler;
 
-import com.heliosapm.opentsdb.client.aop.ClassLoaderRepository;
 import com.heliosapm.opentsdb.client.aop.ShorthandScript;
 import com.heliosapm.opentsdb.client.aop.ShorthandTargetClassLoadException;
+import com.heliosapm.opentsdb.client.classloaders.ClassLoaderRepository;
 
 /**
  * <p>Title: ShorthandCompilerTestCases</p>
