@@ -28,10 +28,11 @@ import com.heliosapm.opentsdb.client.jvmjmx.custom.Tokener.IntRange;
 public interface TokenResolver {
 	/**
 	 * Resolves the passed token instance values
+	 * @param dctx The expression data context
 	 * @param key The parsed token key
 	 * @param qualifier The parsed token qualifier
 	 * @param ranges The parsed token int ranges
 	 * @return the resolved value
 	 */
-	public CharSequence resolve(String key, String qualifier, IntRange... ranges);
+	public CharSequence resolve(ExpressionDataContext dctx, String key, String qualifier, IntRange... ranges);
 }

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +46,7 @@ import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.opentsdb.client.util.JMXHelper;
+import com.heliosapm.opentsdb.client.util.Util;
 import com.heliosapm.opentsdb.client.util.XMLHelper;
 
 /**
@@ -105,6 +107,10 @@ public class DefaultMonitor implements Runnable {
 	
 	final Map<ObjectName, MBeanInfo> beanInfos = new ConcurrentHashMap<ObjectName, MBeanInfo>();
 	final Map<ObjectName, Map<String, OTMetric>> otMetrics = new ConcurrentHashMap<ObjectName, Map<String, OTMetric>>();
+	
+	/** Our data context */
+	final ExpressionDataContext dataContext = new ExpressionDataContextImpl(); 
+	
 
 	/** The polling schedule handle */
 	Timeout scheduleHandle = null;
@@ -223,6 +229,10 @@ public class DefaultMonitor implements Runnable {
 			attrValueMap.get(objectName).clear();
 			attrValueMap.get(objectName).putAll(values);
 		}
+		for(ObjectName objectName: polledObjectNames) {
+			
+		}
+		
 	}
 	
 	
@@ -365,5 +375,114 @@ public class DefaultMonitor implements Runnable {
 			
 		}
 	
+		/**
+		 * <p>Title: ExpressionDataContextImpl</p>
+		 * <p>Description: The expression data context for this monitor impl</p> 
+		 * <p>Company: Helios Development Group LLC</p>
+		 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+		 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.DefaultMonitor.ExpressionDataContextImpl</code></p>
+		 */
+		private class ExpressionDataContextImpl implements ExpressionDataContext {
+			/** The accumulated tags */
+			protected final Map<String, String> tags = new TreeMap<String, String>();
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#focusedObjectName()
+			 */
+			@Override
+			public ObjectName focusedObjectName() {
+				return targetObjectName;
+			}
+
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#focusedMBeanServer()
+			 */
+			@Override
+			public RuntimeMBeanServerConnection focusedMBeanServer() {
+				return rmbs;
+			}
+
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#attributeValues()
+			 */
+			@Override
+			public Map<ObjectName, Map<String, Object>> attributeValues() {
+				return attrValueMap;
+			}
+
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#metaData()
+			 */
+			@Override
+			public Map<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>> metaData() {
+				return metaData;
+			}
+
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#keyIncludePattern()
+			 */
+			@Override
+			public Pattern keyIncludePattern() {
+				return keyIncludePattern;
+			}
+
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#keyExcludePattern()
+			 */
+			@Override
+			public Pattern keyExcludePattern() {
+				return keyExcludePattern;
+			}
+			
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#getKeyDelim()
+			 */
+			@Override
+			public String getKeyDelim() {
+				return keyDelim;
+			}
+
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#tags()
+			 */
+			@Override
+			public Map<String, String> tags() {
+				return tags;
+			}
+
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#tag(java.lang.String, java.lang.String)
+			 */
+			@Override
+			public Map<String, String> tag(final String key, final String value) {
+				if(key==null || key.trim().isEmpty()) throw new IllegalArgumentException("The passed key was null");
+				String cleanedKey = Util.clean(key);
+				if(!tags.containsKey(cleanedKey)) {
+					tags.put(cleanedKey, Util.clean(value));
+				}
+				return tags;
+			}
+			
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#forceTag(java.lang.String, java.lang.String)
+			 */
+			@Override
+			public Map<String, String> forceTag(String key, String value) {
+				if(key==null || key.trim().isEmpty()) throw new IllegalArgumentException("The passed key was null");
+				String cleanedKey = Util.clean(key);
+				tags.put(cleanedKey, Util.clean(value));
+				return tags;
+			}
+			
+		}
 	
 }

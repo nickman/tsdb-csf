@@ -16,6 +16,7 @@
 package com.heliosapm.opentsdb.client.scripts;
 
 import java.net.URL;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,7 +26,6 @@ import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 import javax.script.SimpleBindings;
 
 import org.apache.logging.log4j.LogManager;
@@ -60,7 +60,7 @@ public class ScriptManager {
 	/** The registered compiled scripts keyed by their designated logical name */
 	private final ConcurrentHashMap<String, CompiledScript> compiledScripts = new ConcurrentHashMap<String, CompiledScript>();
 	/** The registered invocable script engines keyed by their designated logical name */
-	private final ConcurrentHashMap<String, ScriptEngine> invocables = new ConcurrentHashMap<String, ScriptEngine>();
+	private final ConcurrentHashMap<String, Invocable> invocables = new ConcurrentHashMap<String, Invocable>();
 	/** The registered source code for simple evals keyed by their designated logical name */
 	private final ConcurrentHashMap<String, String> evalSourceCode = new ConcurrentHashMap<String, String>();
 	
@@ -95,10 +95,10 @@ public class ScriptManager {
 	public <T> T getInterface(final String scriptName, final String objectName, Class<T> clazz) {
 		if(scriptName==null || scriptName.trim().isEmpty()) throw new IllegalArgumentException("The passed script name was null or empty"); 
 		if(clazz==null) throw new IllegalArgumentException("The passed class was null or empty");
-		ScriptEngine se = invocables.get(scriptName.trim());
+		Invocable se = invocables.get(scriptName.trim());
 		if(se==null) throw new RuntimeException("No invocable named [" + scriptName + "] is registered");
 		if(objectName != null) {
-			Object compiledObject = se.get(objectName.trim());
+			Object compiledObject = ((ScriptEngine)se).get(objectName.trim());
 			if(compiledObject==null) throw new RuntimeException("No compiled object named [" + compiledObject + "] found in script [" + scriptName + "]");
 			return ((Invocable)se).getInterface(compiledObject, clazz);
 		} else {
@@ -133,13 +133,67 @@ public class ScriptManager {
 		} else {
 			sb = new SimpleBindings();
 		}
-		sb.put(ScriptEngine.ARGV, args);
+		if(args!=null && args.length > 0) {
+			sb.put(ScriptEngine.ARGV, args);
+		}
 		try {
 			return cs.eval(sb);
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to invoke compiled script [" + scriptName + "]", ex);
 		}
 	}
+	
+	/**
+	 * Invokes a method on a script compiled object
+	 * @param scriptName The script name
+	 * @param object The object name
+	 * @param method The method name
+	 * @param bindings The optional bindings (which will be passed as the first positional argument if present)
+	 * @param args The remaining optional positional arguments
+	 * @return the return value of the method
+	 */
+	public Object invokeMethod(final String scriptName, final String object, final String method, final Map<String, Object> bindings, final Object...args) {
+		if(scriptName==null || scriptName.trim().isEmpty()) throw new IllegalArgumentException("The passed script name was null or empty");
+		if(object==null || object.trim().isEmpty()) throw new IllegalArgumentException("The passed object name was null or empty");
+		if(method==null || method.trim().isEmpty()) throw new IllegalArgumentException("The passed method name was null or empty");
+		try {
+			final Invocable se = invocables.get(scriptName);
+			final Object clz = ((ScriptEngine)se).get(object);
+			Object[] arguments = new Object[((bindings==null||bindings.isEmpty()) ? 0 : 1) + (args==null ? 0 : args.length)];
+			if((bindings==null||bindings.isEmpty())) {
+				arguments[0] = bindings;
+			}
+			System.arraycopy(args, 0, arguments, (bindings==null||bindings.isEmpty() ? 0 : 1), args.length);
+			return se.invokeMethod(clz, method, arguments);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to invoke method [" + scriptName + "/" + object + "/" + method + "]", ex);
+		}
+	}
+	
+	/**
+	 * Invokes a function in the script engine
+	 * @param scriptName The script name
+	 * @param function The function name
+	 * @param bindings The optional bindings (which will be passed as the first positional argument if present)
+	 * @param args The remaining optional positional arguments
+	 * @return the return value of the method
+	 */
+	public Object invokeFunction(final String scriptName, final String function, final Map<String, Object> bindings, final Object...args) {
+		if(scriptName==null || scriptName.trim().isEmpty()) throw new IllegalArgumentException("The passed script name was null or empty");
+		if(function==null || function.trim().isEmpty()) throw new IllegalArgumentException("The passed function name was null or empty");
+		try {
+			final Invocable se = invocables.get(scriptName);
+			Object[] arguments = new Object[((bindings==null||bindings.isEmpty()) ? 0 : 1) + (args==null ? 0 : args.length)];
+			if((bindings==null||bindings.isEmpty())) {
+				arguments[0] = bindings;
+			}
+			System.arraycopy(args, 0, arguments, (bindings==null||bindings.isEmpty() ? 0 : 1), args.length);
+			return se.invokeFunction(function, arguments);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to invoke method [" + scriptName + "/" + function + "]", ex);
+		}
+	}
+	
 	
 	/**
 	 * Invokes the named compiled script
@@ -296,7 +350,7 @@ public class ScriptManager {
 		}
 		// ========= Invocable Functions
 		if(engine instanceof Invocable) {
-			invocables.put(name, engine);
+			invocables.put(name, (Invocable)engine);
 			installs++;
 		}
 		if(installs==0) {

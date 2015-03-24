@@ -25,6 +25,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.AttributeKeyTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.AttributeValueTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.DescriptorKeyTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.DescriptorValueTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.MBeanClassNameTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.MBeanDescriptionTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.ObjectNameDomainTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.ObjectNameKeyTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.ObjectNameValueTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.ScriptTokenResolver;
+
 /**
  * <p>Title: Tokener</p>
  * <p>Description: Parses and resolves expression tokens</p> 
@@ -34,16 +45,20 @@ import java.util.regex.Pattern;
  */
 
 public enum Tokener {
-	ATTRIBUTE_KEY("ak", null),
-	ATTRIBUTE_VALUE("av", null),
-	OBJECTNAME_KEY("onk", null),
-	OBJECTNAME_VALUE("onv", null),
-	OBJECTNAME_DOMAIN("od", null),
-	SCRIPT_EXEC("s", null),
-	MBEAN_CLASS("mc", null),
-	MBEAN_DESCRIPTION("md", null),
-	DESCRIPTOR_KEY("ak", null),
-	DESCRIPTOR_VALUE("av", null);
+	ATTRIBUTE_KEYR("akr", new AttributeKeyTokenResolver(false, true)),
+	ATTRIBUTE_KEYT("akt", new AttributeKeyTokenResolver(true, false)),
+	ATTRIBUTE_VALUE("av", new AttributeValueTokenResolver()),
+	OBJECTNAME_KEYT("onkt", new ObjectNameKeyTokenResolver(false, true)),
+	OBJECTNAME_KEYR("onkr", new ObjectNameKeyTokenResolver(true, false)),
+	OBJECTNAME_VALUE("onv", new ObjectNameValueTokenResolver()),
+	OBJECTNAME_DOMAIN("od", new ObjectNameDomainTokenResolver()),
+	SCRIPT_EXEC("s", new ScriptTokenResolver()),
+	MBEAN_CLASS("mc", new MBeanClassNameTokenResolver()),
+	MBEAN_DESCRIPTION("md", new MBeanDescriptionTokenResolver()),
+	// FIXME:  These are broken
+	DESCRIPTOR_KEYR("dkr", new DescriptorKeyTokenResolver(false, true)),
+	DESCRIPTOR_KEYT("dkt", new DescriptorKeyTokenResolver(true, false)),
+	DESCRIPTOR_VALUE("dv", new DescriptorValueTokenResolver());
 
 	
 	public static final Map<String, Tokener> TOKEN2ENUM;
@@ -96,14 +111,14 @@ MBean Info:
 
 	 */
 	
-	public static String resolve(final String fullExpression) {
+	public static String resolve(final ExpressionDataContext dctx, final String fullExpression) {
 		if(fullExpression==null || fullExpression.trim().isEmpty()) return null;
 		final StringBuffer sb = new StringBuffer();
 		final Matcher m = TOKEN_PATTERN.matcher(fullExpression.trim());
 		while(m.find()) {
 			ParsedToken pt = ParsedToken.getParsedToken(m.group(0));
 			if(pt!=null) {
-				Object resolved = pt.getToken().resolver.resolve(pt.getKey(), pt.getQual(), pt.getRanges());
+				Object resolved = pt.getToken().resolver.resolve(dctx, pt.getKey(), pt.getQual(), pt.getRanges());
 				if(resolved!=null) {
 					m.appendReplacement(sb, resolved.toString());
 				} else {
@@ -161,7 +176,38 @@ MBean Info:
 						Integer.parseInt(rangeSubExpression.substring(0, index)),
 						Integer.parseInt(rangeSubExpression.substring(index+1))
 				};
+				if(range[0] > range[1]) {
+					throw new RuntimeException("Illegal IntRange Values " + Arrays.toString(range));
+				}
 			}
+		}
+		
+		public static int[] flattenRanges(IntRange...ranges) {
+			List<int[]> rangs = new ArrayList<int[]>(ranges.length);
+			int totalSize = 0;
+			for(IntRange ir: ranges) {
+				int[] flat = ir.flatten();
+				totalSize += flat.length;
+			}
+			int[] flat = new int[totalSize];
+			int index = 0;
+			for(int[] r: rangs) {
+				for(int i: r) {
+					flat[index] = i;
+					index++;
+				}
+			}
+			return flat;
+		}
+		
+		public int[] flatten() {
+			if(range.length==1) return range;
+			final int len = range[1] - range[0];
+			int[] flat = new int[len];
+			for(int i = 0; i < len; i++) {
+				flat[i] = range[0] + i;
+			}
+			return flat;
 		}
 		
 		/**
