@@ -21,6 +21,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -30,7 +32,6 @@ import javax.management.remote.JMXServiceURL;
 
 import org.w3c.dom.Node;
 
-import com.heliosapm.opentsdb.client.util.HeliosMBeanServer;
 import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.URLHelper;
 import com.heliosapm.opentsdb.client.util.XMLHelper;
@@ -162,16 +163,28 @@ public class XMLLoader {
 	 * @param configRoot The configuration root
 	 */
 	public static void loadResources(final Node configRoot) {
-		for(Node resourcesNode: XMLHelper.getChildNodesByName(configRoot, "resources", false)) {
-			if(resourcesNode==null) return;
-			if(!XMLHelper.getChildNodesByName(resourcesNode, "resource", false).isEmpty()) {
-				try {
-					final Class<?> classLoaderRepoClass = Class.forName("com.heliosapm.opentsdb.client.classloaders.ClassLoaderRepository");				
-					classLoaderRepoClass.getDeclaredMethod("config", Node.class).invoke(null, resourcesNode);
-				} catch (Exception ex) {
-					loge("Failed to install resources. Stack trace follows:");
-					ex.printStackTrace(System.err);							
-				}				
+		final List<Node> resourceNodes = new ArrayList<Node>();
+		for(Node parent: XMLHelper.getChildNodesByName(configRoot, "resources", false)) {
+			for(Node resource: XMLHelper.getChildNodesByName(parent, "resource", false)) {
+				resourceNodes.add(resource);
+			}
+		}
+		if(resourceNodes.isEmpty()) return;
+		final Method configMethod;
+		try {
+			final Class<?> classLoaderRepoClass = Class.forName("com.heliosapm.opentsdb.client.classloaders.ClassLoaderRepository");				
+			configMethod = classLoaderRepoClass.getDeclaredMethod("config", Node.class);
+		} catch (Exception ex) {
+			loge("Failed to install resources. Stack trace follows:");
+			ex.printStackTrace(System.err);		
+			return;
+		}				
+
+		for(Node resourceNode: resourceNodes) {
+			try {
+				configMethod.invoke(null, resourceNode);
+			} catch (Exception ex) {
+				loge("Failed to install resource node [" + XMLHelper.renderNode(resourceNode) + "]", ex);
 			}
 		}
 	}

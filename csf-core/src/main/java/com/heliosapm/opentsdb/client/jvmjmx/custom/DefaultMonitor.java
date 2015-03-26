@@ -17,10 +17,12 @@ package com.heliosapm.opentsdb.client.jvmjmx.custom;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -98,6 +100,7 @@ public class DefaultMonitor implements Runnable {
 	/** The attribute names to be polled for */
 	final Set<String> polledAttributeNames = new CopyOnWriteArraySet<String>();
 	
+	final List<AttributeTracer> tracers = new ArrayList<AttributeTracer>();
 	
 	/** The map of attribute values that polling collects into, pre-created to avoid excess object creation */
 	final Map<ObjectName, Map<String, Object>> attrValueMap = new HashMap<ObjectName, Map<String, Object>>();
@@ -131,7 +134,30 @@ public class DefaultMonitor implements Runnable {
 			AtomicInteger.class.getName(), AtomicLong.class.getName() 
 	));
 	
-	
+	/**
+	 * Determines if the passed class is a numeric
+	 * @param clazz The class to test
+	 * @return true if the passed class is a numeric, false otherwise
+	 */
+	public static boolean isNumber(final Class<?> clazz) {
+		if(clazz==null) return false;
+		if(KNOWN_NUMERICS.contains(clazz.getName())) return true;
+		if(Number.class.isAssignableFrom(clazz)) {
+			KNOWN_NUMERICS.add(clazz.getName());
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Determines if the passed object is a numeric
+	 * @param obj The object to test
+	 * @return true if the passed object is a numeric, false otherwise
+	 */
+	public static boolean isNumber(final Object obj) {
+		if(obj==null) return false;
+		return isNumber(obj.getClass());
+	}
 
 	
 	// MetricBuilder.metric(on).ext("classloading.loaded").tags(tags).build();
@@ -165,6 +191,7 @@ public class DefaultMonitor implements Runnable {
 			// If we're refreshing the config, but the node hash code is unchanged, we eject.
 			evalHashCode = XMLHelper.longHashCode(configNode);
 			if(evalHashCode == configHashCode) return;
+			tracers.clear();
 		}
 		// =================== ObjectName suffix
 		objectNameSuffix = XMLHelper.getAttributeByName(configNode, "objectName", null);
@@ -215,6 +242,11 @@ public class DefaultMonitor implements Runnable {
 		if(!init && evalHashCode!= -1L) {			
 			configHashCode = evalHashCode;
 		}
+		// =================== Build the tracers
+		for(Node tracerNode: XMLHelper.getChildNodesByName(configNode, "tracer", false)) {
+			tracers.add(new AttributeTracer(tracerNode, this.dataContext));
+		}
+		
 		// =================== Schedule
 		scheduleHandle = Threading.getInstance().schedule(this, 1, collectionPeriod.get(), TimeUnit.SECONDS);
 		log.info("Scheduled [{}] for a collection period of [{}] secs.");
@@ -305,7 +337,7 @@ public class DefaultMonitor implements Runnable {
 	 * @return true to include, false otherwise
 	 */
 	public boolean shouldIncludeAttribute(final String attrName, final String className, final ObjectName objectName) {
-		final boolean isNumeric = !numericsOnly ? true : isNumeric(className, objectName);
+		final boolean isNumeric = !numericsOnly ? true : isNumeric(className, objectName, rmbs);
 		final boolean matchesAttr = matchesAttr(attrName);
 		final boolean matchesKeys = matchesKeys(attrName);
 		return (matchesAttr && isNumeric) || matchesKeys;
@@ -321,6 +353,8 @@ public class DefaultMonitor implements Runnable {
 				&& (attrExcludePattern!=null && !attrExcludePattern.matcher(name).matches());
 	}
 	
+	
+	
 	/**
 	 * Determines if the passed name matches the key include/exclude patterns
 	 * @param name The name to test
@@ -335,9 +369,10 @@ public class DefaultMonitor implements Runnable {
 	 * Determines if the named class is assignable as a numeric
 	 * @param className The class name
 	 * @param objectName The ObjectName in case we need the classloader
+	 * @param mbs The MBeanServer in case we need the classloader
 	 * @return true if a numeric type, false if not or indeterminate
 	 */
-	public boolean isNumeric(final String className, final ObjectName objectName) {
+	public static boolean isNumeric(final String className, final ObjectName objectName, final RuntimeMBeanServerConnection mbs) {
 		if(KNOWN_NUMERICS.contains(className)) return true;
 		Class<?> clazz = null;
 		try {
@@ -345,7 +380,7 @@ public class DefaultMonitor implements Runnable {
 		} catch (Exception x) {/* No Op */}
 		if(clazz == null) {
 			try {
-				clazz = Class.forName(className, true, rmbs.getClassLoaderFor(objectName));
+				clazz = Class.forName(className, true, mbs.getClassLoaderFor(objectName));
 			} catch (Exception x) {
 				return false;
 			}
@@ -374,6 +409,8 @@ public class DefaultMonitor implements Runnable {
 		public void shutdown() {
 			
 		}
+		
+		
 	
 		/**
 		 * <p>Title: ExpressionDataContextImpl</p>
@@ -385,13 +422,54 @@ public class DefaultMonitor implements Runnable {
 		private class ExpressionDataContextImpl implements ExpressionDataContext {
 			/** The accumulated tags */
 			protected final Map<String, String> tags = new TreeMap<String, String>();
+
+			/** The current focused ObjectName */
+			protected RuntimeMBeanServerConnection focusedMBeanServer = null;			
+			/** The current focused ObjectName */
+			protected ObjectName focusedObjectName = null;
+			/** The current focused attribute name */
+			protected String focusedAttributeName = null;
+			/** The current focused attribute value */
+			protected Object focusedAttributeValue = null;
+			
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#focus(com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection, javax.management.ObjectName, java.lang.String, java.lang.Object)
+			 */
+			@Override
+			public ExpressionDataContext focus(final RuntimeMBeanServerConnection rmbs, final ObjectName objectName, final String attributeName, final Object attributeValue) {
+				focusedMBeanServer = rmbs;
+				focusedObjectName = objectName;
+				focusedAttributeName = attributeName;
+				focusedAttributeValue = attributeValue;
+				return this;
+			}
+			
 			/**
 			 * {@inheritDoc}
 			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#focusedObjectName()
 			 */
 			@Override
 			public ObjectName focusedObjectName() {
-				return targetObjectName;
+				return focusedObjectName;
+			}
+			
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#focusedAttributeName()
+			 */
+			@Override
+			public String focusedAttributeName() {				
+				return focusedAttributeName;
+			}
+			
+			/**
+			 * {@inheritDoc}
+			 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext#focusedAttributeValue()
+			 */
+			@Override
+			public Object focusedAttributeValue() {				
+				return focusedAttributeValue;
 			}
 
 			/**
@@ -400,7 +478,7 @@ public class DefaultMonitor implements Runnable {
 			 */
 			@Override
 			public RuntimeMBeanServerConnection focusedMBeanServer() {
-				return rmbs;
+				return focusedMBeanServer !=null ? focusedMBeanServer : rmbs; 
 			}
 
 			/**

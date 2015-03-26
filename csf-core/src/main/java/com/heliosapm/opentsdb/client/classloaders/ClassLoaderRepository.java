@@ -19,10 +19,13 @@ import java.io.File;
 import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import javax.management.loading.MLet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -55,6 +58,8 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 	/** Instance logger */
 	private final Logger log = LogManager.getLogger(getClass());
 
+	/** A map of published ObjectNames keyed by the resource name */
+	private final Map<String, ObjectName> mbeanRefs = new ConcurrentHashMap<String, ObjectName>();
 	
 	/**
 	 * Acquires and returns the ClassLoaderRepository singleton instance
@@ -94,6 +99,9 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 		getInstance().loadConfig(configNode);
 	}
 	
+	/** Empty URL array const */
+	private static final URL[] EMPTY_URL_ARG = {};
+	
 	/**
 	 * Loads an agent XML configuration node
 	 * @param configNode The classloader config node
@@ -124,6 +132,19 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 				ClassLoader classLoader = getClassLoader(url);
 				classLoaderCache.put(name, classLoader);
 				log.info("Loaded Resource class loader [{}] / [{}]", name, url);
+				if(XMLHelper.hasChildNodeByName(resourceNode, "objectName", false)) {
+					String objName = XMLHelper.getAttributeByName(resourceNode, "objectName", null);
+					if(objName==null) continue;
+					try {
+						final MLet mletCl = new MLet(EMPTY_URL_ARG, new WeaklyReferencedClassLoader(classLoader));						
+						final ObjectName on = new ObjectName(objName.trim());
+						final MBeanServer mbs = JMXHelper.getHeliosMBeanServer();
+						mbs.registerMBean(mletCl, on);
+						mbeanRefs.put(name, on);
+					} catch (Exception ex) {
+						log.warn("Failed to register class loader under ObjectName [{}]: {}", objName, ex.toString());
+					}
+				}
 			} catch (Exception ex) {
 				log.warn("Failed to create classloader for resource node [{}]", XMLHelper.renderNode(resourceNode), ex);
 				continue;
@@ -295,8 +316,17 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 	 * @see com.google.common.cache.RemovalListener#onRemoval(com.google.common.cache.RemovalNotification)
 	 */
 	@Override
-	public void onRemoval(final RemovalNotification<Object, ClassLoader> notification) {
-		// TODO Auto-generated method stub
+	public void onRemoval(final RemovalNotification<Object, ClassLoader> notification) {		
+		final Object key = notification.getKey();
+		log.info("ClassLoader [{}] was GC'ed", key);
+		if(key instanceof String) {
+			ObjectName on = mbeanRefs.remove((String)key);
+			if(on!=null) {
+				try {
+					JMXHelper.unregisterMBean(on);					
+				} catch (Exception x) {/* No Op */}
+			}
+		}
 		
 	}
 

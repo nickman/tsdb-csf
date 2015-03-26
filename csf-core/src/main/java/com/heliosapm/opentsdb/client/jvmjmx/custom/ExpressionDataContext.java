@@ -97,5 +97,28 @@ public interface ExpressionDataContext {
 	 */
 	public Map<String, String> forceTag(String key, String value);
 	
+	/**
+	 * Sets the focus of the data context
+	 * @param rmbs The mbean server 
+	 * @param objectName The attribute's parent ObjectName
+	 * @param attributeName The attribute name
+	 * @param attributeValue The attribute value
+	 * @return this data context
+	 */
+	public ExpressionDataContext focus(final RuntimeMBeanServerConnection rmbs, final ObjectName objectName, final String attributeName, final Object attributeValue);
+	
+	/**
+	 * Returns the focused attribute name
+	 * @return the focused attribute name
+	 */
+	public String focusedAttributeName();
+	
+	/**
+	 * Returns the focused attribute value
+	 * @return the focused attribute value
+	 */
+	public Object focusedAttributeValue();
+	
+	
 	
 }

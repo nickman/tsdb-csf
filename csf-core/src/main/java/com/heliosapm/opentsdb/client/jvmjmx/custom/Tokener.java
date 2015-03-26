@@ -111,6 +111,12 @@ MBean Info:
 
 	 */
 	
+	/**
+	 * Resolves the expression, replacing each recognized token with the matched value in the data context
+	 * @param dctx The monitor data context
+	 * @param fullExpression The expression to resolve
+	 * @return the resolved expression
+	 */
 	public static String resolve(final ExpressionDataContext dctx, final String fullExpression) {
 		if(fullExpression==null || fullExpression.trim().isEmpty()) return null;
 		final StringBuffer sb = new StringBuffer();
