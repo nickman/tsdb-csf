@@ -15,20 +15,12 @@
 		<server port="1901" iface="0.0.0.0" jmxdomain="com.heliosapm"/>
 	</jmxmp>
 	
-	<resources>
-		<resource name="[arbitrary]" type="classloader" url="[location of classes]" objectName=""/>
-	</resources>
-	<scripts>
-		<script name="foo" src="URL" ext="js">
-			<!-- Optional source. If defined, ext is mandatory, if not, src is mandatory -->
-		</script>
-	</scripts>
 	<customjmx freq="5">
-		<mbeanserver domain="DefaultDomain" prefix="Hadoop:service=HBase">
-			<monitor objectName=",name=MetricsSystem,sub=Stats" freq="3">
+		<mbeanserver domain="DefaultDomain" prefix="java.lang:">
+			<monitor objectName="type=Threading" freq="3">
 				<attributes include="" exclude="" numericsonly="true"/>  <!-- If not specified, includes all attributes -->
 				<tracer include="" numericsonly="true" exclude="" dynamic="false" processor="">
-				
+					<!-- java.lang:type=Threading/ThreadCount -->				
 				</tracer>
 			</monitor>
 		</mbeanserver>

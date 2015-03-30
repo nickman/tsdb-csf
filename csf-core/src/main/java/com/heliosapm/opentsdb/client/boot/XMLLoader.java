@@ -92,10 +92,23 @@ public class XMLLoader {
 			jmxmpServer(configRoot);
 			loadResources(configRoot);
 			initJmxCollector(configRoot);
+			initCustomJMXCollectors(configRoot);
 			initAop(configRoot);						
 		} catch (Exception ex) {
 			loge("Failed to parse configuration [%s]. Stack trace follows:", url);
 			ex.printStackTrace(System.err);
+		}
+	}
+	
+	protected static void initCustomJMXCollectors(final Node configRoot) {
+		final Node customJMXNode = XMLHelper.getChildNodeByName(configRoot, "customjmx", false);
+		if(customJMXNode!=null) {
+			try {
+				Class<?> clazz = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.custom.CustomMBeanMonitorInstaller");
+				clazz.getDeclaredMethod("getInstance", Node.class).invoke(null, customJMXNode);
+			} catch (Exception ex) {
+				loge("Failed to install CustomJMXCollectors: %s", ex.toString());
+			}
 		}
 	}
 	
@@ -234,7 +247,7 @@ public class XMLLoader {
 						}
 					} catch (Exception ex) {
 						log("Failed to run InstrumentationProvider [%s] : %s", provider, ex);
-						ex.printStackTrace(System.err);
+//						ex.printStackTrace(System.err);
 					}
 				}
 				final Class<?> transformerClass = Class.forName("com.heliosapm.opentsdb.client.aoplite.RetransformerLite");

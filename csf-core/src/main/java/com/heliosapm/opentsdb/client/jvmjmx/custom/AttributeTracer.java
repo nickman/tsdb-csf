@@ -94,6 +94,7 @@ public class AttributeTracer {
 					otMetricMap.put(on, mmap);
 				}
 				mmap.put(attrName, otm);				
+				log.info("Prepared: [{}]", otm);
 			}
 		}
 	}
@@ -112,7 +113,7 @@ public class AttributeTracer {
 		if(name==null || name.trim().isEmpty()) return false;
 		if(knownMatches.contains(name)) return true;
 		final boolean match = attrIncludePattern.matcher(name).matches()
-				&& (attrExcludePattern!=null && !attrExcludePattern.matcher(name).matches());
+				&& (attrExcludePattern==null || !attrExcludePattern.matcher(name).matches());
 		if(match) knownMatches.add(name);
 		return match;
 	}
@@ -128,7 +129,9 @@ public class AttributeTracer {
 		final Map<String, Object> attrValues = dctx.attributeValues().get(objectName);
 		if(!dynamic && otMetricMap.containsKey(objectName)) {			
 			for(Map.Entry<String, OTMetric> mentry: otMetricMap.get(objectName).entrySet()) {
-				mentry.getValue().trace(attrValues.get(mentry.getKey()));
+//				mentry.getValue().trace(attrValues.get(mentry.getKey()));
+				OTMetric otm = mentry.getValue();
+				log.info(otm.toJSON(System.currentTimeMillis(), attrValues.get(mentry.getKey())));
 			}
 			return;
 		}

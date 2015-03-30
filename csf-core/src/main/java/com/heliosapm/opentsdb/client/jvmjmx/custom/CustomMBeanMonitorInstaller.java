@@ -15,8 +15,7 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.custom;
 
-import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
-
+import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,12 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Node;
 
-import com.google.common.hash.Funnel;
-import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
-import com.google.common.hash.PrimitiveSink;
-import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
+import com.heliosapm.opentsdb.client.boot.XMLLoader;
 import com.heliosapm.opentsdb.client.util.XMLHelper;
 
 /**
@@ -44,16 +38,7 @@ import com.heliosapm.opentsdb.client.util.XMLHelper;
  */
 
 public class CustomMBeanMonitorInstaller {
-/*
-	<customjmx freq="5">
-		<mbeanserver domain="DefaultDomain" prefix="Hadoop:service=HBase">
-			<monitor objectName="name=*">
-				<attributes include="" exclude="" numericsonly="true" />
-				<keys pattern="tag\.(.*)?" delim="" include="" exclude=""/>
-			</monitor>
-		</mbeanserver>
-	</customjmx> 
- */
+	
 	
 	/** The singleton instance */
 	private static volatile CustomMBeanMonitorInstaller instance = null;
@@ -70,6 +55,29 @@ public class CustomMBeanMonitorInstaller {
 	protected final Logger log = LogManager.getLogger(getClass());
 	
 
+	public static void main(String[] args) {
+		log("Basic XML Direct Test");
+		try {
+			File xmlConfig = new File("./src/test/resources/configs/LocalTest.xml");
+			Node rootNode = XMLHelper.parseXML(xmlConfig).getDocumentElement();
+			XMLLoader.boot("./src/test/resources/configs/LocalTest.xml");
+//			getInstance(rootNode);
+			log("Booted......");
+			Thread.currentThread().join();
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+			Runtime.getRuntime().halt(-1);
+		}
+	}
+	
+	/**
+	 * System out format logger
+	 * @param fmt The message format
+	 * @param args The message args
+	 */
+	public static void log(final Object fmt, final Object...args) {
+		System.out.println(String.format(fmt.toString(), args));
+	}
 
 	
 	/**
@@ -115,7 +123,7 @@ public class CustomMBeanMonitorInstaller {
 		final Map<String, MonitoredMBeanServer> copyOfMBeanServers = new HashMap<String, MonitoredMBeanServer>(mbeanServers);
 		
 		
-		defaultPeriod.set(XMLHelper.getAttributeByName(configNode, "customjmx", 15));  // TODO:  Do this last ?
+		defaultPeriod.set(XMLHelper.getAttributeByName(configNode, "freq", 15));  // TODO:  Do this last ?
 		final List<Node> mbeanServers = XMLHelper.getChildNodesByName(configNode, "mbeanserver", false);
 		for(Node mbsNode: mbeanServers) {
 			final String dd = XMLHelper.getAttributeByName(mbsNode, "domain", "").trim();

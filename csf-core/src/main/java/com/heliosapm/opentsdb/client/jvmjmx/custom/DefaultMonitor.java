@@ -287,6 +287,7 @@ public class DefaultMonitor implements Runnable {
 				}
 				map.put(mbf, featureInfos);
 			}
+			metaData.put(on, map);
 		}
 	}
 	
@@ -320,7 +321,7 @@ public class DefaultMonitor implements Runnable {
 			Map<String, MBeanFeatureInfo> minfos = entry.getValue().get(MBeanFeature.ATTRIBUTE);
 			for(Map.Entry<String, MBeanFeatureInfo> mentry: minfos.entrySet()) {
 				String name = mentry.getKey();
-				MBeanAttributeInfo minfo = (MBeanAttributeInfo)entry.getValue();
+				MBeanAttributeInfo minfo = (MBeanAttributeInfo)mentry.getValue();
 				if(shouldIncludeAttribute(name, minfo.getType(), objectName)) {
 					attrNames.add(name);
 				}
@@ -350,7 +351,7 @@ public class DefaultMonitor implements Runnable {
 	 */
 	public boolean matchesAttr(final String name) {
 		return attrIncludePattern.matcher(name).matches()
-				&& (attrExcludePattern!=null && !attrExcludePattern.matcher(name).matches());
+				&& (attrExcludePattern==null || !attrExcludePattern.matcher(name).matches());
 	}
 	
 	
