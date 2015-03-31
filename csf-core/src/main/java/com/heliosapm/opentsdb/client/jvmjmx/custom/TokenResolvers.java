@@ -223,6 +223,17 @@ public class TokenResolvers {
 		}		
 	}
 	
+	public static class AttributeKeyResolver extends AbstractTokenResolver {
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.AbstractTokenResolver#doResolve(com.heliosapm.opentsdb.client.jvmjmx.custom.ExpressionDataContext, java.lang.String, java.lang.String, com.heliosapm.opentsdb.client.jvmjmx.custom.Tokener.IntRange[])
+		 */
+		@Override
+		public CharSequence doResolve(final ExpressionDataContext dctx, final String key, final String qualifier, final IntRange... ranges) {
+			return dctx.focusedAttributeName();
+		}
+	}
+	
 	/**
 	 * <p>Title: DescriptorKeyTokenResolver</p>
 	 * <p>Description: Extracts tags from the focused descriptor keys that match the regex in the passed key and the corresponding value.</p> 

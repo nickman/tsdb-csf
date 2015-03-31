@@ -146,6 +146,13 @@ public class JMXHelper {
 	/** The legacy debug agent library */
 	public static final String LEGACY_AGENT_LIB = "-Xrunjdwp:";
 	
+	/** The ObjectName of the hotspot internals MBean */
+	public static final ObjectName HOTSPOT_INTERNAL_ON = objectName("sun.management:type=HotspotMemory");
+
+	/** The class name of the hotspot internals MBean */
+	public static final String HOTSPOT_INTERNAL_CLASS_NAME = "sun.management.HotspotInternal";
+	
+	
 	/** The system property where one might find the MBeanServerBuilder class name */
 	public static final String BUILDER_CLASS_NAME_PROP = "javax.management.builder.initial";
 	
@@ -232,6 +239,31 @@ public class JMXHelper {
 			throw new RuntimeException("Failed to create JMXServiceURL for [" + format +  "]", ex);
 		}
 	}
+	
+	/**
+	 * Registers the Hotspot internal MBean in the passed MBeanServer
+	 * @param mbeanServer The MBeanServer to register in
+	 * @return true if the MBean is registered, false otherwise
+	 */
+	public static boolean registerHotspotInternal(final MBeanServerConnection mbeanServer) {
+		if(mbeanServer==null) throw new IllegalArgumentException("The passed MBeanServerConnection was null");
+		try {
+			if(mbeanServer.isRegistered(HOTSPOT_INTERNAL_ON)) return true;
+			mbeanServer.createMBean(HOTSPOT_INTERNAL_CLASS_NAME, HOTSPOT_INTERNAL_ON);
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+	
+	/**
+	 * Registers the Hotspot internal MBean in the Helios MBeanServer
+	 * @return true if the MBean is registered, false otherwise
+	 */
+	public static boolean registerHotspotInternal() {
+		return registerHotspotInternal(getHeliosMBeanServer());
+	}
+	
 	
 	/**
 	 * Acquires the configured or default Helios target MBeanServer.

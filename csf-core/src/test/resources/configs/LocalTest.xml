@@ -19,8 +19,9 @@
 		<mbeanserver domain="DefaultDomain" prefix="java.lang:">
 			<monitor objectName="type=Threading" freq="3">
 				<attributes include="" exclude="" numericsonly="true"/>  <!-- If not specified, includes all attributes -->
+				<!-- java.lang:type=Threading/ThreadCount -->
 				<tracer include="" numericsonly="true" exclude="" dynamic="false" processor="">
-					<!-- java.lang:type=Threading/ThreadCount -->				
+					$od{}.threading.$ak{}									
 				</tracer>
 			</monitor>
 		</mbeanserver>

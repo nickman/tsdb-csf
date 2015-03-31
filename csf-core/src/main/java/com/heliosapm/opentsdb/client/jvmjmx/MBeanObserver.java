@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -75,7 +76,23 @@ public enum MBeanObserver implements MXBeanDescriptor {
 	/** The runtime MXBean */
 	RUNTIME_MXBEAN(RuntimeMXBean.class, Util.objectName(RUNTIME_MXBEAN_NAME), RuntimeAttribute.class),
 	/** The runtime MXBean */
-	THREAD_MXBEAN(ThreadMXBean.class, Util.objectName(THREAD_MXBEAN_NAME), ThreadingAttribute.class);
+	THREAD_MXBEAN(ThreadMXBean.class, Util.objectName(THREAD_MXBEAN_NAME), ThreadingAttribute.class),
+	/** The Hotspot Internal Memory MBean */
+	@SuppressWarnings("restriction")
+	HOTSPOT_MEMORY_MBEAN(sun.management.HotspotMemoryMBean.class, Util.objectName("sun.management:type=HotspotMemory"), HotspotInternalMemoryAttribute.class),
+	/** The Hotspot Internal ClassLoading MBean */
+	@SuppressWarnings("restriction")
+	HOTSPOT_CLASSLOADING_MBEAN(sun.management.HotspotClassLoadingMBean.class, Util.objectName("sun.management:type=HotspotClassLoading"), HotspotInternalClassLoadingAttribute.class),
+	/** The Hotspot Internal Compilation MBean */
+	@SuppressWarnings("restriction")
+	HOTSPOT_COMPILATION_MBEAN(sun.management.HotspotCompilationMBean.class, Util.objectName("sun.management:type=HotspotCompilation"), HotspotInternalCompilationAttribute.class),
+	/** The Hotspot Internal Runtime MBean */
+	@SuppressWarnings("restriction")
+	HOTSPOT_RUNTIME_MBEAN(sun.management.HotspotRuntimeMBean.class, Util.objectName("sun.management:type=HotspotRuntime"), HotspotInternalRuntimeAttribute.class),
+	/** The Hotspot Internal Runtime MBean */
+	@SuppressWarnings("restriction")
+	HOTSPOT_THREADING_MBEAN(sun.management.HotspotThreadMBean.class, Util.objectName("sun.management:type=HotspotThreading"), HotspotInternalThreadingAttribute.class);
+	
 
 	private MBeanObserver(final Class<?> type, final ObjectName objectName, final Class<? extends AttributeManager<?>> attributeManager) {
 		this.type = type;
@@ -1055,9 +1072,465 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		public String getKey() {
 			return attributeName; 
 		}
+	}
+	
+	public static enum HotspotInternalThreadingAttribute implements AttributeManager<HotspotInternalThreadingAttribute> {
+		INTERNAL_THREADING_COUNTERS("InternalThreadingCounters", List.class);
 		
+		private HotspotInternalThreadingAttribute(final String attributeName, final Class<?> type) {
+			this.attributeName = attributeName;
+			this.type = type;
+			primitive = type.isPrimitive();
+		}
+		
+		/** The bitmask */
+		public final int bitMask = POW2.get(ordinal());
+		/** The currently loaded class count */
+		public final String attributeName;
+		/** The total loaded class count */
+		public final Class<?> type;
+		/** The unloaded class count */
+		public final boolean primitive;
+		
+		/**
+		 * Returns all the attribute names
+		 * @return all the attribute names
+		 */
+		public static String[] getAllAttributes() {
+			return getAttributeNames(ThreadingAttribute.class);
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
+		 */
+		@Override
+		public String getAttributeName() {
+			return attributeName;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
+		 */
+		@Override
+		public Class<?> getType() {
+			return type;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
+		 */
+		@Override
+		public boolean isPrimitive() {
+			return primitive;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
+		 */
+		@Override
+		public int getMask() {
+			return bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (mask & bitMask)==bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
+		 */
+		@Override
+		public String getKey() {
+			return attributeName; 
+		}
 		
 	}
+
+	
+	public static enum HotspotInternalRuntimeAttribute implements AttributeManager<HotspotInternalRuntimeAttribute> {
+		INTERNAL_RUNTIME_COUNTERS("InternalRuntimeCounters", List.class);
+		
+		private HotspotInternalRuntimeAttribute(final String attributeName, final Class<?> type) {
+			this.attributeName = attributeName;
+			this.type = type;
+			primitive = type.isPrimitive();
+		}
+		
+		/** The bitmask */
+		public final int bitMask = POW2.get(ordinal());
+		/** The currently loaded class count */
+		public final String attributeName;
+		/** The total loaded class count */
+		public final Class<?> type;
+		/** The unloaded class count */
+		public final boolean primitive;
+		
+		/**
+		 * Returns all the attribute names
+		 * @return all the attribute names
+		 */
+		public static String[] getAllAttributes() {
+			return getAttributeNames(ThreadingAttribute.class);
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
+		 */
+		@Override
+		public String getAttributeName() {
+			return attributeName;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
+		 */
+		@Override
+		public Class<?> getType() {
+			return type;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
+		 */
+		@Override
+		public boolean isPrimitive() {
+			return primitive;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
+		 */
+		@Override
+		public int getMask() {
+			return bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (mask & bitMask)==bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
+		 */
+		@Override
+		public String getKey() {
+			return attributeName; 
+		}
+		
+	}
+	
+	public static enum HotspotInternalCompilationAttribute implements AttributeManager<HotspotInternalCompilationAttribute> {
+		COMPILER_THREAD_STATS("CompilerThreadStats", List.class),
+		INTERNAL_COMPILER_COUNTERS("InternalCompilerCounters", List.class);
+		
+		private HotspotInternalCompilationAttribute(final String attributeName, final Class<?> type) {
+			this.attributeName = attributeName;
+			this.type = type;
+			primitive = type.isPrimitive();
+		}
+		
+		/** The bitmask */
+		public final int bitMask = POW2.get(ordinal());
+		/** The currently loaded class count */
+		public final String attributeName;
+		/** The total loaded class count */
+		public final Class<?> type;
+		/** The unloaded class count */
+		public final boolean primitive;
+		
+		/**
+		 * Returns all the attribute names
+		 * @return all the attribute names
+		 */
+		public static String[] getAllAttributes() {
+			return getAttributeNames(ThreadingAttribute.class);
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
+		 */
+		@Override
+		public String getAttributeName() {
+			return attributeName;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
+		 */
+		@Override
+		public Class<?> getType() {
+			return type;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
+		 */
+		@Override
+		public boolean isPrimitive() {
+			return primitive;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
+		 */
+		@Override
+		public int getMask() {
+			return bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (mask & bitMask)==bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
+		 */
+		@Override
+		public String getKey() {
+			return attributeName; 
+		}
+		
+	}
+	
+	public static enum HotspotInternalMemoryAttribute implements AttributeManager<HotspotInternalMemoryAttribute> {
+		INTERNAL_MEMORY_COUNTERS("InternalMemoryCounters", List.class);
+		
+		private HotspotInternalMemoryAttribute(final String attributeName, final Class<?> type) {
+			this.attributeName = attributeName;
+			this.type = type;
+			primitive = type.isPrimitive();
+		}
+		
+		/** The bitmask */
+		public final int bitMask = POW2.get(ordinal());
+		/** The currently loaded class count */
+		public final String attributeName;
+		/** The total loaded class count */
+		public final Class<?> type;
+		/** The unloaded class count */
+		public final boolean primitive;
+		
+		/**
+		 * Returns all the attribute names
+		 * @return all the attribute names
+		 */
+		public static String[] getAllAttributes() {
+			return getAttributeNames(ThreadingAttribute.class);
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
+		 */
+		@Override
+		public String getAttributeName() {
+			return attributeName;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
+		 */
+		@Override
+		public Class<?> getType() {
+			return type;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
+		 */
+		@Override
+		public boolean isPrimitive() {
+			return primitive;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
+		 */
+		@Override
+		public int getMask() {
+			return bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (mask & bitMask)==bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
+		 */
+		@Override
+		public String getKey() {
+			return attributeName; 
+		}
+		
+	}
+	
+	public static enum HotspotInternalClassLoadingAttribute implements AttributeManager<HotspotInternalClassLoadingAttribute> {
+		INTERNAL_CLASS_LOADING_COUNTERS("InternalClassLoadingCounters", List.class);
+		
+		private HotspotInternalClassLoadingAttribute(final String attributeName, final Class<?> type) {
+			this.attributeName = attributeName;
+			this.type = type;
+			primitive = type.isPrimitive();
+		}
+		
+		/** The bitmask */
+		public final int bitMask = POW2.get(ordinal());
+		/** The currently loaded class count */
+		public final String attributeName;
+		/** The total loaded class count */
+		public final Class<?> type;
+		/** The unloaded class count */
+		public final boolean primitive;
+		
+		/**
+		 * Returns all the attribute names
+		 * @return all the attribute names
+		 */
+		public static String[] getAllAttributes() {
+			return getAttributeNames(ThreadingAttribute.class);
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
+		 */
+		@Override
+		public String getAttributeName() {
+			return attributeName;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
+		 */
+		@Override
+		public Class<?> getType() {
+			return type;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
+		 */
+		@Override
+		public boolean isPrimitive() {
+			return primitive;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
+		 */
+		@Override
+		public int getMask() {
+			return bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (mask & bitMask)==bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			return input;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
+		 */
+		@Override
+		public String getKey() {
+			return attributeName; 
+		}
+		
+	}
+	
 
 	/**
 	 * <p>Title: ThreadingAttribute</p>

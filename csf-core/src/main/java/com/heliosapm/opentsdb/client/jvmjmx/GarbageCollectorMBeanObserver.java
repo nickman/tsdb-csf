@@ -29,11 +29,15 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.MBeanServerConnection;
+import javax.management.Notification;
+import javax.management.NotificationListener;
 import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
 import javax.management.remote.JMXConnector;
 
 import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.GarbageCollectorAttribute;
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
@@ -62,6 +66,9 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	protected final Map<String, OTMetric> collectionCountRates;
 	/** The duration of the last GC event */
 	protected final Map<String, OTMetric> lastDurations;
+	/** The cummulative duration of all GC events */
+	protected final Map<String, OTMetric> totalDurations;
+
 	/** The delta of the used memory for each pool */
 	protected final Map<String, Map<String, OTMetric>> lastUsedDelta;
 	/** The delta of the committed memory for each pool */
@@ -80,6 +87,9 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	protected final boolean hasProcessCpuTime;
 	/** The number of processors available to the target JVM */
 	protected final int processorCount;
+	
+	/** Indicates if we will listen on and trace live GC events */
+	protected final boolean liveGc;
 	
 	/** The OperatingSystem MXBean ObjectName */
 	protected static final ObjectName OS_OBJECT_NAME = Util.objectName(ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME);
@@ -116,6 +126,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 */
 	public GarbageCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
 		super(mbeanServerConn, GARBAGE_COLLECTOR_MXBEAN, tags, publishObserverMBean);
+		liveGc = Constants.IS_JAVA_7 && ConfigurationReader.confBool(Constants.PROP_JMX_LIVE_GC_TRACING, Constants.DEFAULT_JMX_LIVE_GC_TRACING);
 		garbageCollectors = objectNamesAttrs.keySet();
 		boolean tmp = false;
 		try {
@@ -134,6 +145,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 		collectionTimeRates = new LinkedHashMap<String, OTMetric>(gcCount);
 		collectionCountRates = new LinkedHashMap<String, OTMetric>(gcCount);
 		lastDurations = new LinkedHashMap<String, OTMetric>(gcCount);
+		totalDurations = liveGc ? new LinkedHashMap<String, OTMetric>(gcCount) : null;
 		lastUsedDelta = new LinkedHashMap<String, Map<String, OTMetric>>(poolCount);
 		lastCommittedDelta = new LinkedHashMap<String, Map<String, OTMetric>>(poolCount);
 		percentageCPUTimeInGC = MetricBuilder.metric(BASEMN).ext("pctCPUTimeInGC").tags(tags).build(groupName);
@@ -155,9 +167,38 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 			collectionTimeRates.put(gcName, MetricBuilder.metric(BASEMN).ext("collectionTimeRate").tag(GCNAME, gcName).tags(tags).build(groupName));
 			collectionCountRates.put(gcName, MetricBuilder.metric(BASEMN).ext("collectionCountRate").tag(GCNAME, gcName).tags(tags).build(groupName));
 			lastDurations.put(gcName, MetricBuilder.metric(BASEMN).ext("lastGCDuration").tag(GCNAME, gcName).tags(tags).build(groupName));
+			if(liveGc) totalDurations.put(gcName, MetricBuilder.metric(BASEMN).ext("totalGCDuration").tag(GCNAME, gcName).tags(tags).build(groupName));
 		}
 		groupMetrics.addAll(MetricBuilder.getGroupSet(groupName));
 		log.info("Group Metrics: {}", groupMetrics.size());
+	}
+	
+	protected void registerGCEventListener() {
+		for(ObjectName on: garbageCollectors) {
+			
+		}
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserver#isNotificationEnabled(javax.management.Notification)
+	 */
+	@Override
+	public boolean isNotificationEnabled(final Notification notification) {
+		return liveGc && ("com.sun.management.gc.notification".equals(notification.getType()));
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserver#handleNotification(javax.management.Notification, java.lang.Object)
+	 */
+	@Override
+	public void handleNotification(final Notification notification, final Object handback) {
+		final ObjectName source = (ObjectName)notification.getSource();
+		final CompositeData cd = (CompositeData)notification.getUserData();
+		final OTMetric otm = totalDurations.get(source.getKeyProperty("name"));
+		final CompositeData  gcInfo = (CompositeData) cd.get("gcInfo");
+		otm.trace(gcInfo.get("duration"));
 	}
 	
 

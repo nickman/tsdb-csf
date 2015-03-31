@@ -464,9 +464,21 @@ public class XMLHelper {
 		}				
 	}
 	
+	/**
+	 * Extracts the text from inside the given node
+	 * @param node The node to extract from
+	 * @return the extracted text
+	 */
 	public static String getNodeTextValue(final Node node) {
 		return node.getFirstChild().getNodeValue();
 	}
+	
+	/**
+	 * Extracts the text from inside the given node
+	 * @param node The node to extract from
+	 * @param defaultValue The value to return if no text is found, or it is empty
+	 * @return the extracted text
+	 */
 	public static String getNodeTextValue(final Node node, final String defaultValue) {
 		try {
 			String text = node.getFirstChild().getNodeValue();

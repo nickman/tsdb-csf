@@ -71,7 +71,8 @@ public class AttributeTracer {
 		attrIncludePattern = Pattern.compile(attrInclude);
 		attrExcludePattern = attrExclude==null ? null : Pattern.compile(attrExclude);
 		otMetricMap = dynamic ? null : new HashMap<ObjectName, Map<String, OTMetric>>();
-		metricBuilderExpr = XMLHelper.getNodeTextValue(tracerNode);
+		metricBuilderExpr = XMLHelper.getNodeTextValue(tracerNode, "").trim();
+		if(metricBuilderExpr.isEmpty()) throw new RuntimeException("The metric builder expression was empty in the tracer node [" + XMLHelper.renderNode(tracerNode) + "]");
 		if(!dynamic) initOTMetrics();
 	}
 	

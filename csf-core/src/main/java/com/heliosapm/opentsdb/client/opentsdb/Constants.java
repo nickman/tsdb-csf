@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Level;
 
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.HTTPMethod;
+import com.heliosapm.opentsdb.client.util.Util;
 
 /**
  * <p>Title: Constants</p>
@@ -41,6 +42,11 @@ public interface Constants {
 	public static final int CORES = ManagementFactory.getOperatingSystemMXBean().getAvailableProcessors();
 	/** Indicates if we're running on Windows */
 	public static final boolean IS_WIN = System.getProperty("os.name", "").toLowerCase().contains("windows");
+	
+	/** Indicates if we're running Java 7+ */
+	public static final boolean IS_JAVA_7 = Util.loadClassByName("java.lang.management.BufferPoolMXBean", null)!=null;
+	/** Indicates if we're running Java 8+ */
+	public static final boolean IS_JAVA_8 = Util.loadClassByName("java.util.concurrent.DoubleAdder", null)!=null;
 	
 	/** The system property config name for pooling HTTP connections (i.e. enable KeepAlive) */
 	public static final String PROP_POOL_CONNS = "tsdb.http.connection.pooling";
@@ -299,6 +305,16 @@ public interface Constants {
 	public static final String PROP_JMX_DOMAIN = "tsdb.jmx.domain";
 	/** The default JMX domain where csf MBeans are registered */
 	public static final String DEFAULT_JMX_DOMAIN = "com.heliosapm.tsdb";
+
+	// ============================================
+	// Local JVM Platform JMX Collection Properties
+	// ============================================	
+
+	/** The system property config name for the live GC event tracing */
+	public static final String PROP_JMX_LIVE_GC_TRACING = "tsdb.jmx.livegc";
+	/** The default JMX domain where csf MBeans are registered */
+	public static final boolean DEFAULT_JMX_LIVE_GC_TRACING = false;
+
 	
 	
 	//======================================================================================================================

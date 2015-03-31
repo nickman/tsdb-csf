@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.AttributeKeyResolver;
 import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.AttributeKeyTokenResolver;
 import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.AttributeValueTokenResolver;
 import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.DescriptorKeyTokenResolver;
@@ -47,6 +48,7 @@ import com.heliosapm.opentsdb.client.jvmjmx.custom.TokenResolvers.ScriptTokenRes
 public enum Tokener {
 	ATTRIBUTE_KEYR("akr", new AttributeKeyTokenResolver(false, true)),
 	ATTRIBUTE_KEYT("akt", new AttributeKeyTokenResolver(true, false)),
+	ATTRIBUTE_KEY("ak", new AttributeKeyResolver()),
 	ATTRIBUTE_VALUE("av", new AttributeValueTokenResolver()),
 	OBJECTNAME_KEYT("onkt", new ObjectNameKeyTokenResolver(false, true)),
 	OBJECTNAME_KEYR("onkr", new ObjectNameKeyTokenResolver(true, false)),
@@ -138,7 +140,7 @@ MBean Info:
 	
 	
 	/** The token splitter */
-	public static final Pattern TOKEN_PATTERN = Pattern.compile("\\$(.*)?\\{(.*?)(?:\\((\\d+(?:[,-]\\d+)*)\\))?(?:\\[(.*)?\\])?\\}");
+	public static final Pattern TOKEN_PATTERN = Pattern.compile("\\$(.*)?\\{(.*?)(?:\\((\\d+(?:[,-]\\d+)*)\\))?(?:\\[(.*)?\\])?\\}?");
 	
 	public static class IntRange {
 		/** A cache of IntRanges keyed by the original expression */
