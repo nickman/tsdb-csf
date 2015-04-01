@@ -752,9 +752,9 @@ public class OTMetric implements Serializable {
 	 */
 	public String toJSON(final long timestamp, final Object value) {
 		final ChannelBuffer cbuff = factory.getBuffer(16);
-		System.out.println("BUFF INITIAL CAP:" + cbuff.capacity());
+		//System.out.println("BUFF INITIAL CAP:" + cbuff.capacity());
 		String s = toJSON(timestamp, value, cbuff, false).toString(UTF8);
-		System.out.println("BUFF CAP:" + cbuff.capacity() + ", LIMIT:" + cbuff.writerIndex());
+		//System.out.println("BUFF CAP:" + cbuff.capacity() + ", LIMIT:" + cbuff.writerIndex());
 		return s;
 	}
 	

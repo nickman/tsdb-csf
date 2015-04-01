@@ -16,7 +16,6 @@
 
 package com.heliosapm.opentsdb.client.boot;
 
-import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;

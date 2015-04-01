@@ -169,6 +169,20 @@ public interface Constants {
 	public static final String PROP_SCHEDULER_WHEEL = "tsdb.scheduler.size.wheel";
 	/** The default wheel size in the shared scheduler in ms. */
 	public static final int DEFAULT_SCHEDULER_WHEEL = 60 * 60 * 2;
+
+	//======================================================================================================================
+	//     Tracing
+	//======================================================================================================================
+	
+	/** The system property config name to make the tracer print to StdOut rather than send to OpenTSDB */
+	public static final String PROP_TRACE_TO_STDOUT = "tsdb.trace.stdout";
+	/** The default stdout tracing enablement */
+	public static final boolean DEFAULT_TRACE_TO_STDOUT = false;
+	
+	/** The system property config name to make the tracer print in JSON when outputing to StdOut */
+	public static final String PROP_STDOUT_JSON = "tsdb.trace.stdout.json";
+	/** The default stdout json tracing enablement */
+	public static final boolean DEFAULT_STDOUT_JSON = true;
 	
 	//======================================================================================================================
 	//     Response Tracking
@@ -314,6 +328,19 @@ public interface Constants {
 	public static final String PROP_JMX_LIVE_GC_TRACING = "tsdb.jmx.livegc";
 	/** The default JMX domain where csf MBeans are registered */
 	public static final boolean DEFAULT_JMX_LIVE_GC_TRACING = false;
+	
+	/** The system property config name for enabling tracing of hotspot internals 
+	 * Valid values are: <ul>
+	 * <li><b><code>Compilation</code></b></li>
+	 * <li><b><code>Classloading</code></b></li>
+	 * <li><b><code>Runtime</code></b></li>
+	 * <li><b><code>Threading</code></b></li>
+	 * <li><b><code>Memory</code></b></li>
+	 * */
+	public static final String PROP_JMX_HOTSPOT_TRACING = "tsdb.jmx.hotspot";
+	/** The default hotspot mbean short names enabled for tracing */
+	public static final String[] DEFAULT_JMX_HOTSPOT_TRACING = {};
+	
 
 	
 	

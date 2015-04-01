@@ -17,6 +17,7 @@
 package com.heliosapm.opentsdb.client.jvmjmx;
 
 import java.lang.management.ManagementFactory;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.management.MBeanServer;
+import javax.management.MBeanServerConnection;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +35,9 @@ import org.jboss.netty.util.Timeout;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
+import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
@@ -73,8 +78,21 @@ public class MBeanObserverSet implements Runnable {
 		log("Testing MOS");
 		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4242");
 		System.setProperty("tsdb.http.compression.enabled", "false");
-		MBeanObserverSet mos = build(RuntimeMBeanServerConnection.newInstance(JMXHelper.getHeliosMBeanServer()), 5, TimeUnit.SECONDS, true);
+		System.setProperty(Constants.PROP_JMX_LIVE_GC_TRACING, "true");
+		System.setProperty(Constants.PROP_JMX_HOTSPOT_TRACING, Arrays.toString(MBeanObserver.getHotSpotMBeanShortNames()).replace("[", "").replace("]", ""));
+		System.setProperty(Constants.PROP_STDOUT_JSON, "true");
+		MetricBuilder.reconfig();
+		log("Hotspot MBeans:[" + System.getProperty(Constants.PROP_JMX_HOTSPOT_TRACING));
+		final RuntimeMBeanServerConnection mbs = RuntimeMBeanServerConnection.newInstance(JMXHelper.getHeliosMBeanServer());
+		MBeanObserverSet mos = build(mbs, 5, TimeUnit.SECONDS, true);
 		log("MOS enabled with [" + mos.enabledObservers.size() + "] MBeanObservers");
+		String[] hotspotCounters = ConfigurationReader.confStrArr(Constants.PROP_JMX_HOTSPOT_TRACING, Constants.DEFAULT_JMX_HOTSPOT_TRACING);
+		if(hotspotCounters.length > 0 && "*".equals(hotspotCounters[0])) {
+			hotspotCounters = MBeanObserver.getHotSpotMBeanShortNames();
+		}
+		for(String counterName: hotspotCounters) {
+			new HotSpotInternalsBaseMBeanObserver(mbs, true, counterName, "(.*)");
+		}
 		try { Thread.currentThread().join(); } catch (Exception ex) {}
 	}
 	

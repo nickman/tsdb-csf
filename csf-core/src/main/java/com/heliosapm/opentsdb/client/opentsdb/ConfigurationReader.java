@@ -16,6 +16,8 @@
 package com.heliosapm.opentsdb.client.opentsdb;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.logging.log4j.Level;
 
@@ -49,6 +51,36 @@ public class ConfigurationReader {
 			return defaultValue==null ? null : defaultValue.toString().trim();
 		}
 		return value.trim();
+	}
+	
+	/**
+	 * Returns the String array configuration value for the passed config key.
+	 * The value is expected to comma separated values.
+	 * All members of the array are trimmed before being returned, and null or empty
+	 * items are discarded.
+	 * See {@link #conf(String, Object)} for the processing rules.
+	 * @param propName The system property configuration key
+	 * @param defaultValue The default value
+	 * @return the configuration value
+	 */
+	public static String[] confStrArr(final String propName, final String[] defaultValue) {
+		String[] arr = null;
+		String value = System.getProperty(propName);
+		if(value==null) {
+			value = System.getenv(propName.toUpperCase().replace('.', '_'));
+		}
+		if(value==null) {
+			arr = defaultValue==null ? null : defaultValue;
+		} else {
+			arr = value.split(",");
+		}
+		final List<String> arrList = new ArrayList<String>(arr.length);
+		for(int i = 0; i < arr.length; i++) {
+			if(arr[i]!=null && !arr[i].trim().isEmpty()) {
+				arrList.add(arr[i].trim());
+			}						
+		}
+		return arrList.toArray(new String[0]);
 	}
 	
 	/**

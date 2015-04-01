@@ -641,6 +641,22 @@ public class MetricBuilder {
 		return otm;
 	}
 	
+	/** Indicates if tracing should go to StdOut */
+	private static volatile boolean traceToStdOut = false;
+	/** Indicates if StdOut tracing should be in JSON format, or plain text */
+	private static volatile boolean traceStdOutJson = false;
+	
+	static {
+		reconfig();
+	}
+	
+	/**
+	 * Re-reads the configuration
+	 */
+	public static void reconfig() {
+		traceToStdOut = ConfigurationReader.confBool(Constants.PROP_TRACE_TO_STDOUT, Constants.DEFAULT_TRACE_TO_STDOUT);
+		traceStdOutJson = ConfigurationReader.confBool(Constants.PROP_STDOUT_JSON, Constants.DEFAULT_STDOUT_JSON);
+	}
 	
 	/**
 	 * Traces a value for the passed metric
@@ -651,7 +667,15 @@ public class MetricBuilder {
 	public static void trace(final OTMetric metric, final long timestamp, final Object value) {
 		if(metric==null) throw new IllegalArgumentException("The passed metric was null");
 		if(value==null) throw new IllegalArgumentException("The passed value was null");
-		METRIC_BUFFER.append(metric, timestamp, value);
+		if(traceToStdOut) {
+			if(traceStdOutJson) {
+				System.out.println(metric.toJSON(timestamp, value));
+			} else {
+				System.out.println(metric.toString() + ":[" + timestamp + "/" + value + "]");
+			}
+		} else {
+			METRIC_BUFFER.append(metric, timestamp, value);
+		}
 //		final ChannelBuffer chBuff = bufferFactory.getBuffer();
 //		metric.toJSON(timestamp, value, chBuff, false);
 //		OpenTsdb.getInstance().send(chBuff, 1);		

@@ -15,10 +15,10 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx;
 
-import static com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.GARBAGE_COLLECTOR_MXBEAN;
-
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,14 +64,13 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	public static final Map<String, MBeanObserver> HOTSPOT_MBEAN_OBSERVERS;
 	
 	static {
-		Map<ObjectName, String[]> tmp = new HashMap<ObjectName, String[]>();
-		tmp.put(JMXHelper.objectName("sun.management:type=HotspotClassLoading"), new String[]{"InternalClassLoadingCounters"});
-		tmp.put(JMXHelper.objectName("sun.management:type=HotspotCompilation"), new String[]{"CompilerThreadStats", "InternalCompilerCounters"});
-		tmp.put(JMXHelper.objectName("sun.management:type=HotspotMemory"), new String[]{"InternalMemoryCounters"});
-		tmp.put(JMXHelper.objectName("sun.management:type=HotspotRuntime"), new String[]{"InternalRuntimeCounters"});
-		tmp.put(JMXHelper.objectName("sun.management:type=HotspotThreading"), new String[]{"InternalThreadingCounters"});
-		
-		HOTSPOT_ATTTR_NAMES = Collections.unmodifiableMap(new HashMap<String, MBeanObserver>(tmp));
+		final MBeanObserver[] hotspotObservers = MBeanObserver.getHotSpotObservers();
+		Map<String, MBeanObserver> tmp = new HashMap<String, MBeanObserver>(hotspotObservers.length);
+		for(MBeanObserver mbo : hotspotObservers) {
+			String name = mbo.objectName.getKeyProperty("type").replace("Hotspot", "").trim().toLowerCase();
+			tmp.put(name, mbo);
+		}		
+		HOTSPOT_MBEAN_OBSERVERS = Collections.unmodifiableMap(new HashMap<String, MBeanObserver>(tmp));
 	}
 	
 	/**  */
@@ -80,13 +79,12 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	/**
 	 * Creates a new HotSpotInternalsBaseMBeanObserver
 	 * @param jmxConnector The JMXConnector that will supply an MBeanServerConnection
-	 * @param tags The tags common to all metrics submitted from this observer
 	 * @param publishObserverMBean If true, an observer management MBean will be registered
 	 * @param hotspotMBean The target hotspot MBean ObjectName
 	 * @param counterPattern The pattern defining the counters to trace
 	 */
-	public HotSpotInternalsBaseMBeanObserver(final JMXConnector jmxConnector, final Map<String, String> tags, final boolean publishObserverMBean, final String hotspotMBean, final String counterPattern) {
-		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags, publishObserverMBean, hotspotMBean, counterPattern);
+	public HotSpotInternalsBaseMBeanObserver(final JMXConnector jmxConnector, final boolean publishObserverMBean, final String hotspotMBean, final String counterPattern) {
+		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), publishObserverMBean, hotspotMBean, counterPattern);
 		
 	}
 	
@@ -99,8 +97,8 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	 * @param counterPattern The pattern defining the counters to trace
 	 */
 	public HotSpotInternalsBaseMBeanObserver(final MBeanServerConnection mbeanServerConn, final boolean publishObserverMBean, final String hotspotMBean, final String counterPattern) {
-		super(mbeanServerConn, GARBAGE_COLLECTOR_MXBEAN, null, publishObserverMBean);
-		this.hotspotMBean = JMXHelper.objectName(hotspotMBean);
+		super(mbeanServerConn, HOTSPOT_MBEAN_OBSERVERS.get(hotspotMBean.trim().toLowerCase()), null, publishObserverMBean);
+		this.hotspotMBean = HOTSPOT_MBEAN_OBSERVERS.get(hotspotMBean.trim().toLowerCase()).objectName;
 		this.domainPrefix = hotspotMBean.replace("sun.management:type=Hotspot", "").toLowerCase().trim();
 		this.counterPattern = Pattern.compile(counterPattern);
 		if(hotspotRegistered.compareAndSet(false, true)) {
@@ -117,9 +115,36 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	 */
 	@Override
 	protected boolean accept(Map<ObjectName, Map<String, Object>> data, long currentTime, long elapsedTime) {
-		return false;
+		Map<String, Object> myMap = data.get(mbeanObserver.objectName);
+		if(myMap!=null) {
+			for(Object obj : myMap.values()) {
+				if(!(obj instanceof List)) continue;
+				List<Object> objList = (List<Object>)obj;
+				if(objList.isEmpty()) continue;
+				final Object first = objList.iterator().next();
+				if(first==null) continue;
+				if(first instanceof Counter) {
+					doTheseCounters((List<? extends Counter>)objList);
+				}
+				
+			}
+		}
+		return true;
 	}
 	
+	/**
+	 * Traces the counter list
+	 * @param counters The list of counters retrieved from the hotspot mbean 
+	 */
+	protected void doTheseCounters(final List<? extends Counter> counters) {
+		for(Counter ctr : counters) {
+			if(ctr==null) continue;
+			final String name = ctr.getName();
+			OTMetric otm = counterNames.get(name);
+			if(otm==null) continue;
+			otm.trace(ctr.getValue());
+		}
+	}
 	
 	/**
 	 * Introspects the data and gathers the target counter names
@@ -127,7 +152,7 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	 */
 	protected boolean ready() {
 		try {
-			String[] attributes = HOTSPOT_ATTTR_NAMES.get(hotspotMBean);
+			String[] attributes = this.mbeanObserver.getAttributeNames();
 			Map<String, Object> attrValues = this.mbs.getAttributeMap(hotspotMBean, attributes);
 			for(Object obj: attrValues.values()) {				
 				@SuppressWarnings("unchecked")
@@ -144,7 +169,9 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 						if("ticks".equals(units)) {
 							units = "ms";
 						}
-						counterNames.put(name, MetricBuilder.metric("hotspot." + domainPrefix).tag("unit", ctr.getUnits().toString().toLowerCase()).optBuild());
+						final OTMetric otm = MetricBuilder.metric("hotspot." + domainPrefix).tag("unit", ctr.getUnits().toString().toLowerCase()).optBuild();
+						log.info("Adding OTM for [{}]", otm);
+						counterNames.put(name, otm);
 					} else {
 						continue;
 					}					
@@ -154,6 +181,77 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 		} catch (Exception ex) {
 			return false;
 		}		
+	}
+	
+	static final Map<String, String> compiledGCNames = new HashMap<String, String>();
+	
+	void compileGCNames(final List<? extends Counter> ctrs) {
+		final List<? extends Counter> counters = new ArrayList<Counter>(ctrs); 
+		if(mbeanObserver!=MBeanObserver.HOTSPOT_MEMORY_MBEAN || !compiledGCNames.isEmpty()) return;
+		final Map<String, String> decodes = new HashMap<String, String>();
+		final Map<Integer, String> collectorDecodes = new HashMap<Integer, String>();
+		final Map<Integer, String> spaceDecodes = new HashMap<Integer, String>();
+		for(Iterator<? extends Counter> citer = counters.iterator(); citer.hasNext();) {
+			Counter ctr = citer.next();
+			final String name = ctr.getName();
+			if(!name.endsWith(".name")) {
+				citer.remove();
+				continue;
+			}
+			final Object value = ctr.getValue();
+			if(value==null || !(value instanceof String) || value.toString().trim().isEmpty()) {
+				citer.remove();
+				continue;
+			}
+			final int[] indexes = extractNameIndexes(name);
+			if(indexes.length==0) {
+				citer.remove();
+				continue;
+			} else if(indexes.length==1) {
+				collectorDecodes.put(indexes[0], value.toString());
+				decodes.put("" + indexes[0], name);
+			} else if(indexes.length==2) {
+				spaceDecodes.put(indexes[0], value.toString());
+				decodes.put("" + indexes[0] + indexes[1], name);
+			}			
+		}
+		for(Counter ctr: counters) {
+			String name = ctr.getName();
+			final int[] indexes = extractNameIndexes(name);
+			if(indexes.length==1) {
+				compiledGCNames.put(name, decodes.get("" + indexes[i]));
+			}
+		}
+		
+	}
+	
+	private static final int[] EMPTY_INT_ARR = {};
+	
+	static int[] extractNameIndexes(final String counterName) {
+		if(counterName==null || counterName.trim().isEmpty()) return EMPTY_INT_ARR;
+		final String[] frags = counterName.replace(" ", "").split("\\.");
+		int icounts = 0;
+		for(String v: frags) {
+			if(isInt(v) != -1) icounts++;
+		}
+		if(icounts==0) return EMPTY_INT_ARR;
+		final int[] arr = new int[icounts];
+		icounts = 0;
+		for(String v: frags) {
+			int x = isInt(v);
+			if(x==-1) continue;
+			arr[icounts] = x;
+			icounts++;
+		}
+		return arr;
+	}
+	
+	static int isInt(final String v) {
+		try {
+			return Integer.parseInt(v);
+		} catch (Exception x) {
+			return -1;
+		}
 	}
 	
 	/**

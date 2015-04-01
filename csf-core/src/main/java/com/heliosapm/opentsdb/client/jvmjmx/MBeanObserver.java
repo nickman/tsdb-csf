@@ -107,6 +107,8 @@ public enum MBeanObserver implements MXBeanDescriptor {
 	/** the attribute names */
 	private final Class<? extends AttributeManager<?>> am;
 	
+	private static final EnumSet<MBeanObserver> hotspotMbeanObservers = EnumSet.noneOf(MBeanObserver.class);
+	
 	/**
 	 * Returns the attribute names for the passed enum 
 	 * @param type The enum type 
@@ -172,6 +174,34 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		return filtered.toArray((T[]) Array.newInstance(enumType, filtered.size()));		
 	}
 	
+	
+	/**
+	 * Returns an array of the hotspot internal mbeanobserver mbean members
+	 * @return an array of the hotspot internal mbeanobserver mbean members
+	 */
+	public static MBeanObserver[] getHotSpotObservers() {
+		if(hotspotMbeanObservers.isEmpty()) {			
+			for(MBeanObserver mbo: MBeanObserver.values()) {
+				if(mbo.name().startsWith("HOTSPOT_")) {
+					hotspotMbeanObservers.add(mbo);
+				}
+			}
+		}
+		return hotspotMbeanObservers.toArray(new MBeanObserver[hotspotMbeanObservers.size()]);
+	}
+	
+	/**
+	 * Returns the shortnames of the Hotspot MBean names
+	 * @return the shortnames of the Hotspot MBean names
+	 */
+	public static String[] getHotSpotMBeanShortNames() {
+		final MBeanObserver[] hso = getHotSpotObservers();
+		final String[] names = new String[hso.length];
+		for(int i = 0; i < hso.length; i++) {
+			names[i] = hso[i].objectName.getKeyProperty("type").replace("Hotspot", "").trim().toLowerCase();
+		}
+		return names;
+	}
 	
 	
 	/**
