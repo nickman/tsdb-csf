@@ -107,7 +107,19 @@ public enum MBeanObserver implements MXBeanDescriptor {
 	/** the attribute names */
 	private final Class<? extends AttributeManager<?>> am;
 	
-	private static final EnumSet<MBeanObserver> hotspotMbeanObservers = EnumSet.noneOf(MBeanObserver.class);
+	/** The hotspot internal MBeanObservers keyed by the short name */
+	public static final Map<String, MBeanObserver> hotspotMbeanObservers;
+	
+	static {
+		final MBeanObserver[] values = MBeanObserver.values();
+		Map<String, MBeanObserver> hotspotBeans = new HashMap<String, MBeanObserver>();
+		for(MBeanObserver mbo: values) {
+			if(mbo.name().startsWith("HOTSPOT_")) {
+				hotspotBeans.put(mbo.objectName.getKeyProperty("type").replace("Hotspot", "").trim().toLowerCase(), mbo);
+			}
+		}
+		hotspotMbeanObservers = Collections.unmodifiableMap(hotspotBeans);
+	}
 	
 	/**
 	 * Returns the attribute names for the passed enum 
@@ -180,14 +192,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 	 * @return an array of the hotspot internal mbeanobserver mbean members
 	 */
 	public static MBeanObserver[] getHotSpotObservers() {
-		if(hotspotMbeanObservers.isEmpty()) {			
-			for(MBeanObserver mbo: MBeanObserver.values()) {
-				if(mbo.name().startsWith("HOTSPOT_")) {
-					hotspotMbeanObservers.add(mbo);
-				}
-			}
-		}
-		return hotspotMbeanObservers.toArray(new MBeanObserver[hotspotMbeanObservers.size()]);
+		return hotspotMbeanObservers.values().toArray(new MBeanObserver[hotspotMbeanObservers.size()]);
 	}
 	
 	/**
@@ -195,12 +200,35 @@ public enum MBeanObserver implements MXBeanDescriptor {
 	 * @return the shortnames of the Hotspot MBean names
 	 */
 	public static String[] getHotSpotMBeanShortNames() {
-		final MBeanObserver[] hso = getHotSpotObservers();
-		final String[] names = new String[hso.length];
-		for(int i = 0; i < hso.length; i++) {
-			names[i] = hso[i].objectName.getKeyProperty("type").replace("Hotspot", "").trim().toLowerCase();
+		return hotspotMbeanObservers.keySet().toArray(new String[hotspotMbeanObservers.size()]);
+	}
+	
+	/**
+	 * Returns the Hotspot internal MBeanObserver for the passed short name
+	 * @param name The short name of the bean
+	 * @return the Hotspot internal MBeanObserver or null if the name could not be matched
+	 */
+	public static MBeanObserver hotspotObserver(final String name) {
+		if(name==null || name.trim().isEmpty()) return null;
+		return hotspotMbeanObservers.get(name.trim().toLowerCase());
+	}
+	
+	/**
+	 * Returns the Hotspot internal MBeanObserver for the passed comma separated short names
+	 * @param names The comma separated short names of the beans
+	 * @return an array of matching Hotspot internal MBeanObserver
+	 */
+	public static MBeanObserver[] hotspotObservers(final String names) {
+		final Set<MBeanObserver> beans = EnumSet.noneOf(MBeanObserver.class);
+		if(names==null || names.trim().isEmpty()) return new MBeanObserver[0];
+		final String[] frags = names.split(",");
+		for(String name: frags) {
+			MBeanObserver mbo = hotspotObserver(name);
+			if(mbo!=null) {
+				beans.add(mbo);
+			}
 		}
-		return names;
+		return beans.toArray(new MBeanObserver[beans.size()]);
 	}
 	
 	
@@ -1288,7 +1316,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 	}
 	
 	public static enum HotspotInternalCompilationAttribute implements AttributeManager<HotspotInternalCompilationAttribute> {
-		COMPILER_THREAD_STATS("CompilerThreadStats", List.class),
+		//COMPILER_THREAD_STATS("CompilerThreadStats", List.class)
 		INTERNAL_COMPILER_COUNTERS("InternalCompilerCounters", List.class);
 		
 		private HotspotInternalCompilationAttribute(final String attributeName, final Class<?> type) {

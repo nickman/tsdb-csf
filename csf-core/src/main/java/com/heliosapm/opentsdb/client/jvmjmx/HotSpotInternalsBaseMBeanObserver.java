@@ -16,11 +16,15 @@
 package com.heliosapm.opentsdb.client.jvmjmx;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,7 +35,6 @@ import javax.management.remote.JMXConnector;
 
 import sun.management.counter.Counter;
 
-import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.opentsdb.client.util.JMXHelper;
@@ -59,6 +62,8 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	protected final Map<String, OTMetric> counterNames = new HashMap<String, OTMetric>();
 	/** The OTMetric prefix from the ObjectName */
 	protected final String domainPrefix;
+	/** The OTMetric tags for the memory counters */
+	protected final Map<String, String> compiledGCTags = new HashMap<String, String>();
 	
 	/** The counter providing attribute names keyed by the ObjectName */
 	public static final Map<String, MBeanObserver> HOTSPOT_MBEAN_OBSERVERS;
@@ -124,7 +129,9 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 				final Object first = objList.iterator().next();
 				if(first==null) continue;
 				if(first instanceof Counter) {
-					doTheseCounters((List<? extends Counter>)objList);
+					
+					List<? extends Counter> ctrs = (List<? extends Counter>)obj; 
+					doTheseCounters(ctrs);
 				}
 				
 			}
@@ -165,32 +172,116 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 					if(matcher.matches()) {
 						final String metricName = extractCounterName(matcher);
 						if(metricName==null || metricName.isEmpty()) continue;
-						String units = ctr.getUnits().toString().toLowerCase();
-						if("ticks".equals(units)) {
-							units = "ms";
-						}
-						final OTMetric otm = MetricBuilder.metric("hotspot." + domainPrefix).tag("unit", ctr.getUnits().toString().toLowerCase()).optBuild();
-						log.info("Adding OTM for [{}]", otm);
-						counterNames.put(name, otm);
+//						String units = ctr.getUnits().toString().toLowerCase();
+//						if("ticks".equals(units)) {
+//							units = "ms";
+//						}
 					} else {
 						continue;
 					}					
-				}				
+				}
+				compileGCTags(counters);
+				log.info("======================================");
+				for(Counter ctr: counters) {
+					String name = ctr.getName();
+					if(name.contains(".name")) continue;
+					int[] indx = extractNameIndexes(name);
+					if(indx.length>0) {
+						log.info("\t{} : {}", name, ctr.getValue());
+					}
+				}
+				log.info("======================================");
+				for(Counter ctr: counters) {
+					String name = ctr.getName();
+					if(name.contains(".name")) continue;
+					int[] indx = extractNameIndexes(name);
+					if(indx.length==0) {
+						log.info("\t{} : {}", name, ctr.getValue());
+					}
+				}
+				
+
 			}
+			
 			return true;		
 		} catch (Exception ex) {
 			return false;
 		}		
 	}
 	
-	static final Map<String, String> compiledGCNames = new HashMap<String, String>();
+	/**
+	 * Command line counter printer
+	 * @param args : <ul>
+	 * 	<li><b>-m &lt:hotspot mbean short names&gt;</b>: The comma separated hotspot internal mbean short names</li>
+	 *  <li><b>-c &lt:counter names&gt;</b>: The regex to filter the counter names</li>
+	 * </ul>
+	 */
+	public static void main(String[] args) {
+		final Set<MBeanObserver> mbeans = EnumSet.noneOf(MBeanObserver.class);
+		final Set<Pattern> counterFilters = new HashSet<Pattern>();		
+		for(int i = 0; i < args.length; i++) {
+			try {
+				if(args[i].equalsIgnoreCase("-m")) {
+					i++;					
+					mbeans.addAll(Arrays.asList(MBeanObserver.hotspotObservers(args[i])));					
+				} else if(args[i].equalsIgnoreCase("-c")) {
+					i++;
+					counterFilters.add(Pattern.compile(args[i], Pattern.CASE_INSENSITIVE));
+				}
+			} catch (Exception x) {/* No Op */}
+		}
+		if(mbeans.isEmpty()) mbeans.addAll(Arrays.asList(MBeanObserver.getHotSpotObservers()));
+		log("MBeans:");
+		for(MBeanObserver mbo: mbeans) {
+			log("\t%s", mbo.name());
+		}
+		
+		if(counterFilters.isEmpty()) {
+			log("Counters: All");
+		} else {
+			log("Counters:");
+			for(Pattern p: counterFilters) {
+				log("\t%s", p.pattern());
+			}			
+		}
+		JMXHelper.registerHotspotInternal();
+		for(MBeanObserver mbo: mbeans) {
+			log("\n\t===========================================================\n\tCounters for [%s]\n\t===========================================================", mbo.objectName);
+			for(String attrName: mbo.getAttributeNames()) {
+				List<Counter> counters = (List<Counter>)JMXHelper.getAttribute(mbo.objectName, attrName);
+				for(Counter ctr: counters) {
+					if(counterFilters.isEmpty()) {
+						log("\t[%s] value:%s, type:%s, unit:%s, var:%s", ctr.getName(), ctr.getValue(), ctr.getClass().getSimpleName(), ctr.getUnits().toString(), ctr.getVariability().toString());
+					} else {
+						final String name = ctr.getName();
+						for(Pattern p: counterFilters) {
+							if(p.matcher(name).matches()) {
+								log("\t[%s] value:%s, type:%s, unit:%s, var:%s", ctr.getName(), ctr.getValue(), ctr.getClass().getSimpleName(), ctr.getUnits().toString(), ctr.getVariability().toString());
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	
-	void compileGCNames(final List<? extends Counter> ctrs) {
-		final List<? extends Counter> counters = new ArrayList<Counter>(ctrs); 
-		if(mbeanObserver!=MBeanObserver.HOTSPOT_MEMORY_MBEAN || !compiledGCNames.isEmpty()) return;
+	/**
+	 * Format out logger
+	 * @param fmt The format
+	 * @param args The token values
+	 */
+	public static void log(final Object fmt, final Object...args) {
+		System.out.println(String.format(fmt.toString(), args));
+	}
+	
+	
+	
+	void compileGCTags(final List<? extends Counter> ctrs) {
+		 
+		if(mbeanObserver!=MBeanObserver.HOTSPOT_MEMORY_MBEAN || !compiledGCTags.isEmpty()) return;
+		final List<? extends Counter> counters = new ArrayList<Counter>(ctrs);
 		final Map<String, String> decodes = new HashMap<String, String>();
-		final Map<Integer, String> collectorDecodes = new HashMap<Integer, String>();
-		final Map<Integer, String> spaceDecodes = new HashMap<Integer, String>();
+		
 		for(Iterator<? extends Counter> citer = counters.iterator(); citer.hasNext();) {
 			Counter ctr = citer.next();
 			final String name = ctr.getName();
@@ -203,26 +294,57 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 				citer.remove();
 				continue;
 			}
+			log.info("\t{}", ctr.getName());
 			final int[] indexes = extractNameIndexes(name);
+			final String indexKey = str(indexes);
 			if(indexes.length==0) {
 				citer.remove();
 				continue;
-			} else if(indexes.length==1) {
-				collectorDecodes.put(indexes[0], value.toString());
-				decodes.put("" + indexes[0], name);
-			} else if(indexes.length==2) {
-				spaceDecodes.put(indexes[0], value.toString());
-				decodes.put("" + indexes[0] + indexes[1], name);
-			}			
+			}
+			decodes.put(indexKey, value.toString());
 		}
 		for(Counter ctr: counters) {
 			String name = ctr.getName();
+			String[] frags = name.split("\\.");
 			final int[] indexes = extractNameIndexes(name);
-			if(indexes.length==1) {
-				compiledGCNames.put(name, decodes.get("" + indexes[i]));
+			final String indexKey = str(indexes);
+			final String[] keys = getPrefixes(indexes, frags);
+			final String[] values = new String[indexes.length];
+			
+			StringBuilder decodeLookup = new StringBuilder();
+			for(int x = 0; x < indexes.length; x++) {
+				decodeLookup.append(indexes[x]);
+				values[x] = decodes.get(decodeLookup.toString());
 			}
+			
+			StringBuilder tags = new StringBuilder();
+			for(int x = 0; x < indexes.length; x++) {
+				tags.append(keys[x]).append("=").append(values[x]).append(",");
+			}
+			tags.deleteCharAt(tags.length()-1);
+			compiledGCTags.put(name, tags.toString());
+			compiledGCTags.put(indexKey, tags.toString());
+			log.info("Added tags [{}] for name [{}] and indexkey [{}]", tags, name, indexKey);
 		}
 		
+	}
+	
+	
+	static String[] getPrefixes(final int[] indexes, final String[] frags) {
+		String[] names = new String[indexes.length];
+		String pref = null;
+		int focus = 0;
+		for(int x = 0; x < frags.length; x++) {
+			String strf = "" + indexes[focus];
+			if(strf.equals(frags[x])) {
+				names[focus] = pref;
+				focus++;
+				if(focus==indexes.length) break;
+			}
+			pref = frags[x];			
+		}
+		return names;
+				
 	}
 	
 	private static final int[] EMPTY_INT_ARR = {};
@@ -244,6 +366,15 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 			icounts++;
 		}
 		return arr;
+	}
+	
+	static String str(int...ints) {
+		if(ints==null || ints.length==0) return "";
+		StringBuilder b = new StringBuilder(ints.length);
+		for(int x: ints) {
+			b.append(x);
+		}
+		return b.toString();
 	}
 	
 	static int isInt(final String v) {
