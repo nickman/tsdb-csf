@@ -15,53 +15,30 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.heliosapm.opentsdb.client.util.JMXHelper;
-
 import sun.management.counter.Counter;
+
+import com.heliosapm.opentsdb.client.util.JMXHelper;
 
 /**
  * <p>Title: GCConfiguration</p>
- * <p>Description: A container to parse and structure the GC configuration from the performance counters</p> 
+ * <p>Description: </p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.jvmjmx.GCConfiguration</code></p>
  */
-
 @SuppressWarnings("restriction")
 public class GCConfiguration {
-	/** All the memory counters keyed by the counter name */
-	public final Map<String, Counter> allCountersByName;
 
-	/** All the name values keyed by the counter name */
-	public final Map<String, String> nameValuesByCounterName = new HashMap<String, String>();
-
-	public final Map<String, String> resolvedSingleTags = new  HashMap<String, String>();
-	
-	
-	/** A map of tags keyed by the original counter name for all counters which can be traced */
-	public final Map<String, Map<String, String>> counterNameToTags = new HashMap<String, Map<String, String>>(); 
-	/** The collector name counters map (counter-name --> collector-name) */
-	protected final LinkedHashMap<String, String> collectorNamesByName = new LinkedHashMap<String, String>(2); 
-	/** The collector name counters keyed by the id  (collector-id --> collector-name) */
-	protected final TreeMap<Integer, String> collectorNamesById = new TreeMap<Integer, String>(); 
-	
-	/** This is the only counter class we would trace values for */
-	protected final Class<?> TRACE_COUNTER = sun.management.counter.perf.PerfLongCounter.class;
-	
-	/** The GC policy name */
-	public final String gcPolicy;
-	
 	/** The GC Collector Name Pattern */
 	public static final Pattern COLLECTOR_NAME_PATTERN = Pattern.compile("sun\\.gc\\.collector\\.(\\d+)\\.name");
 	/** The GC counter index extractor Pattern for names */
@@ -72,151 +49,23 @@ public class GCConfiguration {
 	//public static final Pattern INDEX_PATTERN = Pattern.compile(".*\\.(\\d)\\.");
 	/** A simple int Pattern */
 	public static final Pattern INT_PATTERN = Pattern.compile("(\\d)");
-	
-	// Generation Names:  ".*\\.generation\\.(\\d)\\.name"
-	/*
-		[sun.gc.generation.0.name] value:new, type:PerfStringCounter, unit:String, var:Constant
-		[sun.gc.generation.1.name] value:old, type:PerfStringCounter, unit:String, var:Constant
-		[sun.gc.generation.2.name] value:perm, type:PerfStringCounter, unit:String, var:Constant
-	 */
-	
-	
-	public static void main(String[] args) {
-		JMXHelper.registerHotspotInternal();
-		List<Object> counters = (List<Object>)JMXHelper.getAttribute(MBeanObserver.HOTSPOT_MEMORY_MBEAN.objectName, "InternalMemoryCounters");
-		GCConfiguration conf = new GCConfiguration(counters);
-	}
+
+	public static final Class<?> TRACE_COUNTER = sun.management.counter.perf.PerfLongCounter.class;
 	
 	/**
-	 * Creates a new GCConfiguration
-	 * @param counters A list of the Hotspot internal memory performance counters
+	 * @param args
 	 */
-	public GCConfiguration(final List<Object> counters) {
-		if(counters==null || counters.isEmpty()) throw new IllegalArgumentException("The passed list of counters was null or empty");
-		final Map<String, Counter> ctrs = new LinkedHashMap<String, Counter>(counters.size());
-		for(Object obj: counters) {
-			if(obj instanceof Counter) {
-				Counter ctr = (Counter)obj;
-				ctrs.put(ctr.getName(), ctr);
-				counterNameToTags.put(ctr.getName(), new LinkedHashMap<String, String>(4));
-				if(ctr.getName().endsWith(".name")) {
-					nameValuesByCounterName.put(ctr.getName(), ctr.getValue().toString());
-				}
-			}
+	public static void main(String[] args) {
+		log("GCConfiguration");
+		try {
+			JMXHelper.registerHotspotInternal();
+			load((List<Object>)JMXHelper.getAttribute(MBeanObserver.HOTSPOT_MEMORY_MBEAN.objectName, "InternalMemoryCounters"));
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+			Runtime.getRuntime().halt(-99);
 		}
-		/*
-			[sun.gc.generation.0.space.0.name] value:eden, type:PerfStringCounter, unit:String, var:Constant
-			[sun.gc.generation.0.space.1.name] value:s0, type:PerfStringCounter, unit:String, var:Constant
-			[sun.gc.generation.0.space.2.name] value:s1, type:PerfStringCounter, unit:String, var:Constant
-			[sun.gc.generation.1.space.0.name] value:space, type:PerfStringCounter, unit:String, var:Constant
-			[sun.gc.generation.2.space.0.name] value:perm, type:PerfStringCounter, unit:String, var:Constant
-		 */
-		
-		allCountersByName = Collections.unmodifiableMap(ctrs);
-		gcPolicy = allCountersByName.get("sun.gc.policy.name").getValue().toString();
-		log("GCPolicy: %s", gcPolicy);
-		final Map<String, Counter> allNameCounters = new HashMap<String, Counter>();
-		for(Map.Entry<String, Counter> entry: allCountersByName.entrySet()) {
-			if(entry.getKey().endsWith(".name")) allNameCounters.put(entry.getKey(), entry.getValue());
-			Matcher m = COLLECTOR_NAME_PATTERN.matcher(entry.getKey());
-			if(m.matches()) {
-				// collectorNamesByName:  counter-name --> collector-name
-				// collectorNamesById: collector-id --> collector-name
-				
-				collectorNamesByName.put(entry.getKey(), entry.getValue().toString());
-				collectorNamesById.put(Integer.parseInt(m.group(1)), entry.getValue().toString());
-			}
-		}
-		final Set<String> nsc = new HashSet<String>(allNameCounters.keySet());
-		int indexQ = 1;
-		while(!allNameCounters.isEmpty()) {
-			for(String key: nsc) {
-				final Counter ctr = allNameCounters.get(key);
-				if(ctr==null) continue;
-				final String nm = ctr.getName();
-				final int idx = getIndexCount(INDEX_NAME_PATTERN, nm);
-				
-				if(idx==0) {
-					allNameCounters.remove(key);
-					continue;
-				}
-				if(idx==indexQ) {
-					resolveTags(INDEX_NAME_PATTERN, ctr);
-					allNameCounters.remove(key);
-				}
-				
-			}
-			indexQ++;
-		}
-		log("\nSingle Tags:");
-		for(Map.Entry<String, String> entry: resolvedSingleTags.entrySet()) {
-			log("\t%s : %s", entry.getKey(), entry.getValue());
-		}
-		for(String s: allCountersByName.keySet()) {
-			if(!s.endsWith(".name") && counterNameToTags.get(s).isEmpty()) {
-				Counter ctr = allCountersByName.get(s);
-				if(TRACE_COUNTER.isInstance(ctr)) {
-					resolveTags(INDEX_PATTERN, ctr);
-				} else {
-					counterNameToTags.remove(s);
-				}
-			}
-		}
-		log("\nTags:");
-		for(Map.Entry<String, Map<String, String>> entry: counterNameToTags.entrySet()) {
-			log("\t%s : %s", entry.getKey(), entry.getValue());
-		}		
-		
-		//loadTree();
+
 	}
-	
-	public static int getIndexCount(final Pattern p, final String counterName) {
-		Matcher m = p.matcher(counterName);
-		if(!m.matches()) return 0;
-		int count = 0;
-		m = INT_PATTERN.matcher(counterName);
-		while(m.find()) count++;
-		return count;		
-	}
-	
-//	public int[] getIndexes(final String counterName) {
-//		int count = getIndexCount(counterName);
-//		final int[] indexes = new int[count];
-//		Matcher m = INT_PATTERN.matcher(counterName);
-//		count = 0;
-//		while(m.find()) {
-//			indexes[count] = Integer.parseInt(m.group(1));
-//			count++;
-//		}
-//		return indexes;		
-//	}
-	
-	public void resolveTags(final Pattern p, final Counter counter) {
-		final String name = counter.getName();
-		final int indexCount = getIndexCount(p, name);
-		int currentIndexCount = 0;
-		if(indexCount==0) return;
-		// nameValuesByCounterName
-		final Map<String, String> tags = counterNameToTags.get(name);
-		final StringBuilder b = new StringBuilder();
-		final String[] frags = name.split("\\.");
-		for(int i = 0; i < frags.length; i++) {
-			b.append(frags[i]).append(".");
-			int idx = toInt(frags[i]);
-			if(idx < 0) continue;
-			currentIndexCount++;
-			final String key = frags[i-1];
-			if(currentIndexCount==indexCount) {
-				tags.put(key, counter.getValue().toString());
-				resolvedSingleTags.put(key + "." + idx, counter.getValue().toString());
-			} else {
-				String parentValue = counterNameToTags.get(new StringBuilder(b.toString()).append("name").toString()).get(key);
-				tags.put(key, parentValue);
-				resolvedSingleTags.put(key + "." + idx, parentValue);
-			}
-		}		
-	}
-	
 	
 	/**
 	 * Format out logger
@@ -226,8 +75,158 @@ public class GCConfiguration {
 	public static void log(final Object fmt, final Object...args) {
 		System.out.println(String.format(fmt.toString(), args));
 	}
+
 	
+	public static Map<String, Map<String, String>> load(final List<Object> counters) {		
+		final Map<String, Counter> allCountersByName = new HashMap<String, Counter>(counters.size());
+		final Map<String, Counter> allNameCountersByName = new HashMap<String, Counter>(16);
+		final Map<String, Map<String, String>> counterNameToTags = new HashMap<String, Map<String, String>>();
+		final Map<String, String> resolvedIndexNames = new  HashMap<String, String>();
+		final Set<String> plurals = new HashSet<String>();
+		
+		final String gcPolicy;
+		for(Object obj: counters) {
+			if(!(obj instanceof Counter)) continue;
+			final Counter counter = (Counter)obj;
+			final String counterName = counter.getName();			
+			if(counterName.endsWith(".name")) {
+				allNameCountersByName.put(counterName, counter);
+			} else {
+				allCountersByName.put(counterName, counter);
+			}
+		}
+		log("Indexed [%s] Counters By Name and [%s] Name Counters", allCountersByName.size(), allNameCountersByName.size());
+		gcPolicy = allNameCountersByName.remove("sun.gc.policy.name").getValue().toString();
+		log("GC Policy: %s", gcPolicy);
+		int indexCounts = 0;
+		while(true) {
+			Map<String, Counter> extracted = extractIndexedNames(allNameCountersByName, indexCounts);
+			if(indexCounts>0 && extracted.isEmpty()) break;
+			printMap("Extracted Names with " + indexCounts + " Indexes", extracted);
+			if(!extracted.isEmpty() && indexCounts > 0) {
+				Pattern p = extractNameIndexPatternBuilder(indexCounts, "\\.name");
+				for(Map.Entry<String, Counter> ent: extracted.entrySet()) {
+					String name = ent.getKey();
+					Counter ctr = ent.getValue();
+					String extractedName = extractNameIndex(p, name, indexCounts, plurals);
+					if(extractedName!=null) {
+						resolvedIndexNames.put(extractedName, ctr.getValue().toString());
+					}
+					
+				}
+			}
+			indexCounts++;
+		}
+		printMap("resolvedIndexNames:", resolvedIndexNames);
+		final Set<String> pluralsRemoved = new HashSet<String>();
+		for(Iterator<String> iter = allCountersByName.keySet().iterator(); iter.hasNext();) {
+			final String name = iter.next();
+			for(String pl: plurals) {
+				if(name.endsWith("." + pl)) {
+					pluralsRemoved.add(name);
+					iter.remove();
+					break;
+				}
+			}
+		}
+		//printSet("pluralsRemoved:", pluralsRemoved);
+		//printMap("remainingCounters:", allCountersByName);
+		for(Map.Entry<String, Counter> ent: allCountersByName.entrySet()) {
+			final String name = ent.getKey();
+			final Counter ctr = ent.getValue();
+			if(!(TRACE_COUNTER.isInstance(ctr)) || "Constant".equals(ctr.getVariability().toString())) continue;
+			final LinkedHashMap<String, String> tags = new LinkedHashMap<String, String>(4);
+			counterNameToTags.put(ent.getKey(), tags);
+			tags.putAll(getTagsFor(ctr, resolvedIndexNames));
+		}
+		printMap("counterNameToTags:", counterNameToTags);
+		// clean out any remaining constants
+		for(String name: new HashSet<String>(counterNameToTags.keySet())) {
+			Counter ctr = allCountersByName.get(name);
+			if(ctr==null) continue;
+			if("Constant".equals(ctr.getVariability().toString())) {
+				counterNameToTags.remove(name);
+			}
+		}
+		printMap("counterNameToTags:", counterNameToTags);
+		return counterNameToTags;
+	}
+
 	
+	public static int getIndexCount(final String counterName) {
+		Matcher m = INDEX_PATTERN.matcher(counterName);
+		if(!m.matches()) return 0;
+		int count = 0;
+		m = INT_PATTERN.matcher(counterName);
+		while(m.find()) count++;
+		return count;		
+	}
+	
+	public static Map<String, Counter> extractIndexedNames(final Map<String, Counter> nameCounters, final int indexCount) {
+		if(nameCounters.isEmpty()) return nameCounters;
+		final Map<String, Counter> extracts = new HashMap<String, Counter>();
+		for(Map.Entry<String, Counter> entry: nameCounters.entrySet()) {
+			String name = entry.getKey();
+			Counter ctr = entry.getValue();
+			if(getIndexCount(name)==indexCount) {
+				if(indexCount>0) {
+					extracts.put(name, ctr);
+				}
+			}
+		}
+		for(String key: extracts.keySet()) { nameCounters.remove(key); }
+		return extracts;
+	}
+	
+	public static Map<String, String> getTagsFor(final Counter ctr, final Map<String, String> resolvedIndexNames) {
+		final Map<String, String> tags = new LinkedHashMap<String, String>(4);
+		final String[] frags = ctr.getName().split("\\.");
+		StringBuilder ck = new StringBuilder();
+		for(int i = 0; i < frags.length; i++) {
+			int idx = toInt(frags[i]);
+			if(idx<0) continue;
+			if(i!=0) {
+				String key = frags[i-1];
+				ck.append(key).append(".").append(idx);
+				String value = resolvedIndexNames.get(ck.toString());
+				tags.put(key, value);
+				ck.append(".");
+			}
+		}
+		String units = ctr.getUnits().toString();
+		if("Ticks".equals(units)) units = "ms";
+		else if("None".equals(units)) {
+			units = null;
+//			log("'None' Unit Counter: %s, value:[%s], var:[%s]", ctr, ctr.getValue(), ctr.getVariability());
+		}
+		if(units!=null) {
+			tags.put("unit", units);
+		}
+		return tags;
+	}
+	
+	public static String extractNameIndex(final Pattern p, final String name, int indexCount, final Set<String> plurals) {
+		if(getIndexCount(name)!=indexCount) return null;
+		StringBuilder b = new StringBuilder();
+		Matcher m = p.matcher(name);
+		if(!m.matches()) return null;
+		if(m.groupCount() > 0) {
+			for(int i = 1; i <=m.groupCount(); i++) {
+				final String frag = m.group(i);
+				final int idx = toInt(frag);
+				if(idx==-1) {
+					// we're at a name
+					plurals.add(frag + "s");
+				} else {
+					// we're at an index					
+					b.append(m.group(i-1)).append(".").append(idx).append(".");
+				}
+			}
+			b.deleteCharAt(b.length()-1);
+		}
+		return b.toString();
+	}
+									
 	public static int toInt(final String v) {
 		try {
 			return Integer.parseInt(v);
@@ -235,17 +234,34 @@ public class GCConfiguration {
 			return -1;
 		}
 	}
+
 	
-	
-	private LinkedHashMap<String, Counter> getIndexedStartingWith(final String prefix) {
-		final LinkedHashMap<String, Counter> matches = new LinkedHashMap<String, Counter>();
-		int index = 0;
-//		while(true) {
-//			
-//		}
-//		for(Map.Entry<String, Counter> entry: countersByName.entrySet()) {
-//			
-//		}
-		return new LinkedHashMap<String, Counter>(matches);
+	public static Pattern extractNameIndexPatternBuilder(final int indexCount, final String suffix) {
+		StringBuilder b = new StringBuilder(".*");
+		for(int i = 0; i < indexCount; i++) {
+			b.append("\\.(.*)?\\.(\\d)");
+		}
+		if(suffix!=null) {
+			b.append(suffix);
+		}
+		return Pattern.compile(b.toString());
 	}
+	
+	public static void printMap(final String title, final Map<?, ?> map) {
+//		log("====== %s ======", title);
+//		for(Map.Entry<?, ?> entry: map.entrySet()) {
+//			log("\t[%s]  :  [%s]", entry.getKey(), entry.getValue());
+//		}
+	}
+	
+	public static void printSet(final String title, final Set<?> set) {
+//		log("====== %s ======", title);
+//		for(Object o: set) {
+//			log("\t[%s]", o);
+//		}
+	}
+	
+
+
+
 }
