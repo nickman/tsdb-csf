@@ -213,12 +213,15 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	 * Command line counter printer
 	 * @param args : <ul>
 	 * 	<li><b>-m &lt:hotspot mbean short names&gt;</b>: The comma separated hotspot internal mbean short names</li>
-	 *  <li><b>-c &lt:counter names&gt;</b>: The regex to filter the counter names</li>
+	 *  <li><b>-c &lt:counter names&gt;</b>: The regex to filter in matching counter names</li>
+	 *  <li><b>-x &lt:counter names&gt;</b>: The regex to filter out matching counter names</li>
 	 * </ul>
 	 */
 	public static void main(String[] args) {
 		final Set<MBeanObserver> mbeans = EnumSet.noneOf(MBeanObserver.class);
-		final Set<Pattern> counterFilters = new HashSet<Pattern>();		
+		final Set<Pattern> counterFilters = new HashSet<Pattern>();
+		final Set<Pattern> excludeFilters = new HashSet<Pattern>();	
+		final Set<String> uniqueCounterTypes = new HashSet<String>();
 		for(int i = 0; i < args.length; i++) {
 			try {
 				if(args[i].equalsIgnoreCase("-m")) {
@@ -227,6 +230,9 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 				} else if(args[i].equalsIgnoreCase("-c")) {
 					i++;
 					counterFilters.add(Pattern.compile(args[i], Pattern.CASE_INSENSITIVE));
+				} else if(args[i].equalsIgnoreCase("-x")) {
+					i++;
+					excludeFilters.add(Pattern.compile(args[i], Pattern.CASE_INSENSITIVE));
 				}
 			} catch (Exception x) {/* No Op */}
 		}
@@ -244,18 +250,27 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 				log("\t%s", p.pattern());
 			}			
 		}
+		if(!excludeFilters.isEmpty()) {
+			log("Exclude Counters:");
+			for(Pattern p: excludeFilters) {
+				log("\t%s", p.pattern());
+			}			
+
+		}
+		
 		JMXHelper.registerHotspotInternal();
 		for(MBeanObserver mbo: mbeans) {
 			log("\n\t===========================================================\n\tCounters for [%s]\n\t===========================================================", mbo.objectName);
 			for(String attrName: mbo.getAttributeNames()) {
 				List<Counter> counters = (List<Counter>)JMXHelper.getAttribute(mbo.objectName, attrName);
 				for(Counter ctr: counters) {
-					if(counterFilters.isEmpty()) {
+					uniqueCounterTypes.add(ctr.getClass().getSimpleName());
+					if(counterFilters.isEmpty() && !isExcluded(excludeFilters, ctr.getName())) {
 						log("\t[%s] value:%s, type:%s, unit:%s, var:%s", ctr.getName(), ctr.getValue(), ctr.getClass().getSimpleName(), ctr.getUnits().toString(), ctr.getVariability().toString());
 					} else {
 						final String name = ctr.getName();
 						for(Pattern p: counterFilters) {
-							if(p.matcher(name).matches()) {
+							if(p.matcher(name).matches() && !isExcluded(excludeFilters, ctr.getName())) {
 								log("\t[%s] value:%s, type:%s, unit:%s, var:%s", ctr.getName(), ctr.getValue(), ctr.getClass().getSimpleName(), ctr.getUnits().toString(), ctr.getVariability().toString());
 							}
 						}
@@ -263,6 +278,19 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 				}
 			}
 		}
+		log("\n\n\t======================\n\tUnique Counter Types\n\t======================");
+		for(String s: uniqueCounterTypes) {
+			log("\t%s", s);
+		}
+		log("\n");
+	}
+	
+	private static boolean isExcluded(final Set<Pattern> excludes, final String value) {
+		if(excludes.isEmpty()) return false;
+		for(Pattern p: excludes) {
+			if(p.matcher(value).matches()) return true;
+		}
+		return false;
 	}
 	
 	/**
