@@ -81,6 +81,7 @@ public class MBeanObserverSet implements Runnable {
 		System.setProperty(Constants.PROP_JMX_LIVE_GC_TRACING, "true");
 		//System.setProperty(Constants.PROP_JMX_HOTSPOT_TRACING, Arrays.toString(MBeanObserver.getHotSpotMBeanShortNames()).replace("[", "").replace("]", ""));
 		System.setProperty(Constants.PROP_JMX_HOTSPOT_TRACING, "memory");
+		System.setProperty(Constants.PROP_TRACE_TO_STDOUT, "true");
 		System.setProperty(Constants.PROP_STDOUT_JSON, "true");
 		MetricBuilder.reconfig();
 		log("Hotspot MBeans:[" + System.getProperty(Constants.PROP_JMX_HOTSPOT_TRACING));

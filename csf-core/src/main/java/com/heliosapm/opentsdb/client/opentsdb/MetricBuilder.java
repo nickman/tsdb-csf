@@ -118,7 +118,10 @@ public class MetricBuilder {
 					into.putBytes(entry.getValue().getBytes(UTF8));
 				}
 			} 
-			System.err.println("BLD:[" + into.toString() + "]");
+//			final String ts = into.toString();
+//			if(ts.indexOf('.')==-1) {
+//				System.err.println("BLD:[" + into.toString() + "]");
+//			}
 	     }		
 	};
 	
