@@ -16,8 +16,6 @@
 
 package com.heliosapm.opentsdb.client.jvmjmx;
 
-import java.lang.management.ManagementFactory;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -26,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.management.MBeanServer;
-import javax.management.MBeanServerConnection;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -88,13 +85,13 @@ public class MBeanObserverSet implements Runnable {
 		final RuntimeMBeanServerConnection mbs = RuntimeMBeanServerConnection.newInstance(JMXHelper.getHeliosMBeanServer());
 		MBeanObserverSet mos = build(mbs, 5, TimeUnit.SECONDS, true);
 		log("MOS enabled with [" + mos.enabledObservers.size() + "] MBeanObservers");
-		String[] hotspotCounters = ConfigurationReader.confStrArr(Constants.PROP_JMX_HOTSPOT_TRACING, Constants.DEFAULT_JMX_HOTSPOT_TRACING);
-		if(hotspotCounters.length > 0 && "*".equals(hotspotCounters[0])) {
-			hotspotCounters = MBeanObserver.getHotSpotMBeanShortNames();
-		}
-		for(String counterName: hotspotCounters) {
-			new HotSpotInternalsBaseMBeanObserver(mbs, true, counterName, "(.*)");
-		}
+//		String[] hotspotCounters = ConfigurationReader.confStrArr(Constants.PROP_JMX_HOTSPOT_TRACING, Constants.DEFAULT_JMX_HOTSPOT_TRACING);
+//		if(hotspotCounters.length > 0 && "*".equals(hotspotCounters[0])) {
+//			hotspotCounters = MBeanObserver.getHotSpotMBeanShortNames();
+//		}
+//		for(String counterName: hotspotCounters) {
+//			new HotSpotInternalsBaseMBeanObserver(mbs, true, counterName, "(.*)");
+//		}
 		try { Thread.currentThread().join(); } catch (Exception ex) {}
 	}
 	
@@ -127,12 +124,14 @@ public class MBeanObserverSet implements Runnable {
 		BaseMBeanObserver observer = new ClassLoadingMBeanObserver(mbeanServer, null, publishObserverMBean);
 		mos.enabledObservers.add(observer);
 		final Map<String, String> tags = observer.getTags();
-		mos.enabledObservers.add(new CompilationMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new GarbageCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new MemoryPoolsCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new OperatingSystemCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new ThreadingCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.remove(observer);
+//		mos.enabledObservers.add(new CompilationMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new GarbageCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new MemoryPoolsCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new OperatingSystemCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new ThreadingCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new HotSpotInternalsBaseMBeanObserver(mbeanServer, publishObserverMBean, tags, "runtime", "sun.rt._sync_(.*)"));
 		mos.start();
 		final MetricRegistry reg = new MetricRegistry();
 		for(MetricSet ms: mos.enabledObservers) {

@@ -88,8 +88,8 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	 * @param hotspotMBean The target hotspot MBean ObjectName
 	 * @param counterPattern The pattern defining the counters to trace
 	 */
-	public HotSpotInternalsBaseMBeanObserver(final JMXConnector jmxConnector, final boolean publishObserverMBean, final String hotspotMBean, final String counterPattern) {
-		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), publishObserverMBean, hotspotMBean, counterPattern);
+	public HotSpotInternalsBaseMBeanObserver(final JMXConnector jmxConnector, final boolean publishObserverMBean, final Map<String, String> tags, final String hotspotMBean, final String counterPattern) {
+		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), publishObserverMBean, tags, hotspotMBean, counterPattern);
 		
 	}
 	
@@ -101,8 +101,8 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	 * @param hotspotMBean The target hotspot MBean ObjectName
 	 * @param counterPattern The pattern defining the counters to trace
 	 */
-	public HotSpotInternalsBaseMBeanObserver(final MBeanServerConnection mbeanServerConn, final boolean publishObserverMBean, final String hotspotMBean, final String counterPattern) {
-		super(mbeanServerConn, HOTSPOT_MBEAN_OBSERVERS.get(hotspotMBean.trim().toLowerCase()), null, publishObserverMBean);
+	public HotSpotInternalsBaseMBeanObserver(final MBeanServerConnection mbeanServerConn, final boolean publishObserverMBean, final Map<String, String> tags, final String hotspotMBean, final String counterPattern) {
+		super(mbeanServerConn, HOTSPOT_MBEAN_OBSERVERS.get(hotspotMBean.trim().toLowerCase()), tags, publishObserverMBean);
 		this.hotspotMBean = HOTSPOT_MBEAN_OBSERVERS.get(hotspotMBean.trim().toLowerCase()).objectName;
 		this.domainPrefix = hotspotMBean.replace("sun.management:type=Hotspot", "").toLowerCase().trim();
 		this.counterPattern = Pattern.compile(counterPattern);
