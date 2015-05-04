@@ -341,6 +341,30 @@ public interface Constants {
 	/** The default hotspot mbean short names enabled for tracing */
 	public static final String[] DEFAULT_JMX_HOTSPOT_TRACING = {};
 	
+	/** The default counter name pattern */
+	public static final String HOTSPOT_DEFAULT_PATTERN = "!";
+	
+	/** The configuration property name for hotspot compilation internal counter names to trace */
+	public static final String PROP_JMX_HOTSPOT_COMPILATION = "tsdb.jmx.hotspot.compilation";
+	/** The default hotspot compilation internal counter names to trace */
+	public static final String DEFAULT_JMX_HOTSPOT_COMPILATION = "sun\\.ci\\.(.*)";
+	/** The configuration property name for hotspot classloading internal counter names to trace */
+	public static final String PROP_JMX_HOTSPOT_CLASSLOADING = "tsdb.jmx.hotspot.classloading";
+	/** The default hotspot classloading internal counter names to trace */
+	public static final String DEFAULT_JMX_HOTSPOT_CLASSLOADING = "sun\\.cls\\.(.*)";
+	/** The configuration property name for hotspot runtime internal counter names to trace */
+	public static final String PROP_JMX_HOTSPOT_RUNTIME = "tsdb.jmx.hotspot.runtime";
+	/** The default hotspot runtime internal counter names to trace */
+	public static final String DEFAULT_JMX_HOTSPOT_RUNTIME = "sun\\.rt\\.(?:_sync_)?(.*)";
+	/** The configuration property name for hotspot threading internal counter names to trace */
+	public static final String PROP_JMX_HOTSPOT_THREADING = "tsdb.jmx.hotspot.threading";
+	/** The default hotspot threading internal counter names to trace */
+	public static final String DEFAULT_JMX_HOTSPOT_THREADING = "java\\.threads\\.(.*)";
+	/** The configuration property name for hotspot memory internal counter names to trace */
+	public static final String PROP_JMX_HOTSPOT_MEMORY = "tsdb.jmx.hotspot.memory";
+	/** The default hotspot memory internal counter names to trace */
+	public static final String DEFAULT_JMX_HOTSPOT_MEMORY = "sun\\.gc\\.(?:policy|tlab)\\.(.*)";
+	
 
 	
 	

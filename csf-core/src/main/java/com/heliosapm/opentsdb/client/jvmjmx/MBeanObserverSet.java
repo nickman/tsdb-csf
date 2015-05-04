@@ -73,15 +73,16 @@ public class MBeanObserverSet implements Runnable {
 	
 	public static void main(String[] args) {
 		log("Testing MOS");
-		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4242");
+		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4241");
 		System.setProperty("tsdb.http.compression.enabled", "false");
 		System.setProperty(Constants.PROP_JMX_LIVE_GC_TRACING, "true");
 		//System.setProperty(Constants.PROP_JMX_HOTSPOT_TRACING, Arrays.toString(MBeanObserver.getHotSpotMBeanShortNames()).replace("[", "").replace("]", ""));
-		System.setProperty(Constants.PROP_JMX_HOTSPOT_TRACING, "memory");
+		System.setProperty(Constants.PROP_JMX_HOTSPOT_TRACING, "runtime");
+		System.setProperty(Constants.PROP_JMX_HOTSPOT_RUNTIME, ".*");
 		System.setProperty(Constants.PROP_TRACE_TO_STDOUT, "true");
 		System.setProperty(Constants.PROP_STDOUT_JSON, "true");
 		MetricBuilder.reconfig();
-		log("Hotspot MBeans:[" + System.getProperty(Constants.PROP_JMX_HOTSPOT_TRACING));
+		log("Hotspot MBeans:[" + System.getProperty(Constants.PROP_JMX_HOTSPOT_TRACING) + "]");
 		final RuntimeMBeanServerConnection mbs = RuntimeMBeanServerConnection.newInstance(JMXHelper.getHeliosMBeanServer());
 		MBeanObserverSet mos = build(mbs, 5, TimeUnit.SECONDS, true);
 		log("MOS enabled with [" + mos.enabledObservers.size() + "] MBeanObservers");
@@ -122,16 +123,25 @@ public class MBeanObserverSet implements Runnable {
 	public static MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final long period, final TimeUnit unit, final boolean publishObserverMBean) {
 		final MBeanObserverSet mos = new MBeanObserverSet(mbeanServer, period, unit);		
 		BaseMBeanObserver observer = new ClassLoadingMBeanObserver(mbeanServer, null, publishObserverMBean);
+		
 		mos.enabledObservers.add(observer);
 		final Map<String, String> tags = observer.getTags();
 		mos.enabledObservers.remove(observer);
-//		mos.enabledObservers.add(new CompilationMBeanObserver(mbeanServer, tags, publishObserverMBean));
-//		mos.enabledObservers.add(new GarbageCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-//		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-//		mos.enabledObservers.add(new MemoryPoolsCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-//		mos.enabledObservers.add(new OperatingSystemCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-//		mos.enabledObservers.add(new ThreadingCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new HotSpotInternalsBaseMBeanObserver(mbeanServer, publishObserverMBean, tags, "runtime", "sun.rt._sync_(.*)"));
+		MBeanObserver[] hotspotObservers = MBeanObserver.hotspotObservers(ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_TRACING, Constants.DEFAULT_JMX_HOTSPOT_TRACING));
+		
+		if(hotspotObservers!=null && hotspotObservers.length > 0) {
+			JMXHelper.registerHotspotInternal();
+			for(MBeanObserver mob: hotspotObservers) {
+				mos.enabledObservers.add(mob.getAttributeManager().getMBeanObserver(mbeanServer, tags, publishObserverMBean));
+			}
+		}
+		mos.enabledObservers.add(new CompilationMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new GarbageCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new MemoryPoolsCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new OperatingSystemCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+		mos.enabledObservers.add(new ThreadingCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new HotSpotInternalsBaseMBeanObserver(mbeanServer, publishObserverMBean, tags, "runtime", "sun.rt._sync_(.*)"));
 		mos.start();
 		final MetricRegistry reg = new MetricRegistry();
 		for(MetricSet ms: mos.enabledObservers) {

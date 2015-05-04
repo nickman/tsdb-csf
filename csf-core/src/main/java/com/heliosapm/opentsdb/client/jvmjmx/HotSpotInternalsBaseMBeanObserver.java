@@ -35,6 +35,7 @@ import javax.management.remote.JMXConnector;
 
 import sun.management.counter.Counter;
 
+import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.opentsdb.client.util.JMXHelper;
@@ -171,6 +172,14 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 					final Matcher matcher = counterPattern.matcher(name); 
 					if(matcher.matches()) {
 						final String metricName = extractCounterName(matcher);
+						
+						
+						// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+						// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+						//   BUILD OTMETRIC HERE and put in counterNames
+						counterNames.put(name, MetricBuilder.metric(domainPrefix + "." + metricName).tag("hotspot", hotspotMBean.getKeyProperty("type").toLowerCase().replace("hotspot", "")).tags(tags).build());
+						// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+						// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 						if(metricName==null || metricName.isEmpty()) continue;
 //						String units = ctr.getUnits().toString().toLowerCase();
 //						if("ticks".equals(units)) {

@@ -15,7 +15,6 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -33,6 +32,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
 
 import sun.management.counter.Counter;
 
@@ -49,7 +49,7 @@ import com.heliosapm.opentsdb.client.util.JMXHelper;
  * <p><code>com.heliosapm.opentsdb.client.jvmjmx.GCConfiguration</code></p>
  */
 @SuppressWarnings("restriction")
-public class GCConfiguration {
+public class GCConfiguration extends BaseMBeanObserver {
 
 	/** The GC Collector Name Pattern */
 	public static final Pattern COLLECTOR_NAME_PATTERN = Pattern.compile("sun\\.gc\\.collector\\.(\\d+)\\.name");
@@ -311,6 +311,7 @@ public class GCConfiguration {
 	
 	
 	private GCConfiguration(final Pattern counterPattern, final MBeanServerConnection mbsc, final Map<String, Map<String, String>> counterNameToTags, final Map<String, String> resolvedIndexNames, final String gcPolicy) {
+		super(mbsc, MBeanObserver.HOTSPOT_MEMORY_MBEAN, Collections.EMPTY_MAP, true /* FIXME */);
 		this.counterPattern = counterPattern!=null ? counterPattern : MATCH_ALL;
 		this.mbsc = mbsc;
 		final Map<String, String> tmpMetricNames = new HashMap<String, String>(counterNameToTags.size());
@@ -576,6 +577,16 @@ public class GCConfiguration {
 //		for(Object o: set) {
 //			log("\t[%s]", o);
 //		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserver#accept(java.util.Map, long, long)
+	 */
+	@Override
+	protected boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime) {
+		trace();
+		return true;
 	}
 	
 
