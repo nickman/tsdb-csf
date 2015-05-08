@@ -77,22 +77,23 @@ public class MBeanObserverSet implements Runnable {
 		System.setProperty("tsdb.http.compression.enabled", "false");
 		System.setProperty(Constants.PROP_JMX_LIVE_GC_TRACING, "true");
 		//System.setProperty(Constants.PROP_JMX_HOTSPOT_TRACING, Arrays.toString(MBeanObserver.getHotSpotMBeanShortNames()).replace("[", "").replace("]", ""));
-		System.setProperty(Constants.PROP_JMX_HOTSPOT_TRACING, "runtime");
-		System.setProperty(Constants.PROP_JMX_HOTSPOT_RUNTIME, ".*");
+		System.setProperty(Constants.PROP_JMX_HOTSPOT_TRACING, "runtime, memory");
+//		System.setProperty(Constants.PROP_JMX_HOTSPOT_RUNTIME, ".*");
 		System.setProperty(Constants.PROP_TRACE_TO_STDOUT, "true");
 		System.setProperty(Constants.PROP_STDOUT_JSON, "true");
 		MetricBuilder.reconfig();
 		log("Hotspot MBeans:[" + System.getProperty(Constants.PROP_JMX_HOTSPOT_TRACING) + "]");
 		final RuntimeMBeanServerConnection mbs = RuntimeMBeanServerConnection.newInstance(JMXHelper.getHeliosMBeanServer());
+		String[] hotspotCounters = ConfigurationReader.confStrArr(Constants.PROP_JMX_HOTSPOT_TRACING, Constants.DEFAULT_JMX_HOTSPOT_TRACING);
+		if(hotspotCounters.length > 0 && "*".equals(hotspotCounters[0])) {
+			hotspotCounters = MBeanObserver.getHotSpotMBeanShortNames();
+		}
+		for(String counterName: hotspotCounters) {
+			//new HotSpotInternalsBaseMBeanObserver(mbs, true, counterName, "(.*)");
+		}
 		MBeanObserverSet mos = build(mbs, 5, TimeUnit.SECONDS, true);
 		log("MOS enabled with [" + mos.enabledObservers.size() + "] MBeanObservers");
-//		String[] hotspotCounters = ConfigurationReader.confStrArr(Constants.PROP_JMX_HOTSPOT_TRACING, Constants.DEFAULT_JMX_HOTSPOT_TRACING);
-//		if(hotspotCounters.length > 0 && "*".equals(hotspotCounters[0])) {
-//			hotspotCounters = MBeanObserver.getHotSpotMBeanShortNames();
-//		}
-//		for(String counterName: hotspotCounters) {
-//			new HotSpotInternalsBaseMBeanObserver(mbs, true, counterName, "(.*)");
-//		}
+		
 		try { Thread.currentThread().join(); } catch (Exception ex) {}
 	}
 	
@@ -132,19 +133,20 @@ public class MBeanObserverSet implements Runnable {
 		if(hotspotObservers!=null && hotspotObservers.length > 0) {
 			JMXHelper.registerHotspotInternal();
 			for(MBeanObserver mob: hotspotObservers) {
-				mos.enabledObservers.add(mob.getAttributeManager().getMBeanObserver(mbeanServer, tags, publishObserverMBean));
+				mos.enabledObservers.add(mob.getMBeanObserver(mbeanServer, tags, publishObserverMBean));
 			}
 		}
-		mos.enabledObservers.add(new CompilationMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new GarbageCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new MemoryPoolsCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new OperatingSystemCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
-		mos.enabledObservers.add(new ThreadingCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new CompilationMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new GarbageCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new MemoryCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new MemoryPoolsCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new OperatingSystemCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
+//		mos.enabledObservers.add(new ThreadingCollectorMBeanObserver(mbeanServer, tags, publishObserverMBean));
 //		mos.enabledObservers.add(new HotSpotInternalsBaseMBeanObserver(mbeanServer, publishObserverMBean, tags, "runtime", "sun.rt._sync_(.*)"));
 		mos.start();
 		final MetricRegistry reg = new MetricRegistry();
 		for(MetricSet ms: mos.enabledObservers) {
+			if(ms==null) continue;
 			reg.registerAll(ms);
 		}
 		OpenTSDBReporter reporter = OpenTSDBReporter.forRegistry(reg).build();

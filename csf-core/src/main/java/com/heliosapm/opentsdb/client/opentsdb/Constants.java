@@ -363,7 +363,7 @@ public interface Constants {
 	/** The configuration property name for hotspot memory internal counter names to trace */
 	public static final String PROP_JMX_HOTSPOT_MEMORY = "tsdb.jmx.hotspot.memory";
 	/** The default hotspot memory internal counter names to trace */
-	public static final String DEFAULT_JMX_HOTSPOT_MEMORY = "sun\\.gc\\.(?:policy|tlab)\\.(.*)";
+	public static final String DEFAULT_JMX_HOTSPOT_MEMORY = "sun\\.gc\\.(?:(policy)|(tlab))\\.(.*)";
 	
 
 	

@@ -19,6 +19,7 @@ package com.heliosapm.opentsdb.client.jvmjmx;
 import java.util.Map;
 
 import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanServerConnection;
 
 
 
@@ -71,5 +72,20 @@ public interface MXBeanDescriptor {
 	 */
 	public int getMaskFor(MBeanAttributeInfo...infos);
 	
+	/**
+	 * Returns the currently configured counter pattern for beans of this type.
+	 * Currently only applicable for Hotspot internal mbeans.
+	 * @return the currently configured counter pattern for beans of this type
+	 */
+	public String getCounterPattern();
+	
+	/**
+	 * Returns the bean instance, or a proxy to it, for the passed mbean server.
+	 * @param mbeanServerConn The mbean server
+	 * @param tags The tags to apply
+	 * @param publishObserverMBean true to publish an observer management interface
+	 * @return the bean instance
+	 */
+	public BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean);
 
 }

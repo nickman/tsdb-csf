@@ -29,6 +29,5 @@ import javax.management.MBeanServerConnection;
  */
 
 public interface AttributeManager<T extends Enum<T>> extends AttributeProvider {
-	public String getCounterPattern();
-	public BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean);
+
 }
