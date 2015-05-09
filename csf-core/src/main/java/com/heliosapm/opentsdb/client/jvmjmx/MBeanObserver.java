@@ -25,6 +25,7 @@ import static java.lang.management.ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAM
 import static java.lang.management.ManagementFactory.RUNTIME_MXBEAN_NAME;
 import static java.lang.management.ManagementFactory.THREAD_MXBEAN_NAME;
 
+import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ClassLoadingMXBean;
 import java.lang.management.CompilationMXBean;
 import java.lang.management.GarbageCollectorMXBean;
@@ -34,7 +35,6 @@ import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Array;
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -46,20 +46,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
 
-import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
-import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.util.Util;
 
 /**
  * <p>Title: MBeanObserver</p>
- * <p>Description: </p> 
+ * <p>Description: All info for all JVM provided mbeans</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver</code></p>
@@ -80,8 +77,10 @@ public enum MBeanObserver implements MXBeanDescriptor {
 	OPERATING_SYSTEM_MXBEAN(OperatingSystemMXBean.class, Util.objectName(OPERATING_SYSTEM_MXBEAN_NAME), OperatingSystemAttribute.class),
 	/** The runtime MXBean */
 	RUNTIME_MXBEAN(RuntimeMXBean.class, Util.objectName(RUNTIME_MXBEAN_NAME), RuntimeAttribute.class),
-	/** The runtime MXBean */
+	/** The threading MXBean */
 	THREAD_MXBEAN(ThreadMXBean.class, Util.objectName(THREAD_MXBEAN_NAME), ThreadingAttribute.class),
+	/** The NIO Buffer Pool MXBean */
+	NIOBUFFER_MXBEAN(BufferPoolMXBean.class, Util.objectName("java.nio:type=BufferPool,name=*"), BufferPoolAttribute.class),	
 	/** The Hotspot Internal Memory MBean */
 	@SuppressWarnings("restriction")
 	HOTSPOT_MEMORY_MBEAN(sun.management.HotspotMemoryMBean.class, Util.objectName("sun.management:type=HotspotMemory"), HotspotInternalMemoryAttribute.class),
@@ -588,17 +587,127 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		public String getKey() {
 			return subAttributeName.isEmpty() ? attributeName : (attributeName + "." + subAttributeName); 
 		}
-
-		public static String getCounterPattern() {
-			// TODO Auto-generated method stub
-			return null;
+		
+	}
+	
+	/**
+	 * <p>Title: BufferPoolAttribute</p>
+	 * <p>Description: Attribute manager for the NIO Buffer Pool MXBean</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.BufferPoolAttribute</code></p>
+	 */	
+	public static enum BufferPoolAttribute implements AttributeManager<BufferPoolAttribute> {
+		/** The number of buffers in the pool */
+		BUFFER_COUNT("Count", long.class),
+		/** An estimate of the memory that the Java virtual machine is using for this buffer pool */
+		MEMORY_USED("MemoryUsed", long.class),
+		/** An estimate of the total capacity of the buffers in this pool */
+		TOTAL_CAPACITY("TotalCapacity", long.class);
+		
+		private BufferPoolAttribute(final String attributeName, final String subAttributeName, final Class<?> type, final Class<?> transformedType) {
+			this.attributeName = attributeName;
+			this.type = type;
+			primitive = type.isPrimitive();
+			this.subAttributeName = subAttributeName==null ? "": subAttributeName;
+			this.transformedType = transformedType==null ? this.type: transformedType;
+		}
+		
+		private BufferPoolAttribute(final String attributeName, final Class<?> type) {
+			this(attributeName, null, type, null);
+		}
+		
+		
+		/** The bitmask */
+		public final int bitMask = POW2.get(ordinal());
+		/** The attribute name */
+		public final String attributeName;
+		/** The sub-attribute name */
+		public final String subAttributeName;		
+		/** The type of the attribute */
+		public final Class<?> type;
+		/** The tranformed type which is returned to metrics */
+		public final Class<?> transformedType;		
+		/** Indicates if the type is primitive */
+		public final boolean primitive;
+		
+		/**
+		 * Returns all the attribute names
+		 * @return all the attribute names
+		 */
+		public static String[] getAllAttributes() {
+			return getAttributeNames(GarbageCollectorAttribute.class);
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getAttributeName()
+		 */
+		@Override
+		public String getAttributeName() {
+			return attributeName;
 		}
 
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			return new GarbageCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getType()
+		 */
+		@Override
+		public Class<?> getType() {
+			return type;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isPrimitive()
+		 */
+		@Override
+		public boolean isPrimitive() {
+			return primitive;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getMask()
+		 */
+		@Override
+		public int getMask() {
+			return bitMask;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#isEnabledFor(int)
+		 */
+		@Override
+		public boolean isEnabledFor(final int mask) {
+			return (mask & bitMask)==bitMask;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#extractDataFrom(java.lang.Object)
+		 */
+		@Override
+		public Object extractDataFrom(final Object input) {
+			if(primitive) {
+				return input;
+			}
+			final CompositeData cd = (CompositeData)input;
+			return cd==null ? 0L : cd.get(subAttributeName);			
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.AttributeProvider#getKey()
+		 */
+		@Override
+		public String getKey() {
+			return subAttributeName.isEmpty() ? attributeName : (attributeName + "." + subAttributeName); 
 		}
 		
 	}
+	
 
 	/**
 	 * <p>Title: MemoryAttribute</p>
@@ -880,16 +989,6 @@ public enum MBeanObserver implements MXBeanDescriptor {
 			return subAttributeName.isEmpty() ? attributeName : (attributeName + "." + subAttributeName); 
 		}
 
-		public static String getCounterPattern() {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			return new MemoryPoolsCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
-		}
-
-		
 	}
 
 	/**
@@ -1087,17 +1186,7 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		@Override
 		public String getKey() {
 			return attributeName; 
-		}
-
-		public static String getCounterPattern() {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			return new OperatingSystemCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
-		}
-		
+		}		
 		
 	}
 
@@ -1199,14 +1288,6 @@ public enum MBeanObserver implements MXBeanDescriptor {
 			return attributeName; 
 		}
 
-		public static String getCounterPattern() {
-			return null;
-		}
-		
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			return null;  //  FIXME
-		}		
-
 		
 	}
 	
@@ -1297,14 +1378,6 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		@Override
 		public String getKey() {
 			return attributeName; 
-		}
-
-		public static String getCounterPattern() {
-			return ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_THREADING, Constants.DEFAULT_JMX_HOTSPOT_THREADING);			
-		}
-
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			return new HotSpotInternalsBaseMBeanObserver(mbeanServerConn, publishObserverMBean, tags, "threading", ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_THREADING, Constants.DEFAULT_JMX_HOTSPOT_THREADING));
 		}
 		
 	}
@@ -1398,17 +1471,6 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		public String getKey() {
 			return attributeName; 
 		}
-
-		
-		public static String getCounterPattern() {
-			return ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_RUNTIME, Constants.DEFAULT_JMX_HOTSPOT_RUNTIME);
-		}
-
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			final String counterPattern = getCounterPattern();
-			return new HotSpotInternalsBaseMBeanObserver(mbeanServerConn, publishObserverMBean, tags, "runtime", counterPattern);
-		}
-
 		
 	}
 	
@@ -1502,15 +1564,6 @@ public enum MBeanObserver implements MXBeanDescriptor {
 			return attributeName; 
 		}
 
-		public static String getCounterPattern() {
-			return ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_COMPILATION, Constants.DEFAULT_JMX_HOTSPOT_COMPILATION);
-		}
-
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			return new HotSpotInternalsBaseMBeanObserver(mbeanServerConn, publishObserverMBean, tags, "compilation", ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_COMPILATION, Constants.DEFAULT_JMX_HOTSPOT_COMPILATION));
-		}
-
-		
 	}
 	
 	public static enum HotspotInternalMemoryAttribute implements AttributeManager<HotspotInternalMemoryAttribute> {
@@ -1600,15 +1653,6 @@ public enum MBeanObserver implements MXBeanDescriptor {
 		@Override
 		public String getKey() {
 			return attributeName; 
-		}
-
-		public static String getCounterPattern() {
-			return ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_MEMORY, Constants.DEFAULT_JMX_HOTSPOT_MEMORY);
-		}
-
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			return GCConfiguration.getInstance(mbeanServerConn, Pattern.compile(getCounterPattern()));
-			
 		}
 		
 	}
@@ -1702,15 +1746,6 @@ public enum MBeanObserver implements MXBeanDescriptor {
 			return attributeName; 
 		}
 
-		public static String getCounterPattern() {
-			return ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_CLASSLOADING, Constants.DEFAULT_JMX_HOTSPOT_CLASSLOADING);
-		}
-
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			return new HotSpotInternalsBaseMBeanObserver(mbeanServerConn, publishObserverMBean, tags, "classloading", ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_CLASSLOADING, Constants.DEFAULT_JMX_HOTSPOT_CLASSLOADING));
-		}
-
-		
 	}
 	
 
@@ -1821,60 +1856,16 @@ public enum MBeanObserver implements MXBeanDescriptor {
 			return attributeName; 
 		}
 
-		public static String getCounterPattern() {
-			return null;			
-		}
-
-		public static BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-			return new ThreadingCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
-		}
-		
-		
 	}
 
-	private volatile Method counterPatternMethod = null;
-	private volatile Method mbeanObserverMethod = null;
-
-	/**
-	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.jvmjmx.MXBeanDescriptor#getCounterPattern()
-	 * FIXME:  Awful hack. Needs to be fixed.
-	 */
-	@Override
-	public String getCounterPattern() {		
-		try {
-			if(counterPatternMethod==null) {
-				synchronized(am) {
-					if(counterPatternMethod==null) {
-						counterPatternMethod = am.getDeclaredMethod("getCounterPattern"); 
-					}
-				}
-			}
-			return (String)counterPatternMethod.invoke(null);
-		} catch (Exception ex) {
-			throw new RuntimeException(ex);
-		}		
-	}
 
 	/**
 	 * {@inheritDoc}
 	 * @see com.heliosapm.opentsdb.client.jvmjmx.MXBeanDescriptor#getMBeanObserver(javax.management.MBeanServerConnection, java.util.Map, boolean)
-	 * FIXME:  Awful hack. Needs to be fixed.
 	 */
 	@Override
 	public BaseMBeanObserver getMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
-		try {
-			if(mbeanObserverMethod==null) {
-				synchronized(am) {
-					if(mbeanObserverMethod==null) {
-						mbeanObserverMethod = am.getDeclaredMethod("getMBeanObserver", MBeanServerConnection.class, Map.class, boolean.class); 
-					}
-				}
-			}
-			return (BaseMBeanObserver)mbeanObserverMethod.invoke(null, mbeanServerConn, tags, publishObserverMBean);
-		} catch (Exception ex) {
-			throw new RuntimeException(ex);
-		}		
+		return MBeanObserverFactory.getMBeanObserver(this, mbeanServerConn, tags, publishObserverMBean);
 	}
 
 	

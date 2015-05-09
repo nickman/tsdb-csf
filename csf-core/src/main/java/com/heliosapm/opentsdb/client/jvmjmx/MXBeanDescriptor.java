@@ -71,14 +71,7 @@ public interface MXBeanDescriptor {
 	 * @return the enabled bit mask
 	 */
 	public int getMaskFor(MBeanAttributeInfo...infos);
-	
-	/**
-	 * Returns the currently configured counter pattern for beans of this type.
-	 * Currently only applicable for Hotspot internal mbeans.
-	 * @return the currently configured counter pattern for beans of this type
-	 */
-	public String getCounterPattern();
-	
+		
 	/**
 	 * Returns the bean instance, or a proxy to it, for the passed mbean server.
 	 * @param mbeanServerConn The mbean server
