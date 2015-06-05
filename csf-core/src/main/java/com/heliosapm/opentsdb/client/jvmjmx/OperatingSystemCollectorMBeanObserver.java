@@ -46,6 +46,9 @@ import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 
 public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 	
+	/** Indicates if the OS is Windows */
+	protected final boolean isWin;
+	
 	/**  */
 	private static final long serialVersionUID = -1267019120073737688L;
 	/** A map of the core OS merics keyed by the attribute name */
@@ -104,6 +107,8 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 	public OperatingSystemCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
 		super(mbeanServerConn, OPERATING_SYSTEM_MXBEAN, tags, publishObserverMBean);		
 		final EnumSet<OperatingSystemAttribute> enabled = OperatingSystemAttribute.getEnabledNonOneTimers(attributeNames);		
+		final String osName = (String)mbs.getAttribute(OPERATING_SYSTEM_MXBEAN.objectName, "Name");
+		isWin = (osName!=null && osName.toLowerCase().contains("windows"));
 		processorCount = (Integer)mbs.getAttribute(OPERATING_SYSTEM_MXBEAN.objectName, "AvailableProcessors");
 		enabledOneTimers = OperatingSystemAttribute.getEnabledOneTimers(attributeNames);
 		final EnumSet<OperatingSystemAttribute> allEnabled = EnumSet.copyOf(enabled);
@@ -119,7 +124,13 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 			otMetrics.put(attr.attributeName, otm);
 			log.info("Built Metric: [{}]", otm.toString());
 		}
-		
+		if(isWin) {
+			otMetrics.remove("SystemLoadAverage");
+			otMetrics.remove("ProcessCpuLoad");		
+			otDerivedMetrics.remove("PctProcessCpuLoad");
+			otDerivedMetrics.remove("PctProcessCpuTime");
+			
+		}
 		for(Map.Entry<String, Set<OperatingSystemAttribute>> entry: DERIVED_OT_METRICS.entrySet()) {
 			if(allEnabled.containsAll(entry.getValue())) {
 				otDerivedMetrics.put(entry.getKey(), MetricBuilder.metric(OPERATING_SYSTEM_MXBEAN.objectName).ext("os." + entry.getKey()).build());
@@ -194,12 +205,12 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 				final long maxFds = attributeValues.get(OperatingSystemAttribute.MAX_FILE_DESCRIPTOR_COUNT).longValue();
 				otDerivedMetrics.get("PctFDCapacity").trace(currentTime,percent(openFds, maxFds));
 			}
-			if(otDerivedMetrics.containsKey("PctProcessCpuLoad")) {
+			if(!isWin && otDerivedMetrics.containsKey("PctProcessCpuLoad")) {
 				final double processCpu = attributeValues.get(OperatingSystemAttribute.PROCESS_CPU_LOAD).doubleValue();
 				final double systemCpu = attributeValues.get(OperatingSystemAttribute.SYSTEM_CPU_LOAD).doubleValue();
 				otDerivedMetrics.get("PctProcessCpuLoad").trace(currentTime,percent(processCpu, systemCpu));
 			} 
-			if(otDerivedMetrics.containsKey("PctProcessCpuTime")) {
+			if(!isWin && otDerivedMetrics.containsKey("PctProcessCpuTime")) {
 				final long processCpuTime = attributeValues.get(OperatingSystemAttribute.PROCESS_CPU_TIME).longValue();			
 				otDerivedMetrics.get("PctProcessCpuTime").trace(currentTime,percent(processCpuTime, elapsedTime));
 			}

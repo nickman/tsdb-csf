@@ -230,7 +230,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 	 * @return an array of matching MBeanObservers
 	 */
 	public static MBeanObserver[] filter(final Set<String> includes, final Set<String> excludes) {
-		final EnumSet<MBeanObserver> set = EnumSet.allOf(MBeanObserver.class);
+		final EnumSet<MBeanObserver> set = EnumSet.noneOf(MBeanObserver.class);
 		if(includes==null || includes.isEmpty()) {
 			set.addAll(DEFAULT_OBJECT_NAMES.values());
 		} else {

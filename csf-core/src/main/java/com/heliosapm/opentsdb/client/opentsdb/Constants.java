@@ -371,6 +371,21 @@ public interface Constants {
 	//======================================================================================================================
 	//     Java Agent Props
 	//======================================================================================================================
+
+	
+	
+	
+	//======================================================================================================================
+	//     Misc Props
+	//======================================================================================================================	
+	/** The configuration property name for forcing all trace content to lower case  */
+	public static final String PROP_FORCE_LOWER_CASE = "tsdb.trace.lc";
+	/** The default force all lower case tracing */
+	public static final boolean DEFAULT_FORCE_LOWER_CASE = true;
+	/** The configuration property name for only tracing the short host name (rather than the FQN) */
+	public static final String PROP_USE_SHORT_HOSTNAMES = "tsdb.hostname.short";
+	/** The default short host name */
+	public static final boolean DEFAULT_USE_SHORT_HOSTNAMES = true;
 	
 
 	//======================================================================================================================

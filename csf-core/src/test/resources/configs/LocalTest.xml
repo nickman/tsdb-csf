@@ -2,8 +2,10 @@
 <csf-config domain="com.heliosapm">
 	<sysprops><![CDATA[
 		tsdb.http.compression.enabled=false
-		tsdb.http.tsdb.url=http://pdk-pt-cetsd-01:8080
-		tsdb.id.app=ecs
+		tsdb.http.tsdb.url=http://localhost:4242
+		tsdb.id.app=hbase
+		tsdb.trace.stdout=true
+		tsdb.trace.stdout.json=true
 	]]></sysprops>
 	<platform-mbeanobserver period="5" mbeans="true" />
 	<lite-instrumentation>

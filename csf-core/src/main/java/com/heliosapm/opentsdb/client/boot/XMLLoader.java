@@ -24,9 +24,9 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
+import javax.management.MBeanServerConnection;
 import javax.management.MBeanServerFactory;
 import javax.management.remote.JMXServiceURL;
 
@@ -280,11 +280,10 @@ public class XMLLoader {
 		try {
 			final Node platformNode = XMLHelper.getChildNodeByName(rootConfigNode, "platform");
 			if(platformNode!=null) {
-				final long period = XMLHelper.getLongAttributeByName(platformNode, "period", 15L);
-				final boolean installMBeans = XMLHelper.getAttributeByName(platformNode, "mbeans", false);
+				// MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final Node xmlConfigNode) {
 				final Class<?> observerClass = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet");
-				observerClass.getDeclaredMethod("build", MBeanServer.class, long.class, TimeUnit.class, boolean.class)
-					.invoke(null, JMXHelper.getHeliosMBeanServer(), period, TimeUnit.SECONDS, installMBeans);
+				observerClass.getDeclaredMethod("build", MBeanServerConnection.class, Node.class)
+					.invoke(null, JMXHelper.getHeliosMBeanServer(), platformNode);
 				log("Initialized tsdb-csf MXBeanObserver");				
 			}
 		} catch (Exception ex) {

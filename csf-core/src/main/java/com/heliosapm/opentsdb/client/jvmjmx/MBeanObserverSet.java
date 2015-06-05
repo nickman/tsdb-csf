@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.management.MBeanServer;
+import javax.management.MBeanServerConnection;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +33,7 @@ import org.w3c.dom.Node;
 
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
+import com.heliosapm.opentsdb.client.boot.XMLLoader;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
@@ -73,7 +75,7 @@ public class MBeanObserverSet implements Runnable {
 		LoggingConfiguration.getInstance();
 	}
 	
-	public static void main(String[] args) {
+	public static void mainx(String[] args) {
 		log("Testing MOS");
 		System.setProperty("tsdb.http.tsdb.url", "http://10.12.114.48:4241");
 		System.setProperty("tsdb.http.compression.enabled", "false");
@@ -103,32 +105,64 @@ public class MBeanObserverSet implements Runnable {
 		System.out.println(msg);
 	}
 	
-	public static MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final Node xmlConfigNode) {		
-		
+	public static void main(String[] args) {
+		log("Testing XMlInstaller");
+		XMLLoader.boot("file:/c:/hprojects/tsdb-csf/csf-core/src/test/resources/configs/platform.xml");
+		try { Thread.currentThread().join(); } catch (Exception ex) {}
+	}
+	
+	
+	/**
+	 * Builds a new MBeanObserverSet from an XMLConfiguration and boots it
+	 * @param serverConn The MBeanServerConnection to attach to
+	 * @param xmlConfigNode The XMLConfig
+	 * @return the built set
+	 */
+	public static MBeanObserverSet build(final MBeanServerConnection serverConn, final Node xmlConfigNode) {	
+		final RuntimeMBeanServerConnection mbeanServer = RuntimeMBeanServerConnection.newInstance(serverConn);
 		final long period = XMLHelper.getAttributeByName(xmlConfigNode, "period", 15L);
 		final boolean collectorMBeans = XMLHelper.getAttributeByName(xmlConfigNode, "collectormbeans", false);
 		final MBeanObserverSet mos = new MBeanObserverSet(mbeanServer, period, TimeUnit.SECONDS);
 		final Set<String> includes = new HashSet<String>();
 		final Set<String> excludes = new HashSet<String>();
 		for(Node n : XMLHelper.getChildNodesByName(xmlConfigNode, "includes", false)) {
-			final String s =  XMLHelper.getNodeTextValue(xmlConfigNode, "");
+			final String s =  XMLHelper.getNodeTextValue(n, "");
 			if(s!=null && !s.trim().isEmpty()) {
 				includes.add(s.trim());
 			}
 		}
 		for(Node n : XMLHelper.getChildNodesByName(xmlConfigNode, "excludes", false)) {
-			final String s =  XMLHelper.getNodeTextValue(xmlConfigNode, "");
+			final String s =  XMLHelper.getNodeTextValue(n, "");
 			if(s!=null && !s.trim().isEmpty()) {
 				excludes.add(s.trim());
 			}
 		}
+		boolean hotspotEnabled = false;
 		MBeanObserver[] observers = MBeanObserver.filter(includes, excludes);
 		for(MBeanObserver mo: observers) {
 			BaseMBeanObserver base = mo.getMBeanObserver(mbeanServer, null, collectorMBeans);
 			if(base!=null) {
+				if(!hotspotEnabled) {
+					if(mo.objectName.toString().startsWith("sun.management")) {
+						hotspotEnabled = true;
+					}
+				}
 				mos.enabledObservers.add(base);
 			}
 		}
+		if(hotspotEnabled) {
+			JMXHelper.registerHotspotInternal(mbeanServer);
+		}
+		
+		
+		final MetricRegistry reg = new MetricRegistry();
+		for(MetricSet ms: mos.enabledObservers) {
+			if(ms==null) continue;
+			reg.registerAll(ms);
+		}
+		OpenTSDBReporter reporter = OpenTSDBReporter.forRegistry(reg).build();		
+		mos.start();
+		reporter.start(period, TimeUnit.SECONDS);		
 		return mos;
 	}
 	

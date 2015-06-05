@@ -28,7 +28,6 @@ import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
  */
 
 public class DefaultRemoteAgentName implements RemoteAgentName {
-
 	/**
 	 * Creates a new DefaultRemoteAgentName
 	 */

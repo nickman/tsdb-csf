@@ -55,6 +55,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.OffHeapFIFOFile;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
@@ -110,6 +111,9 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	/** The JMX ObjectName */
 	public final ObjectName OBJECT_NAME;
 	
+	private volatile boolean forceLowerCase = true;
+	private volatile boolean shortHostName = true;
+	
 	/**
 	 * Acquires the AgentName singleton instancecs
 	 * @return the AgentName singleton instance
@@ -127,6 +131,8 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	
 	private AgentName() {
 		super(Threading.getInstance().getThreadPool(), NOTIF_INFOS);
+		forceLowerCase = ConfigurationReader.confBool(Constants.PROP_FORCE_LOWER_CASE, Constants.DEFAULT_FORCE_LOWER_CASE);
+		shortHostName = ConfigurationReader.confBool(Constants.PROP_USE_SHORT_HOSTNAMES, Constants.DEFAULT_USE_SHORT_HOSTNAMES);
 		OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=AgentName");
 		loadExtraTags();
 		getAppName();
@@ -141,7 +147,28 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	/**  */
 	private static final byte[] COMMA_BYTE = ",".getBytes(Constants.UTF8); 
 	
+	/**
+	 * Implements case conversion in accordance with {@code forceLowerCase}.
+	 * @param input The string to case
+	 * @return the possibly lowered case string
+	 */
+	private String c(final String input) {
+		if(input==null) return null;
+		if(forceLowerCase) {
+			return input.toLowerCase();
+		}
+		return input;
+	}
+	
+	private String h(final String hostName) {
+		if(shortHostName && hostName.indexOf('.')!=-1) {
+			return hostName.split("\\.")[0];
+		}
+		return hostName;
+	}
+	
 	private synchronized void initBufferized() {		
+		final boolean f = ConfigurationReader.confBool(Constants.PROP_FORCE_LOWER_CASE, Constants.DEFAULT_FORCE_LOWER_CASE);
 		ByteBuffer[] buffs = new ByteBuffer[3];		
 		final byte[] appTag = ("\"" + Constants.APP_TAG + "\":\"" + appName + "\"").getBytes(Constants.UTF8);
 		final byte[] hostTag = ("\"" + Constants.HOST_TAG + "\":\"" + hostName + "\"").getBytes(Constants.UTF8);
@@ -172,7 +199,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 				String key = Util.clean(m.group(1));
 				if(HOST_TAG.equalsIgnoreCase(key) || APP_TAG.equalsIgnoreCase(key)) continue;
 				String value = Util.clean(m.group(1));
-				GLOBAL_TAGS.put(key, value);
+				GLOBAL_TAGS.put(c(key), c(value));
 			}
 			log.info("Initial Global Tags:{}", GLOBAL_TAGS);
 		}
@@ -192,9 +219,9 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	 */
 	public String getHostName() {
 		if(hostName!=null) {
-			return hostName;
+			return c(h(hostName));
 		}		
-		hostName = hostName();		
+		hostName = c(h(hostName()));		
 		System.setProperty(Constants.PROP_HOST_NAME, hostName);
 		GLOBAL_TAGS.put(HOST_TAG, hostName);
 		return hostName;
@@ -239,9 +266,9 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	 */
 	public String getAppName() {
 		if(appName!=null) {
-			return appName;
+			return c(appName);
 		}
-		appName = appName();
+		appName = c(appName());
 		System.setProperty(Constants.PROP_APP_NAME, appName);
 		GLOBAL_TAGS.put(APP_TAG, appName);
 		return appName;
@@ -434,16 +461,24 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	 */
 	public static String remoteHostName(final RuntimeMBeanServerConnection remote) {
 		final ObjectName runtimeMXBean = Util.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME);
+		final boolean forceLowerCase = ConfigurationReader.confBool(Constants.PROP_FORCE_LOWER_CASE, Constants.DEFAULT_FORCE_LOWER_CASE);
+		final boolean shortHost = ConfigurationReader.confBool(Constants.PROP_USE_SHORT_HOSTNAMES, Constants.DEFAULT_USE_SHORT_HOSTNAMES);
 		try {
 			RuntimeMXBean rt = JMX.newMXBeanProxy(remote, runtimeMXBean, RuntimeMXBean.class, false);
 			final Map<String, String> sysProps = rt.getSystemProperties();
 			String appName = sysProps.get(Constants.PROP_HOST_NAME).trim();
-			if(appName!=null && !appName.isEmpty()) return appName;
-			appName = sysProps.get(Constants.REMOTE_PROP_HOST_NAME).trim();
-			if(appName!=null && !appName.isEmpty()) return appName;			
-			appName = getRemoteJSHostName(remote);
-			if(appName!=null && !appName.isEmpty()) return appName;
-			return rt.getName().split("@")[1];
+			if(appName==null || appName.isEmpty()) {
+				appName = sysProps.get(Constants.REMOTE_PROP_HOST_NAME).trim();
+			}
+			if(appName==null || appName.isEmpty()) {
+				appName = getRemoteJSHostName(remote);
+			}								
+			if(appName==null || appName.isEmpty()) {
+				appName = rt.getName().split("@")[1];
+			}
+			if(forceLowerCase) appName = appName.toLowerCase();
+			if(shortHost && appName.indexOf('.')!=-1) appName = appName.split("\\.")[0]; 
+			return appName;
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to get any host name", ex);
 		}		

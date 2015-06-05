@@ -74,9 +74,6 @@ public class MetricBuilder {
 	private byte chMetric = 0;
 	
 
-	
-	
-
 	/** The buffer factory for allocating buffers to stream metrics out to the tracer */
     private static final DynamicByteBufferBackedChannelBufferFactory bufferFactory = new DynamicByteBufferBackedChannelBufferFactory(128);
     
@@ -272,11 +269,11 @@ public class MetricBuilder {
 	public static MetricBuilder metric(final ObjectName objectName) {
 		if(objectName==null) throw new IllegalArgumentException("The passed object name was null");
 		if(objectName.isDomainPattern()) throw new IllegalArgumentException("The passed object name [" + objectName + "] is a domain wildcard");
-		final MetricBuilder builder = new MetricBuilder(objectName.getDomain());
+		final MetricBuilder builder = new MetricBuilder(c(objectName.getDomain()));
 		final Map<String, String> props = objectName.getKeyPropertyList();
 		for(Map.Entry<String, String> entry: props.entrySet()) {
 			if(objectName.isPropertyValuePattern(entry.getKey())) continue;
-			builder.tag(entry.getKey(), entry.getValue());
+			builder.tag(c(entry.getKey()), c(entry.getValue()));
 		}
 		return builder;
 	}
@@ -310,8 +307,8 @@ public class MetricBuilder {
 	 * Creates a new MetricBuilder
 	 * @param name The base metric name
 	 */
-	private MetricBuilder(final String name) {
-		final SplitFlatName sfn = OTMetric.splitFlatName(name);
+	private MetricBuilder(final String name) {		
+		final SplitFlatName sfn = OTMetric.splitFlatName(c(name));
 		this.name = sfn.getMetricName();
 		if(!sfn.getTags().isEmpty()) {
 			if(tags==null) tags = new LinkedHashMap<String, String>(3);
@@ -320,12 +317,43 @@ public class MetricBuilder {
 	}
 	
 	/**
+	 * Implements case conversion in accordance with {@code forceLowerCase}.
+	 * @param input The string to case
+	 * @return the possibly lowered case string
+	 */
+	private static String c(final String input) {
+		if(input==null) return null;
+		if(forceLowerCase) {
+			return input.toLowerCase();
+		}
+		return input;
+	}
+	
+	/**
+	 * Implements case conversion in accordance with {@code forceLowerCase}.
+	 * @param tags The tag map to case
+	 * @return the possibly lowered case tag map
+	 */
+	private static Map<String, String> c(final Map<String, String> tags) {
+		if(tags!=null && !tags.isEmpty()) {
+			if(forceLowerCase) {
+				final LinkedHashMap<String, String> fc = new LinkedHashMap<String, String>(tags.size());
+				for(Map.Entry<String, String> entry: tags.entrySet()) {
+					fc.put(c(entry.getKey()), c(entry.getValue()));
+				}
+			}
+		}
+		return tags;
+
+	}
+	
+	/**
 	 * Adds a prefix to the metric name builder
 	 * @param prefix A prefix to prepend to the base metric name
 	 * @return this builder
 	 */
 	public MetricBuilder pre(final String prefix) {
-		this.prefix = nvl(prefix, "prefix");
+		this.prefix = c(nvl(prefix, "prefix"));
 		return this;
 	}
 	
@@ -408,7 +436,7 @@ public class MetricBuilder {
 	 * @return this builder
 	 */
 	public MetricBuilder ext(final String extension) {
-		this.extension = nvl(extension, "extension");
+		this.extension = c(nvl(extension, "extension"));
 		return this;
 	}
 	
@@ -420,7 +448,7 @@ public class MetricBuilder {
 	 */
 	public MetricBuilder tag(final String key, final Object value) {
 		if(tags==null) tags = new LinkedHashMap<String, String>(3);
-		tags.put(nvl(key, "tag key"), nvl(value.toString(), "tag value"));
+		tags.put(c(nvl(key, "tag key")), c(nvl(value.toString(), "tag value")));
 		return this;
 	}
 	
@@ -454,7 +482,7 @@ public class MetricBuilder {
 	 */
 	public MetricBuilder tags(final Map<String, String> tags) {
 		if(tags==null || tags.isEmpty()) return this;
-		for(Map.Entry<String, String> entry: tags.entrySet()) {
+		for(Map.Entry<String, String> entry: c(tags).entrySet()) {
 			tag(entry.getKey(), entry.getValue());
 		}
 		return this;
@@ -468,7 +496,7 @@ public class MetricBuilder {
 	 */
 	public MetricBuilder ntags(final Map<String, String> tags) {
 		if(tags==null || tags.isEmpty()) throw new IllegalArgumentException("The passed tag map was null or empty");
-		for(Map.Entry<String, String> entry: tags.entrySet()) {
+		for(Map.Entry<String, String> entry: c(tags).entrySet()) {
 			tag(entry.getKey(), entry.getValue());
 		}
 		return this;
@@ -648,6 +676,8 @@ public class MetricBuilder {
 	private static volatile boolean traceToStdOut = false;
 	/** Indicates if StdOut tracing should be in JSON format, or plain text */
 	private static volatile boolean traceStdOutJson = false;
+	/** Indicates if tracing should be forced to lower case only */
+	private static volatile boolean forceLowerCase = false;
 	
 	static {
 		reconfig();
@@ -659,6 +689,7 @@ public class MetricBuilder {
 	public static void reconfig() {
 		traceToStdOut = ConfigurationReader.confBool(Constants.PROP_TRACE_TO_STDOUT, Constants.DEFAULT_TRACE_TO_STDOUT);
 		traceStdOutJson = ConfigurationReader.confBool(Constants.PROP_STDOUT_JSON, Constants.DEFAULT_STDOUT_JSON);
+		forceLowerCase = ConfigurationReader.confBool(Constants.PROP_FORCE_LOWER_CASE, Constants.DEFAULT_FORCE_LOWER_CASE);
 	}
 	
 	/**
