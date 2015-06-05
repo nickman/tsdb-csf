@@ -4,8 +4,28 @@
 		tsdb.http.compression.enabled=false
 		tsdb.http.tsdb.url=http://localhost:4242
 		tsdb.id.app=hbase
+		tsdb.trace.stdout=true
+		tsdb.trace.stdout.json=true
 	]]></sysprops>
-	<platform-mbeanobserver period="15" mbeans="true" />
+	
+	<!-- 
+	 Loads the platform MBeanServer and Hotspot Internals MBean monitors.
+	 SIMPLE:
+	 =======
+	 <platform />  loads all the known standard platform mbeans, no hotspot, and no observer mbeans.
+	 is the same as: <platform period="15" collectormbeans="false" />
+	  
+	 INCLUDES/EXCLUDES
+	 =================
+	 
+	 Standard Platform:    java.lang:type=*
+	 NIO Buffers:          java.nio:type=BufferPool,name=*
+	 HotSpot Internals:   sun.management:type=*
+	   HotspotMemory, HotspotClassLoading, HotspotCompilation, HotspotRuntime, HotspotThreading
+	  
+	 -->
+	
+	<platform period="15" mbeans="true" />
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
 	</jmxmp>

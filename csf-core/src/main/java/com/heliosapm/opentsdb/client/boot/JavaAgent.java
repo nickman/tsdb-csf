@@ -20,7 +20,8 @@ import java.util.Properties;
 
 /**
  * <p>Title: JavaAgent</p>
- * <p>Description: </p> 
+ * <p>Description: The agent bootstrap used when the JVM is started with <b><code>-javaagent</code></b>
+ * or using a hot install.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.boot.JavaAgent</code></p>

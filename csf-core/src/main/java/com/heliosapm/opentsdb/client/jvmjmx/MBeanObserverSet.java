@@ -28,6 +28,7 @@ import javax.management.MBeanServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jboss.netty.util.Timeout;
+import org.w3c.dom.Node;
 
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
@@ -39,6 +40,7 @@ import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.opentsdb.client.util.JMXHelper;
+import com.heliosapm.opentsdb.client.util.XMLHelper;
 
 /**
  * <p>Title: MBeanObserverSet</p>
@@ -99,6 +101,35 @@ public class MBeanObserverSet implements Runnable {
 	
 	public static void log(Object msg) {
 		System.out.println(msg);
+	}
+	
+	public static MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final Node xmlConfigNode) {		
+		
+		final long period = XMLHelper.getAttributeByName(xmlConfigNode, "period", 15L);
+		final boolean collectorMBeans = XMLHelper.getAttributeByName(xmlConfigNode, "collectormbeans", false);
+		final MBeanObserverSet mos = new MBeanObserverSet(mbeanServer, period, TimeUnit.SECONDS);
+		final Set<String> includes = new HashSet<String>();
+		final Set<String> excludes = new HashSet<String>();
+		for(Node n : XMLHelper.getChildNodesByName(xmlConfigNode, "includes", false)) {
+			final String s =  XMLHelper.getNodeTextValue(xmlConfigNode, "");
+			if(s!=null && !s.trim().isEmpty()) {
+				includes.add(s.trim());
+			}
+		}
+		for(Node n : XMLHelper.getChildNodesByName(xmlConfigNode, "excludes", false)) {
+			final String s =  XMLHelper.getNodeTextValue(xmlConfigNode, "");
+			if(s!=null && !s.trim().isEmpty()) {
+				excludes.add(s.trim());
+			}
+		}
+		MBeanObserver[] observers = MBeanObserver.filter(includes, excludes);
+		for(MBeanObserver mo: observers) {
+			BaseMBeanObserver base = mo.getMBeanObserver(mbeanServer, null, collectorMBeans);
+			if(base!=null) {
+				mos.enabledObservers.add(base);
+			}
+		}
+		return mos;
 	}
 	
 	/**

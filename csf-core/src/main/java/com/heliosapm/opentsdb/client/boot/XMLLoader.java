@@ -278,7 +278,7 @@ public class XMLLoader {
 	 */
 	public static void initJmxCollector(final Node rootConfigNode) {
 		try {
-			final Node platformNode = XMLHelper.getChildNodeByName(rootConfigNode, "platform-mbeanobserver");
+			final Node platformNode = XMLHelper.getChildNodeByName(rootConfigNode, "platform");
 			if(platformNode!=null) {
 				final long period = XMLHelper.getLongAttributeByName(platformNode, "period", 15L);
 				final boolean installMBeans = XMLHelper.getAttributeByName(platformNode, "mbeans", false);
