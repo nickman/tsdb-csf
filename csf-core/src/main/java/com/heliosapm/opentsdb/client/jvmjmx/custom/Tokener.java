@@ -124,6 +124,8 @@ MBean Info:
 		final StringBuffer sb = new StringBuffer();
 		final Matcher m = TOKEN_PATTERN.matcher(fullExpression.trim());
 		while(m.find()) {
+			final String op = m.group(1);
+			final String params = m.group(3);
 			ParsedToken pt = ParsedToken.getParsedToken(m.group(0));
 			if(pt!=null) {
 				Object resolved = pt.getToken().resolver.resolve(dctx, pt.getKey(), pt.getQual(), pt.getRanges());
@@ -140,7 +142,7 @@ MBean Info:
 	
 	
 	/** The token splitter */
-	public static final Pattern TOKEN_PATTERN = Pattern.compile("\\$(.*)?\\{(.*?)(?:\\((\\d+(?:[,-]\\d+)*)\\))?(?:\\[(.*)?\\])?\\}?");
+	public static final Pattern TOKEN_PATTERN = Pattern.compile("\\$\\{(.*?)(:(.*?)?)?\\}");
 	
 	public static class IntRange {
 		/** A cache of IntRanges keyed by the original expression */
