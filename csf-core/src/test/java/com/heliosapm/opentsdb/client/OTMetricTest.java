@@ -26,8 +26,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
+import com.heliosapm.opentsdb.client.opentsdb.OTMetricCache;
 
 
 /**
@@ -99,8 +102,49 @@ public class OTMetricTest extends BaseTest {
 		otm2  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").tag("op", "cache-lookup").tag("service", "cache-service"), 
 				"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
 		compare(otm1, otm2);
+		// ==============================
+		//  force lowercase off
+		// ==============================
+		final String lcset = System.getProperty(Constants.PROP_FORCE_LOWER_CASE, "true");
+		try {			
+			System.setProperty(Constants.PROP_FORCE_LOWER_CASE, "false");
+			OTMetricCache.getInstance().clear(); MetricBuilder.reconfig();
+			otm1  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").ext("ext").tag("op", "cache-lookup").tag("service", "cache-service"), 
+					"KitchenSink.resultCounts.ext{op=cache-lookup, service=cache-service}");
+			otm2  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").ext("ext").tag("op", "cache-lookup").tag("service", "cache-service"), 
+					"KitchenSink.resultCounts.ext{op=cache-lookup, service=cache-service}");
+			compare(otm1, otm2);
+			// ==============================
+			otm1  = testBuild(MetricBuilder.metric("KitchenSink.resultCounts.op=cache-lookup.service=cache-service"), 
+					"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
+			otm2  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").tag("op", "cache-lookup").tag("service", "cache-service"), 
+					"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
+			compare(otm1, otm2);			
+		} finally {
+			System.setProperty(Constants.PROP_FORCE_LOWER_CASE, lcset);
+		}
+		// ==============================
+		//  force lowercase on
+		// ==============================		
+		try {			
+			System.setProperty(Constants.PROP_FORCE_LOWER_CASE, "true");
+			OTMetricCache.getInstance().clear(); MetricBuilder.reconfig();
+			otm1  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").ext("ext").tag("op", "cache-lookup").tag("service", "cache-service"), 
+					"KitchenSink.resultCounts.ext{op=cache-lookup, service=cache-service}");
+			otm2  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").ext("ext").tag("op", "cache-lookup").tag("service", "cache-service"), 
+					"KitchenSink.resultCounts.ext{op=cache-lookup, service=cache-service}");
+			compare(otm1, otm2);
+			// ==============================
+			otm1  = testBuild(MetricBuilder.metric("KitchenSink.resultCounts.op=cache-lookup.service=cache-service"), 
+					"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
+			otm2  = testBuild(MetricBuilder.metric("resultCounts").pre("KitchenSink").tag("op", "cache-lookup").tag("service", "cache-service"), 
+					"KitchenSink.resultCounts{op=cache-lookup, service=cache-service}");
+			compare(otm1, otm2);			
+		} finally {
+			System.setProperty(Constants.PROP_FORCE_LOWER_CASE, lcset);
+		}
 		
-
+		
 		
 		
 //		log("Creating OTM for [" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME + "] (" + ManagementFactory.CLASS_LOADING_MXBEAN_NAME.getBytes(UTF8).length + ")");
@@ -132,11 +176,17 @@ public class OTMetricTest extends BaseTest {
 	 * @param expectedName The expected name to render
 	 * @return the built OTMetric
 	 */
+	@SuppressWarnings("static-method")
 	protected OTMetric testBuild(final MetricBuilder builder, final String expectedName) {
 		long mbLongHashCode = builder.longHashCode();
 		OTMetric otm = builder.build();
 		log("OTMetric:" + otm.toString());
-		Assert.assertEquals("The rendered string is unexpected", expectedName, otm.toString());
+		final boolean lowerCase = ConfigurationReader.confBool(Constants.PROP_FORCE_LOWER_CASE, Constants.DEFAULT_FORCE_LOWER_CASE);
+		if(lowerCase) {
+			Assert.assertEquals("The rendered string is unexpected", expectedName.toLowerCase(), otm.toString());
+		} else {
+			Assert.assertEquals("The rendered string is unexpected", expectedName, otm.toString());
+		}
 		Assert.assertEquals("The long hashcodes do not match", mbLongHashCode, otm.longHashCode());
 		return otm;
 	}

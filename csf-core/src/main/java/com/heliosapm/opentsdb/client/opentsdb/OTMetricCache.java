@@ -118,6 +118,13 @@ public class OTMetricCache implements RemovalListener<String, OTMetric>, MetricR
 	}
 	
 	/**
+	 * Clears the cache
+	 */
+	public void clear() {
+		cache.invalidateAll();
+	}
+	
+	/**
 	 * Returns the OTMetric for the provided parameters
 	 * @param name The plain flat name from the Metric name
 	 * @return the OTMetric
