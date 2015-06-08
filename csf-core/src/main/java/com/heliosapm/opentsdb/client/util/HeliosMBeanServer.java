@@ -61,24 +61,24 @@ public class HeliosMBeanServer {
 	/** The NIO Buffer Pool MX Domain Type */
 	public static final String NIO_BUFFER_POOL_MXBEAN_DOMAIN_TYPE = "java.nio:type=BufferPool";
 	
-	public static void main(String[] args) {		
-		try {			
-			HeliosMBeanServer hms = new HeliosMBeanServer("com.heliosapm", true, new JMXServiceURL("service:jmx:jmxmp://localhost:9091"));
-			System.out.println("STARTED:\nMBeanServers:");
-			for(MBeanServer m: MBeanServerFactory.findMBeanServer(null)) {
-				System.out.println("\t" + m.getDefaultDomain());
-			}
-			hms.stop();
-			System.out.println("STOPPED:\nMBeanServers:");
-			for(MBeanServer m: MBeanServerFactory.findMBeanServer(null)) {
-				System.out.println("\t" + m.getDefaultDomain());
-			}			
-			//Thread.currentThread().join();
-		} catch (Exception ex) {
-			ex.printStackTrace(System.err);
-			System.exit(-1);
-		}
-	}
+//	public static void main(String[] args) {		
+//		try {			
+//			HeliosMBeanServer hms = new HeliosMBeanServer("com.heliosapm", true, new JMXServiceURL("service:jmx:jmxmp://localhost:9091"));
+//			System.out.println("STARTED:\nMBeanServers:");
+//			for(MBeanServer m: MBeanServerFactory.findMBeanServer(null)) {
+//				System.out.println("\t" + m.getDefaultDomain());
+//			}
+//			hms.stop();
+//			System.out.println("STOPPED:\nMBeanServers:");
+//			for(MBeanServer m: MBeanServerFactory.findMBeanServer(null)) {
+//				System.out.println("\t" + m.getDefaultDomain());
+//			}			
+//			//Thread.currentThread().join();
+//		} catch (Exception ex) {
+//			ex.printStackTrace(System.err);
+//			System.exit(-1);
+//		}
+//	}
 	
 	
 	/**
@@ -95,7 +95,7 @@ public class HeliosMBeanServer {
 			Constructor<? extends MBeanServer> ctor = clazz.getDeclaredConstructor(String.class, MBeanServer.class, MBeanServerDelegate.class, boolean.class);
 			ctor.setAccessible(true);
 			mbs = ctor.newInstance(defaultDomain, null,  new MBeanServerDelegate(), true);
-			JMXHelper.setHeliosMBeanServer(mbs);
+//			JMXHelper.setHeliosMBeanServer(mbs);
 			registerMXBeans();
 			log("Registered MXBeans");
 			remotingServer = startConnectorServer();			

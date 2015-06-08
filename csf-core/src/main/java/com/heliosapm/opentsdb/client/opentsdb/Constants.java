@@ -318,7 +318,7 @@ public interface Constants {
 	/** The system property config name for the JMX domain where csf MBeans are registered */
 	public static final String PROP_JMX_DOMAIN = "tsdb.jmx.domain";
 	/** The default JMX domain where csf MBeans are registered */
-	public static final String DEFAULT_JMX_DOMAIN = "com.heliosapm.tsdb";
+	public static final String DEFAULT_JMX_DOMAIN = "DefaultDomain"; //"com.heliosapm.tsdb";
 
 	// ============================================
 	// Local JVM Platform JMX Collection Properties

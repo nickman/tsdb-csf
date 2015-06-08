@@ -101,7 +101,8 @@ public class Util {
 	 * @return the JMX domain where csf MBeans are registered
 	 */
 	public static String getJMXDomain() {
-		return ConfigurationReader.conf(Constants.PROP_JMX_DOMAIN, Constants.DEFAULT_JMX_DOMAIN);
+		return "com.heliosapm";
+		//return ConfigurationReader.conf(Constants.PROP_JMX_DOMAIN, Constants.DEFAULT_JMX_DOMAIN);
 	}
 	
 	

@@ -184,7 +184,7 @@ public enum OpenTsdbPutResponseHandler implements PutResponseHandler {
 			results[1] = j.getInt(SUCCESS_KEY);			
 			processErrors(j.optJSONArray(ERRORS_KEY), log);
 		} catch (Exception ex) {
-			log.warn("Failed to process response {}", contentStr, ex);
+			log.warn("Failed to process response [{}]", contentStr, ex);
 		}
 		return results;
 	}

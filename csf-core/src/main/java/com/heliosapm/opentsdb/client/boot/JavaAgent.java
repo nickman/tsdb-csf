@@ -18,6 +18,8 @@ package com.heliosapm.opentsdb.client.boot;
 import java.lang.instrument.Instrumentation;
 import java.util.Properties;
 
+import com.heliosapm.opentsdb.client.util.IsolatedArchiveLoader;
+
 /**
  * <p>Title: JavaAgent</p>
  * <p>Description: The agent bootstrap used when the JVM is started with <b><code>-javaagent</code></b>
@@ -39,6 +41,8 @@ public class JavaAgent {
 	public static Instrumentation INSTRUMENTATION = null;
 	/** The arguments passed to this agent */
 	public static String AGENT_ARGS = null;
+	
+	public static final IsolatedArchiveLoader isolatedClassLoader = new IsolatedArchiveLoader(JavaAgent.class.getProtectionDomain().getCodeSource().getLocation());
 	
 	/**
 	 * Creates a new JavaAgent
@@ -77,11 +81,6 @@ public class JavaAgent {
 	}
 
 	
-	public static void main(final String[] args) {
-		// Commands
-			// List running JVMs
-			//install to other JVM
-	}
 	
 	/**
 	 * The agent boot entry point
@@ -94,9 +93,9 @@ public class JavaAgent {
 		try {			
 			if(!processArgs(agentArgs)) {
 				ClassLoader cl = JavaAgent.class.getClassLoader();
-				System.out.println("Executing premain.....\n\tLoading class [" + MANUAL_LOAD_CLASS + "]");
+				log("Executing premain.....\n\tLoading class [" + MANUAL_LOAD_CLASS + "]");
 				Class<?> bootClass = Class.forName(MANUAL_LOAD_CLASS, true, cl);
-				System.out.println("Loaded class [" + MANUAL_LOAD_CLASS + "]\n\tInvoking boot....");
+				log("Loaded class [" + MANUAL_LOAD_CLASS + "]\n\tInvoking boot....");
 				bootClass.getDeclaredMethod("boot").invoke(null);				
 			}
 			markAgentInstalled();
@@ -144,16 +143,44 @@ public class JavaAgent {
 		return configured;
 	}
 
-	public static void premain(final String agentArgs) {
+	/**
+	 * Boots the agent on a javaagent enabled JVM boot
+	 * @param agentArgs The agent arguments
+	 */
+	public static void premain(final String agentArgs) {		
 		premain(agentArgs, null);
 	}
 	
+	/**
+	 * Boots the agent on a hot install
+	 * @param agentArgs The agent arguments
+	 * @param inst The instrumentation instance
+	 */
 	public static void agentmain(final String agentArgs, final Instrumentation inst) {
-		premain(agentArgs, inst);
+		log("Entering agentmain (args,inst)");
+		final ClassLoader cl = Thread.currentThread().getContextClassLoader();
+		try {
+			
+			Thread.currentThread().setContextClassLoader(isolatedClassLoader);
+			premain(agentArgs, inst);
+		} finally {
+			Thread.currentThread().setContextClassLoader(cl);
+		}
 	}
 
+	/**
+	 * Boots the agent on a hot install
+	 * @param agentArgs The agent arguments
+	 */
 	public static void agentmain(final String agentArgs) {
-		premain(agentArgs, null);
+		log("Entering agentmain (args)");
+		final ClassLoader cl = Thread.currentThread().getContextClassLoader();
+		try {
+			Thread.currentThread().setContextClassLoader(isolatedClassLoader);
+			premain(agentArgs);
+		} finally {
+			Thread.currentThread().setContextClassLoader(cl);
+		}
 	}
 	
 	

@@ -158,7 +158,9 @@ public class MBeanObserverSet implements Runnable {
 		final MetricRegistry reg = new MetricRegistry();
 		for(MetricSet ms: mos.enabledObservers) {
 			if(ms==null) continue;
-			reg.registerAll(ms);
+			try {
+				reg.registerAll(ms);
+			} catch (Exception x) {/* No Op */}
 		}
 		OpenTSDBReporter reporter = OpenTSDBReporter.forRegistry(reg).build();		
 		mos.start();

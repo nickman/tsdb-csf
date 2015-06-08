@@ -84,6 +84,7 @@ public class JavaAgentInstaller {
 	public static void main(final String[] args) {
 		if(args.length==0) {
 			loge("Usage: java com.heliosapm.opentsdb.client.boot.JavaAgentInstaller \n\t<PID | Name to match> \n\t[-list | -listjson] \n\t[-p k=v] \n\t[-config URL|File]");
+			return;
 		}
 		final long pid;
 		if(isPid(args[0])) {

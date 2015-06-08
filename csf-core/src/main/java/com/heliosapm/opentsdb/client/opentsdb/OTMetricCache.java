@@ -72,10 +72,10 @@ public class OTMetricCache implements RemovalListener<String, OTMetric>, MetricR
 	 * Acquires the OTMetricCache singleton instance
 	 * @return the OTMetricCache singleton instance
 	 */
-	public static OTMetricCache getInstance() {
+	public static OTMetricCache getInstance() {		
 		if(instance==null) {
 			synchronized(lock) {
-				if(instance==null) {
+				if(instance==null) {					
 					instance = new OTMetricCache();
 				}
 			}
@@ -88,6 +88,7 @@ public class OTMetricCache implements RemovalListener<String, OTMetric>, MetricR
 	 */
 	private OTMetricCache() {
 		log = LogManager.getLogger(getClass());
+		log.info("Initializing OTMetric Cache.\n\tGuavaCache location:[{}]", CacheBuilderSpec.class.getProtectionDomain().getCodeSource().getLocation());
 		OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=OTMetricCache");
 		CacheBuilderSpec spec = null;
 		String cacheSpec = ConfigurationReader.conf(Constants.PROP_OTMETRIC_CACHE_SPEC, Constants.DEFAULT_OTMETRIC_CACHE_SPEC);

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<csf-config domain="DefaultDomain">
+	<sysprops><![CDATA[
+		tsdb.http.compression.enabled=true
+		tsdb.http.tsdb.url=http://pdk-pt-cltsdb-01:8070
+		tsdb.id.app=hbase-hadoop1
+	]]></sysprops>
+	<platform period="15" collectormbeans="true">
+		<includes>java.lang:type=*</includes>
+	</platform>
+	<jmxmp>
+		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
+	</jmxmp>
+</csf-config>

@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <csf-config domain="com.heliosapm">
 	<sysprops><![CDATA[
-		tsdb.http.compression.enabled=false
-		tsdb.http.tsdb.url=http://localhost:4242
-		tsdb.id.app=hbase
-		tsdb.trace.stdout=true
-		tsdb.trace.stdout.json=true
+		tsdb.jmx.server.domain=DefaultDomain
+		tsdb.jmx.domain=DefaultDomain
+		tsdb.http.compression.enabled=true
+		tsdb.http.tsdb.url=http://pdk-pt-cltsdb-01:8070
+		tsdb.id.app=test
 	]]></sysprops>
 	
-	<!-- 
+	<!--
+	
+		#tsdb.trace.stdout=true
+		#tsdb.trace.stdout.json=true
+
+	 
 	 Loads the platform MBeanServer and Hotspot Internals MBean monitors.
 	 SIMPLE:
 	 =======
@@ -25,8 +30,12 @@
 	  
 	 -->
 	
-	<platform period="15" mbeans="true" />
+	<platform period="15" collectormbeans="true">
+		<includes>java.lang:type=*</includes>
+		<includes>sun.management:type=*</includes>
+	</platform>
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
+		<server port="18012" iface="0.0.0.0" jmxdomain="com.heliosapm"/>
 	</jmxmp>
 </csf-config>

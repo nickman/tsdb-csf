@@ -71,7 +71,7 @@ public class XMLLoader {
 		}
 		try {
 			final Node configRoot = XMLHelper.parseXML(url).getDocumentElement();
-			final String heliosDomain = XMLHelper.getAttributeByName(configRoot, "domain", "com.heliosapm");
+			final String heliosDomain = XMLHelper.getAttributeByName(configRoot, "domain", "DefaultDomain");
 			for(MBeanServer mbs: MBeanServerFactory.findMBeanServer(null)) {
 				String dd = mbs.getDefaultDomain();
 				if(dd==null) dd = "DefaultDomain";
