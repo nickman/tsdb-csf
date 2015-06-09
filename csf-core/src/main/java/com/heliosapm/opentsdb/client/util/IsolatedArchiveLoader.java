@@ -30,9 +30,11 @@ import java.security.CodeSource;
 import java.security.Permissions;
 import java.security.Principal;
 import java.security.ProtectionDomain;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -47,14 +49,14 @@ import java.util.jar.JarInputStream;
  */
 public class IsolatedArchiveLoader extends URLClassLoader {
 	/** This classloader's parent which is delegated system class loads */
-	protected static SystemOnlyClassLoader ncl;
+	protected static SystemOnlyClassLoader ncl = new SystemOnlyClassLoader();
 	
 	/** Class byte code arrays loaded from the configured archives */
 	protected final Map<String, ByteBuffer> archiveByteCode = new HashMap<String, ByteBuffer>(2048);
 	/** Classes loaded from the configured archives */
 	protected final Map<String, Class<?>> archiveClasses = new ConcurrentHashMap<String, Class<?>>(2048);
 	/** Resources loaded from the configured archives */
-	protected final Map<String, ByteBuffer> archiveResources = new HashMap<String, ByteBuffer>(2048);
+	protected final Map<String, URL> archiveResources = new HashMap<String, URL>(2048);
 	/** Maps the class name to the URL it was loaded from */
 	protected final Map<String, URL> codeSource = new ConcurrentHashMap<String, URL>(2048);
 	/** The protection domain for each URL source */
@@ -62,50 +64,57 @@ public class IsolatedArchiveLoader extends URLClassLoader {
 
 	/**
 	 * Creates a new IsolatedArchiveLoader that restricts its classloading to the passed URLs. 
-	 * @param urls The URLs this classloader will load from
+	 * @param url The URL this classloader will load from
 	 */
-	public IsolatedArchiveLoader(final URL...urls)  {
-		super(urls, getNullClassLoader());		
-		StringBuilder b = new StringBuilder();
-		if(urls!=null) {
-			for(URL url: urls) {
-				b.append("\n\t").append(url);
-			}
-		}
-		loadByteCode(urls);
-		System.out.println("Isolated Class Loader for URLs: [" + b + "]");
+	public IsolatedArchiveLoader(final URL url)  {
+		super(new URL[0], getNullClassLoader());		
+		addURL(url);
+		System.out.println("Isolated Class Loader for URLs: [" + url + "]");
 	}
 	
 	/**
-	 * Loads and indexes the byte code from the passed URLs
-	 * @param urls
+	 * Creates a new IsolatedArchiveLoader that restricts its classloading to the URL code source of the passed class 
+	 * @param clazz the reference class to get the classpath URL from
 	 */
-	protected void loadByteCode(final URL...urls) {
+	public IsolatedArchiveLoader(final Class<?> clazz)  {
+		super(new URL[0], getNullClassLoader());		
+		final URL url = clazz.getProtectionDomain().getCodeSource().getLocation();
+		addURL(url);
+		System.out.println("Isolated Class Loader for URLs: [" + url + "]");
+	}
+
+	
+	/**
+	 * Loads and indexes the byte code from the passed URLs
+	 * {@inheritDoc}
+	 * @see java.net.URLClassLoader#addURL(java.net.URL)
+	 */
+	@Override
+	public void addURL(final URL url) {
 		InputStream is = null;
 		JarInputStream jis = null;
 		JarEntry jer = null;
 		String jerName = null;
 		try {
-			for(URL url : urls) {
-				if(!protectionDomains.containsKey(url)) {
-					final CodeSource cs = new CodeSource(url, (CodeSigner[])null);
-					final Permissions pc = new Permissions();
-					pc.add(new AllPermission());					
-					final ProtectionDomain pd = new ProtectionDomain(cs, pc, this, new Principal[]{});
-					protectionDomains.put(url, pd);
-				}
-				
-				is = url.openStream();
-				jis = new JarInputStream(is, false);
-				while((jer = jis.getNextJarEntry()) != null){
-					jerName = jer.getName();					
-					if(!jer.isDirectory()) {
-						InputStream inneris = null;
-						try {
-							URL jurl = new URL("jar:" + url.toString() + "!/" + jerName);
+			if(!protectionDomains.containsKey(url)) {
+				final CodeSource cs = new CodeSource(url, (CodeSigner[])null);
+				final Permissions pc = new Permissions();
+				pc.add(new AllPermission());					
+				final ProtectionDomain pd = new ProtectionDomain(cs, pc, this, new Principal[]{});
+				protectionDomains.put(url, pd);
+			}
+			
+			is = url.openStream();
+			jis = new JarInputStream(is, false);
+			while((jer = jis.getNextJarEntry()) != null){
+				jerName = jer.getName();					
+				if(!jer.isDirectory()) {
+					InputStream inneris = null;
+					try {												
+						final URL jurl = new URL("jar:" + url.toString() + "!/" + jerName);
+						if(jerName.endsWith(".class")) {
 							inneris = jurl.openStream();
 							int size = inneris.available();
-//							log("JAR Entry Name [%s] : [%s] bytes", jerName, size);
 							if(size==-1) continue;
 							final ByteBuffer bb = ByteBuffer.allocateDirect(size);
 							byte[] content = new byte[size];
@@ -113,27 +122,24 @@ public class IsolatedArchiveLoader extends URLClassLoader {
 							bb.put(content);
 							content = null;
 							bb.flip();
-							if(jerName.endsWith(".class")) {
-								archiveByteCode.put(jerName.replace(".class", "").replace('/', '.'), bb);
-								codeSource.put(jerName.replace(".class", "").replace('/', '.'), url);
-//								log("Indexed class: [%s]", jerName.replace(".class", "").replace('/', '.'));
-							} else {
-								archiveResources.put(jerName.replace('/', '.'), bb);
-//								log("Indexed resource: [%s]", jerName.replace('/', '.'));
-							}							
-						} finally {
-							if(inneris!=null) try { inneris.close(); } catch (Exception x) {/* No Op */}
+							archiveByteCode.put(jerName.replace(".class", "").replace('/', '.'), bb);
+							codeSource.put(jerName.replace(".class", "").replace('/', '.'), url);							
+						} else {
+							archiveResources.put(jerName.replace('/', '.'), jurl);
 						}
+					} finally {
+						if(inneris!=null) try { inneris.close(); } catch (Exception x) {/* No Op */}
 					}
 				}
 			}
 		} catch (Exception ex) {
-			throw new RuntimeException(ex);
+			ex.printStackTrace(System.err);
 		} finally {
 			if(is!=null) try { is.close(); } catch (Exception x) {/* No Op */}
 			if(jis!=null) try { jis.close(); } catch (Exception x) {/* No Op */}
-			System.gc();
+			System.gc();			
 		}
+		
 	}
 	
 	public static void main(String[] args) {
@@ -175,6 +181,7 @@ public class IsolatedArchiveLoader extends URLClassLoader {
 	 * @throws ClassNotFoundException
 	 */
 	private Class<?> loadSystemClass(final String name) throws ClassNotFoundException {
+		log("Loading System Class [%s]", name);
 		try {
 			Class<?> clazz = archiveClasses.get(name);
 			if(clazz==null) {
@@ -212,8 +219,16 @@ public class IsolatedArchiveLoader extends URLClassLoader {
 	}
 	
 
-	public URL getResource(String name) {
-		URL url = super.getResource(name);
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.ClassLoader#getResource(java.lang.String)
+	 */
+	@Override
+	public URL getResource(final String name) {
+		log("Loading Resource [%s], isolated: [%s]", name, archiveResources.containsKey(name));
+		URL url = archiveResources.get(name);
+		if(url!=null) return url;
+		url = super.getResource(name);
 		if(url==null) {
 			url = ncl.getRealResource(name);
 		} else {
@@ -224,20 +239,33 @@ public class IsolatedArchiveLoader extends URLClassLoader {
 		return url;
 	}
 	
-	public Enumeration<URL> getResources(String name) throws IOException {
-		Enumeration<URL> en = super.getResources(name);
-		if(en==null) {
-			en = ncl.getRealResources(name);
-		} else {
-			if(JMXHelper.isDebugAgentLoaded()) {
-				System.out.println("IsolatedArchiveLoader [" + name + "]");
-			}			
-		}
-		return en;
+	/**
+	 * {@inheritDoc}
+	 * @see java.lang.ClassLoader#getResources(java.lang.String)
+	 */
+	@Override
+	public Enumeration<URL> getResources(final String name) throws IOException {
+		log("Loading Resources [%s], isolated: [%s]", name, archiveResources.containsKey(name));
+		return new Vector<URL>(Collections.singleton(getResource(name))).elements();
 	}
 	
-	public InputStream getResourceAsStream(String name) {
-		InputStream is = super.getResourceAsStream(name);
+	/**
+	 * {@inheritDoc}
+	 * @see java.net.URLClassLoader#getResourceAsStream(java.lang.String)
+	 */
+	@Override
+	public InputStream getResourceAsStream(final String name) {
+		log("Loading Resource Stream [%s], isolated: [%s]", name, archiveResources.containsKey(name));
+		InputStream is = null;
+		URL url = getResource(name);
+		if(url!=null) {
+			try {
+				return url.openStream();
+			} catch (Exception ex) {
+				throw new RuntimeException(ex);
+			}
+		}
+		is = super.getResourceAsStream(name);
 		if(is==null) {
 			is = ncl.getRealResourceAsStream(name);
 		} else {
@@ -253,8 +281,9 @@ public class IsolatedArchiveLoader extends URLClassLoader {
 	 * @param name The class name
 	 * @param resolve true to resolve the class.
 	 * @return the loaded class
-	 * @throws ClassNotFoundException
+	 * @throws ClassNotFoundException thrown if the class cannot be found
 	 */	
+	@Override
 	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
 		return loadSystemClass(name);
 	}
@@ -265,6 +294,7 @@ public class IsolatedArchiveLoader extends URLClassLoader {
 	 * @return the loaded class
 	 * @throws ClassNotFoundException
 	 */
+	@Override
 	public Class<?> loadClass(String name) throws ClassNotFoundException {
 		return loadSystemClass(name);
 	}	
@@ -275,6 +305,7 @@ public class IsolatedArchiveLoader extends URLClassLoader {
 	 * @return the loaded class
 	 * @throws ClassNotFoundException
 	 */	
+	@Override
 	protected Class<?> findClass(String name) throws ClassNotFoundException {
 		return loadSystemClass(name);
 	}

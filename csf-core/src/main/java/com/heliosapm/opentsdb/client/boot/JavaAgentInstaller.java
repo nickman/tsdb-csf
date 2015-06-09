@@ -15,13 +15,19 @@
  */
 package com.heliosapm.opentsdb.client.boot;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.net.URL;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -81,6 +87,11 @@ public class JavaAgentInstaller {
 		}
 	}
 	
+	public static void mainx(final String[] args) {
+		String jar = agentBootJar(false);
+		log("Done:" + jar);
+	}
+	
 	public static void main(final String[] args) {
 		if(args.length==0) {
 			loge("Usage: java com.heliosapm.opentsdb.client.boot.JavaAgentInstaller \n\t<PID | Name to match> \n\t[-list | -listjson] \n\t[-p k=v] \n\t[-config URL|File]");
@@ -105,7 +116,8 @@ public class JavaAgentInstaller {
 		log("Installing JavaAgent to PID: %s from JAR: %s", pid, JavaAgentInstaller.class.getProtectionDomain().getCodeSource().getLocation());
 		VirtualMachine vm = null;
 		try {
-			final String loc = new File(JavaAgentInstaller.class.getProtectionDomain().getCodeSource().getLocation().getFile()).getAbsolutePath();
+			//final String loc = new File(JavaAgentInstaller.class.getProtectionDomain().getCodeSource().getLocation().getFile()).getAbsolutePath();
+			final String loc = agentBootJar(false);
 			vm = VirtualMachine.attach("" + pid);
 			log("Connected to process %s, loading Agent from %s", vm.id(), loc);
 			if(args.length > 1) {
@@ -118,7 +130,7 @@ public class JavaAgentInstaller {
 						b.append(url).append("|~");
 					}
 				}
-				b.deleteCharAt(b.length()-1); b.deleteCharAt(b.length()-1);
+				b.append(JavaAgentInstaller.class.getProtectionDomain().getCodeSource().getLocation());				
 				log("Loading with options [%s]", b);
 				vm.loadAgent(loc, b.toString());
 			} else {
@@ -232,6 +244,49 @@ public class JavaAgentInstaller {
 		}
 	}
 	
+	/**
+	 * Creates the java agent jar file
+	 * @param deleteOnExit true to delete the jar on this VM exit, false otherwise
+	 */
+	private static String agentBootJar(final boolean deleteOnExit) {
+		FileOutputStream fos = null;
+		JarOutputStream jos = null;
+		InputStream clazzIn = null;
+		File jarFile = null;
+		try {
+			jarFile = File.createTempFile("tsdb-csf-javaagent", ".jar");
+			if(deleteOnExit) jarFile.deleteOnExit();
+			StringBuilder manifest = new StringBuilder();
+			manifest.append("Manifest-Version: 1.0\n");
+			manifest.append("Premain-Class: ").append(JavaAgent.class.getName()).append("\n");
+			manifest.append("Agent-Class: ").append(JavaAgent.class.getName()).append("\n");
+			ByteArrayInputStream bais = new ByteArrayInputStream(manifest.toString().getBytes());
+			Manifest mf = new Manifest(bais);
+			fos = new FileOutputStream(jarFile, false);
+			jos = new JarOutputStream(fos, mf);
+			final String entryName = JavaAgent.class.getName().replace('.', '/') + ".class";
+			clazzIn = JavaAgentInstaller.class.getClassLoader().getResourceAsStream(entryName);
+			byte[] byteCode = new byte[clazzIn.available()];
+			clazzIn.read(byteCode);
+			log("Loaded [%s] bytes for JavaAgent class", byteCode.length);
+			ZipEntry ze = new ZipEntry(entryName);
+			jos.putNextEntry(ze);
+			jos.write(byteCode);
+			jos.flush();
+			jos.closeEntry();				
+			jos.close();
+			fos.flush();
+			fos.close();
+			return jarFile.getAbsolutePath();
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to Plugin Jar for [" + jarFile.getAbsolutePath() + "]", e);
+		} finally {
+			if(jos!=null) try { jos.close(); } catch (Exception e) {}
+			if(fos!=null) try { fos.close(); } catch (Exception e) {}
+			if(clazzIn!=null) try { clazzIn.close(); } catch (Exception e) {}			
+		}		
+		
+	}
 	
 
 }

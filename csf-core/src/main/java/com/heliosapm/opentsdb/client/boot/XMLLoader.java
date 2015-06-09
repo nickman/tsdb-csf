@@ -57,13 +57,17 @@ public class XMLLoader {
 	/** The HeiosMBeanServer if one was created  */
 	public static Object heliosMBeanServer = null;
 
+	public static ClassLoader agentClassLoader = null;
 	
 	/**
 	 * Boots the XMLConfig
 	 * @param source The soure of the XML. Can be a URL, URI or file name
 	 */
 	public static void boot(final String source) {
+		agentClassLoader = Thread.currentThread().getContextClassLoader();
 		log("XMLLoader: [%s]", source);
+		log("ClassLoader: [%s]", agentClassLoader);
+		log("CurrentThread: [%s]", Thread.currentThread());
 		if(source==null || source.trim().isEmpty()) return;
 		final URL url = URLHelper.toURL(source.trim());
 		if(!URLHelper.resolves(url)) {
@@ -298,9 +302,9 @@ public class XMLLoader {
 	public static void initLogging() {
 		log("Initializing Agent Logging...");
 		try {
-			final Class<?> log4jServerClazz = Class.forName("org.apache.logging.log4j.core.jmx.Server");
+			final Class<?> log4jServerClazz = Class.forName("org.apache.logging.log4j.core.jmx.Server", true, agentClassLoader);
 			log4jServerClazz.getDeclaredMethod("reregisterMBeansAfterReconfigure", MBeanServer.class).invoke(null, deploymentMBeanServer);
-			final Class<?> logConfClazz = Class.forName("com.heliosapm.opentsdb.client.logging.LoggingConfiguration");
+			final Class<?> logConfClazz = Class.forName("com.heliosapm.opentsdb.client.logging.LoggingConfiguration", true, agentClassLoader);
 			logConfClazz.getDeclaredMethod("getInstance").invoke(null);
 			log("Initialized tsdb-csf Logging");
 		} catch (Exception ex) {

@@ -273,7 +273,8 @@ public class JMXHelper {
 		MBeanServer server = HELIOS_MBEANSERVER.get();
 		if(server!=null) return server;
 		boolean sethmbs = false;
-		String jmxDomain = ConfigurationReader.conf(Constants.PROP_JMX_DOMAIN_PROPERTY, Constants.DEFAULT_JMX_DOMAIN_PROPERTY);
+		String jmxDomain = JMX_DOMAIN_DEFAULT; 
+				//ConfigurationReader.conf(Constants.PROP_JMX_DOMAIN_PROPERTY, Constants.DEFAULT_JMX_DOMAIN_PROPERTY);
 		if(jmxDomain!=null) {
 			server = getLocalMBeanServer(jmxDomain, true);
 			sethmbs = true;
