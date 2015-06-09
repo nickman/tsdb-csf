@@ -59,7 +59,7 @@ import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
 import com.heliosapm.opentsdb.client.opentsdb.opt.SubMetric;
-import com.heliosapm.opentsdb.client.util.StringHelper;
+import com.heliosapm.utils.lang.StringHelper;
 
 
 /**

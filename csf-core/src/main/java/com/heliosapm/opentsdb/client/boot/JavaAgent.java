@@ -15,14 +15,15 @@
  */
 package com.heliosapm.opentsdb.client.boot;
 
-import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Arrays;
 import java.util.Properties;
-import java.util.jar.JarInputStream;
+
+import javax.management.ObjectName;
 
 /**
  * <p>Title: JavaAgent</p>
@@ -47,10 +48,14 @@ public class JavaAgent {
 	public static String AGENT_ARGS = null;
 	
 	/** The isolated classloader class name */
-	public static final String ISOL_CLASSLOADER_NAME = "com.heliosapm.opentsdb.client.boot.Isolated$ParentLastURLClassLoader";
+	public static final String ISOL_CLASSLOADER_NAME = "com.heliosapm.utils.classload.IsolatedClassLoader";
+	/** The isolated classloader ObjectName */
+	public static final String ISOL_OBJECT_NAME = "com.heliosapm:service=IsolatedClassLoader";
 	
-	public static final String ARGS_DELIM = "\\|~";
 	
+	/** The agent args delimiter */
+	public static final String ARGS_DELIM = "|~";
+	/** The full agent class loader */
 	public static ClassLoader agentClassLoader = null;
 	
 	/**
@@ -100,26 +105,32 @@ public class JavaAgent {
 			return;
 		}
 		log("AgentArgs: [%s]", agentArgs);
-		final String[] parsedArgs = agentArgs.trim().split(ARGS_DELIM);
+		final String[] parsedArgs = agentArgs.trim().split("\\" + ARGS_DELIM);
 		if(parsedArgs.length <2) {
 			log("Insufficient args: \n[%s]\nWe're outa here...", Arrays.toString(parsedArgs));
 			return;			
 		}
-		JarInputStream jis = null;
-		InputStream is = null;
 		try {
+			final ObjectName agentCLObjectName = new ObjectName(ISOL_OBJECT_NAME);
+			final URL classLoaderClassLoaderUrl = JavaAgent.class.getProtectionDomain().getCodeSource().getLocation();
+			log("JavaAgent Code Location: [%s]", JavaAgent.class.getProtectionDomain().getCodeSource().getLocation());
+			final URLClassLoader classLoaderClassLoader = new URLClassLoader(new URL[]{classLoaderClassLoaderUrl}, JavaAgent.class.getClassLoader());			
+			Class<?> isolClass = classLoaderClassLoader.loadClass(ISOL_CLASSLOADER_NAME);			
+			Constructor<?> ctor = isolClass.getDeclaredConstructor(ObjectName.class, URL[].class);
+			ctor.setAccessible(true);
 			final URL classLoaderUrl = new URL(parsedArgs[parsedArgs.length-1]);
 			log("Core agent classpath: [%s]", classLoaderUrl);
-			URLClassLoader urlcl = new URLClassLoader(new URL[]{classLoaderUrl});
-			Class<?> isolClass = urlcl.loadClass(ISOL_CLASSLOADER_NAME);
-			Constructor<?> ctor = isolClass.getDeclaredConstructor(URL.class);
-			ctor.setAccessible(true);
-			agentClassLoader = (ClassLoader) ctor.newInstance(classLoaderUrl);			
-			urlcl.close();
+			try {
+				Method m = URLClassLoader.class.getDeclaredMethod("close");
+				m.setAccessible(true);
+				m.invoke(classLoaderClassLoader);
+			} catch (Exception x) { /* No Op */}
+			agentClassLoader = (ClassLoader) ctor.newInstance(agentCLObjectName, new URL[]{classLoaderUrl});	
 			Thread.currentThread().setContextClassLoader(agentClassLoader);
-			final int index = agentArgs.lastIndexOf("|~");
+			// ==================
+			final int index = agentArgs.lastIndexOf(ARGS_DELIM);
 			processArgs(agentArgs.trim().substring(0, index));
-			
+			markAgentInstalled();
 		} catch (Exception ex) {
 			loge("Failed to process agent arguments. Stack trace follows...");
 			ex.printStackTrace(System.err);

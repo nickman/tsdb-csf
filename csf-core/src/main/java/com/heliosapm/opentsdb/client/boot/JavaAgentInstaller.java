@@ -18,6 +18,7 @@ package com.heliosapm.opentsdb.client.boot;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.net.URL;
@@ -33,6 +34,8 @@ import org.json.JSONObject;
 
 import com.heliosapm.attachme.VirtualMachine;
 import com.heliosapm.attachme.VirtualMachineDescriptor;
+import com.heliosapm.utils.classload.IsolatedClassLoader;
+import com.heliosapm.utils.classload.IsolatedClassLoaderMBean;
 import com.heliosapm.utils.url.URLHelper;
 
 /**
@@ -250,7 +253,6 @@ public class JavaAgentInstaller {
 	private static String agentBootJar(final boolean deleteOnExit) {
 		FileOutputStream fos = null;
 		JarOutputStream jos = null;
-		InputStream clazzIn = null;
 		File jarFile = null;
 		try {
 			jarFile = File.createTempFile("tsdb-csf-javaagent", ".jar");
@@ -259,20 +261,19 @@ public class JavaAgentInstaller {
 			manifest.append("Manifest-Version: 1.0\n");
 			manifest.append("Premain-Class: ").append(JavaAgent.class.getName()).append("\n");
 			manifest.append("Agent-Class: ").append(JavaAgent.class.getName()).append("\n");
+			manifest.append("Can-Redefine-Classes: ").append("true\n");
+			manifest.append("Can-Retransform-Classes: ").append("true\n");
+			manifest.append("Can-Set-Native-Method-Prefix: ").append(JavaAgent.class.getName()).append("\n");
+			manifest.append("Agent-Class: ").append(JavaAgent.class.getName()).append("\n");
+			
+			
 			ByteArrayInputStream bais = new ByteArrayInputStream(manifest.toString().getBytes());
 			Manifest mf = new Manifest(bais);
 			fos = new FileOutputStream(jarFile, false);
 			jos = new JarOutputStream(fos, mf);
-			final String entryName = JavaAgent.class.getName().replace('.', '/') + ".class";
-			clazzIn = JavaAgentInstaller.class.getClassLoader().getResourceAsStream(entryName);
-			byte[] byteCode = new byte[clazzIn.available()];
-			clazzIn.read(byteCode);
-			log("Loaded [%s] bytes for JavaAgent class", byteCode.length);
-			ZipEntry ze = new ZipEntry(entryName);
-			jos.putNextEntry(ze);
-			jos.write(byteCode);
-			jos.flush();
-			jos.closeEntry();				
+			// =================
+			writeClassesToJar(jos, JavaAgent.class, IsolatedClassLoader.class, IsolatedClassLoaderMBean.class);
+			// =================			
 			jos.close();
 			fos.flush();
 			fos.close();
@@ -280,11 +281,41 @@ public class JavaAgentInstaller {
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to Plugin Jar for [" + jarFile.getAbsolutePath() + "]", e);
 		} finally {
-			if(jos!=null) try { jos.close(); } catch (Exception e) {}
-			if(fos!=null) try { fos.close(); } catch (Exception e) {}
-			if(clazzIn!=null) try { clazzIn.close(); } catch (Exception e) {}			
+			if(jos!=null) try { jos.close(); } catch (Exception e) {/* No Op */}
+			if(fos!=null) try { fos.close(); } catch (Exception e) {/* No Op */}
+			
 		}		
 		
+	}
+
+
+	/**
+	 * Writes the byte code for the passed classes to a JAR output styream.
+	 * @param jos The JAR output stream
+	 * @param classes The classes to write
+	 * @throws IOException on any IO exception
+	 */
+	public static void writeClassesToJar(final JarOutputStream jos, final Class<?>...classes) throws IOException {
+		for(Class<?> clazz: classes) {
+			for(Class<?> inner: clazz.getDeclaredClasses()) {
+				writeClassesToJar(jos, inner);
+			}
+			InputStream clazzIn = null;
+			try {
+				String entryName = clazz.getName().replace('.', '/') + ".class";
+				clazzIn = JavaAgentInstaller.class.getClassLoader().getResourceAsStream(entryName);								
+				byte[] byteCode  = new byte[clazzIn.available()];
+				clazzIn.read(byteCode);
+				log("Loaded [%s] bytes for ["+ clazz.getSimpleName() +"] class", byteCode.length);				
+				ZipEntry ze  = new ZipEntry(entryName);
+				jos.putNextEntry(ze);
+				jos.write(byteCode);
+				jos.flush();
+				jos.closeEntry();
+			} finally {				
+				if(clazzIn!=null) try { clazzIn.close(); } catch (Exception e) {/* No Op */}							
+			}
+		}
 	}
 	
 

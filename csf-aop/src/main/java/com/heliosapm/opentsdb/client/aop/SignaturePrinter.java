@@ -19,7 +19,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.heliosapm.opentsdb.client.util.StringHelper;
+import com.heliosapm.utils.lang.StringHelper;
 
 /**
  * <p>Title: SignaturePrinter</p>

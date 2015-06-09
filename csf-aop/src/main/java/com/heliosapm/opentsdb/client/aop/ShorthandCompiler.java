@@ -71,8 +71,8 @@ import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
 import com.heliosapm.opentsdb.client.opentsdb.sink.MetricSink;
-import com.heliosapm.opentsdb.client.util.StringHelper;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.lang.StringHelper;
 
 /**
  * <p>Title: ShorthandCompiler</p>

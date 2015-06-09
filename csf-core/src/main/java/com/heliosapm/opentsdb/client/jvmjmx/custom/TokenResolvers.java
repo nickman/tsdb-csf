@@ -31,7 +31,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.heliosapm.opentsdb.client.jvmjmx.custom.MBeanFeature.DescriptorFeatureInfo;
 import com.heliosapm.opentsdb.client.jvmjmx.custom.Tokener.IntRange;
-import com.heliosapm.utils.scripting.ScriptType;
+import com.heliosapm.opentsdb.client.scripts.ScriptType;
 
 /**
  * <p>Title: TokenResolvers</p>

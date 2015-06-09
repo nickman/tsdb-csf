@@ -32,8 +32,8 @@ import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtMethod;
 
-import com.heliosapm.opentsdb.client.util.JSExpressionEvaluator;
-import com.heliosapm.opentsdb.client.util.StringHelper;
+import com.heliosapm.opentsdb.client.scripts.JSExpressionEvaluator;
+import com.heliosapm.utils.lang.StringHelper;
 
 //import com.heliosapm.shorthand.instrumentor.shorthand.ShorthandStaticInterceptor;
 

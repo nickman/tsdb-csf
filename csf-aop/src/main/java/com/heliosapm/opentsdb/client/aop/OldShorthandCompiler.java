@@ -15,52 +15,6 @@
  */
 package com.heliosapm.opentsdb.client.aop;
 
-import java.io.File;
-import java.lang.instrument.ClassFileTransformer;
-import java.lang.instrument.IllegalClassFormatException;
-import java.lang.instrument.Instrumentation;
-import java.lang.management.ManagementFactory;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Member;
-import java.lang.reflect.Method;
-import java.security.ProtectionDomain;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
-
-import javassist.CannotCompileException;
-import javassist.ClassClassPath;
-import javassist.ClassPool;
-import javassist.CtBehavior;
-import javassist.CtClass;
-import javassist.CtConstructor;
-import javassist.CtField;
-import javassist.CtMethod;
-import javassist.Modifier;
-import javassist.bytecode.Descriptor;
-import javassist.expr.ExprEditor;
-import javassist.expr.Handler;
-
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
-
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-import com.heliosapm.attachme.agent.LocalAgentInstaller;
-import com.heliosapm.opentsdb.client.aop.naming.MetricNameCompiler;
-import com.heliosapm.opentsdb.client.aop.naming.MetricNameProvider;
-import com.heliosapm.opentsdb.client.name.AgentName;
-import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
-import com.heliosapm.opentsdb.client.opentsdb.Constants;
-import com.heliosapm.opentsdb.client.util.StringHelper;
 
 
 /**
