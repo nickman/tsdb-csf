@@ -89,10 +89,7 @@ public class JavaAgentInstaller {
 		}
 	}
 	
-	public static void mainx(final String[] args) {
-		String jar = agentBootJar(false);
-		log("Done:" + jar);
-	}
+
 	
 	public static void main(final String[] args) {
 		if(args.length==0) {

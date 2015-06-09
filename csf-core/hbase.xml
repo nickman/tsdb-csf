@@ -2,8 +2,7 @@
 <csf-config domain="DefaultDomain">
 	<sysprops><![CDATA[
 		tsdb.http.compression.enabled=true
-		tsdb.http.tsdb.url=http://localhost:8070
-		tsdb.id.app=hbase-hadoop1
+		tsdb.http.tsdb.url=http://localhost:8070		
 		tsdb.trace.stdout=true
 		tsdb.trace.stdout.json=true
 	]]></sysprops>
