@@ -25,7 +25,6 @@ import static com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader.confURI
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.net.ConnectException;
 import java.net.URI;
 import java.net.URL;
@@ -64,8 +63,8 @@ import com.heliosapm.opentsdb.client.opentsdb.ConnectivityChecker.HTTPMethod;
 import com.heliosapm.opentsdb.client.opentsdb.EmptyAsyncHandler.FinalHookAsyncHandler;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBuffer;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.jmx.JMXHelper;
 import com.ning.http.client.AsyncHandler;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.AsyncHttpClientConfig;

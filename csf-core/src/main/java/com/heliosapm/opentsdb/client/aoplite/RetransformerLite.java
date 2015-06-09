@@ -60,8 +60,8 @@ import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
-import com.heliosapm.opentsdb.client.util.URLHelper;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.url.URLHelper;
 
 /**
  * <p>Title: RetransformerLite</p>

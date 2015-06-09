@@ -28,11 +28,11 @@ import java.util.regex.Pattern;
 
 import javax.management.MBeanServerConnection;
 
+import sun.management.counter.Counter;
+
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
-
-import sun.management.counter.Counter;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: AbstractHotSpotInternalMBean</p>

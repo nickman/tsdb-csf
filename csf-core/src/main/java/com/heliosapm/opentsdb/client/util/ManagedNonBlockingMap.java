@@ -23,6 +23,8 @@ import javax.management.ObjectName;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 
+import com.heliosapm.utils.jmx.JMXHelper;
+
 /**
  * <p>Title: ManagedNonBlockingMap</p>
  * <p>Description: Wraps and provides JMX instrumentation for a NonBlockingHashMapLong or NonBlockingHashMap instance</p> 

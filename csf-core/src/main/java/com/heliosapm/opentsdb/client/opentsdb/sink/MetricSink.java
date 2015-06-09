@@ -17,9 +17,6 @@
 package com.heliosapm.opentsdb.client.opentsdb.sink;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -33,17 +30,9 @@ import jsr166e.LongAdder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
-import org.cliffc.high_scale_lib.NonBlockingHashMapLong.IteratorLong;
 import org.jboss.netty.buffer.ChannelBuffer;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
-import com.codahale.metrics.Snapshot;
-import com.codahale.metrics.Timer;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
@@ -54,7 +43,7 @@ import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOpenTSDBReporter;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
 import com.heliosapm.opentsdb.client.opentsdb.opt.ValueArrayAggregator;
 import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBufferFactory;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: MetricSink</p>

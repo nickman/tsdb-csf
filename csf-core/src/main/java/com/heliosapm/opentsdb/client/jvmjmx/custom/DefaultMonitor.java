@@ -47,9 +47,9 @@ import org.w3c.dom.Node;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
 import com.heliosapm.opentsdb.client.util.Util;
-import com.heliosapm.opentsdb.client.util.XMLHelper;
+import com.heliosapm.utils.jmx.JMXHelper;
+import com.heliosapm.utils.xml.XMLHelper;
 
 /**
  * <p>Title: DefaultMonitor</p>

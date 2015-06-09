@@ -32,7 +32,7 @@ import org.w3c.dom.Node;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
-import com.heliosapm.opentsdb.client.util.XMLHelper;
+import com.heliosapm.utils.xml.XMLHelper;
 
 /**
  * <p>Title: AttributeTracer</p>

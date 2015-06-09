@@ -23,7 +23,6 @@ import java.lang.management.ManagementFactory;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Pattern;
@@ -34,7 +33,7 @@ import org.json.JSONObject;
 
 import com.heliosapm.attachme.VirtualMachine;
 import com.heliosapm.attachme.VirtualMachineDescriptor;
-import com.heliosapm.opentsdb.client.util.URLHelper;
+import com.heliosapm.utils.url.URLHelper;
 
 /**
  * <p>Title: JavaAgentInstaller</p>

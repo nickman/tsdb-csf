@@ -41,8 +41,8 @@ import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
-import com.heliosapm.opentsdb.client.util.XMLHelper;
+import com.heliosapm.utils.jmx.JMXHelper;
+import com.heliosapm.utils.xml.XMLHelper;
 
 /**
  * <p>Title: MBeanObserverSet</p>

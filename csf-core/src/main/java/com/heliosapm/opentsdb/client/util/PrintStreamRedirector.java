@@ -16,13 +16,12 @@
 package com.heliosapm.opentsdb.client.util;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Locale;
 
 /**
  * <p>Title: PrintStreamRedirector</p>
- * <p>Description: </p> 
+ * <p>Description: Installs and removes thread specific print streams</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>com.heliosapm.opentsdb.client.util.PrintStreamRedirector</code></p>

@@ -52,7 +52,7 @@ import com.heliosapm.attachme.VirtualMachine;
 import com.heliosapm.attachme.VirtualMachineBootstrap;
 import com.heliosapm.attachme.jar.FileCleaner;
 import com.heliosapm.attachme.jar.JarBuilder;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: LocalAgentInstaller</p>

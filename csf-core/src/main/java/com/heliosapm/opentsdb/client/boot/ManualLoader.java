@@ -24,7 +24,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.loading.MLet;
 
-import com.heliosapm.opentsdb.client.util.JMXHelper;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: ManualLoader</p>

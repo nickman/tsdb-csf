@@ -36,10 +36,11 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
-import com.heliosapm.opentsdb.client.util.URLHelper;
 import com.heliosapm.opentsdb.client.util.Util;
-import com.heliosapm.opentsdb.client.util.XMLHelper;
+import com.heliosapm.utils.classload.WeaklyReferencedClassLoader;
+import com.heliosapm.utils.jmx.JMXHelper;
+import com.heliosapm.utils.url.URLHelper;
+import com.heliosapm.utils.xml.XMLHelper;
 
 /**
  * <p>Title: ClassLoaderRepository</p>
@@ -298,7 +299,7 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 	 * @param on The ObjectName to resolve the classloader from
 	 * @return a classloader
 	 */
-	protected static ClassLoader getClassLoader(ObjectName on) {
+	protected static ClassLoader getClassLoader(final ObjectName on) {
 		MBeanServer server = JMXHelper.getMBeanServerFor(on);
 		if(server==null) return null; //throw new RuntimeException("The passed ObjectName [" + on + "] was not found in any MBeanServer");
 		try {

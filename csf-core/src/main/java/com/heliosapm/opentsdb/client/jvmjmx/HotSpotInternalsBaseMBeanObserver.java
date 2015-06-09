@@ -38,7 +38,7 @@ import sun.management.counter.Counter;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
-import com.heliosapm.opentsdb.client.util.JMXHelper;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: HotSpotInternalsBaseMBeanObserver</p>

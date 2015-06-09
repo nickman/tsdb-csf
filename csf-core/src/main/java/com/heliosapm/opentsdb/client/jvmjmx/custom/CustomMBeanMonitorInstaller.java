@@ -27,7 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Node;
 
 import com.heliosapm.opentsdb.client.boot.XMLLoader;
-import com.heliosapm.opentsdb.client.util.XMLHelper;
+import com.heliosapm.utils.xml.XMLHelper;
 
 /**
  * <p>Title: CustomMBeanMonitorInstaller</p>

@@ -24,8 +24,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Node;
 
-import com.heliosapm.opentsdb.client.util.JMXHelper;
-import com.heliosapm.opentsdb.client.util.XMLHelper;
+import com.heliosapm.utils.jmx.JMXHelper;
+import com.heliosapm.utils.xml.XMLHelper;
 
 /**
  * <p>Title: MonitoredMBeanServer</p>

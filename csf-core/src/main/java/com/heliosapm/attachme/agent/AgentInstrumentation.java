@@ -30,7 +30,6 @@ import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
-import java.lang.management.ManagementFactory;
 import java.security.ProtectionDomain;
 import java.util.Properties;
 import java.util.jar.JarFile;
@@ -40,7 +39,7 @@ import javax.management.MBeanServer;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 
-import com.heliosapm.opentsdb.client.util.JMXHelper;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: AgentInstrumentation</p>
