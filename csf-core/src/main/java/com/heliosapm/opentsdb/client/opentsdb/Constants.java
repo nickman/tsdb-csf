@@ -179,6 +179,13 @@ public interface Constants {
 	/** The default stdout tracing enablement */
 	public static final boolean DEFAULT_TRACE_TO_STDOUT = false;
 	
+	/** The system property config name to make the tracer append to the agent's log in addition to other endpoints.
+	 * The vaue of the property is the name of the logger to log to, disabling log tracing if null or empty. */
+	public static final String PROP_TRACE_LOGNAME = "tsdb.trace.logname";
+	/** The default trace logging logger name */
+	public static final String DEFAULT_TRACE_LOGNAME = "";
+	
+	
 	/** The system property config name to make the tracer print in JSON when outputing to StdOut */
 	public static final String PROP_STDOUT_JSON = "tsdb.trace.stdout.json";
 	/** The default stdout json tracing enablement */

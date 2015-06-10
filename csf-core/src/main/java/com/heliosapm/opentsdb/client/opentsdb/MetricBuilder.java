@@ -30,6 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.management.ObjectName;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import com.codahale.metrics.Clock;
@@ -678,6 +680,10 @@ public class MetricBuilder {
 	private static volatile boolean traceStdOutJson = false;
 	/** Indicates if tracing should be forced to lower case only */
 	private static volatile boolean forceLowerCase = false;
+	/** The logger name to log traces to */
+	private static volatile String traceLoggerName = null;
+	/** The tracing logger */
+	private static volatile Logger traceLogger = null;
 	
 	static {
 		reconfig();
@@ -689,7 +695,14 @@ public class MetricBuilder {
 	public static void reconfig() {
 		traceToStdOut = ConfigurationReader.confBool(Constants.PROP_TRACE_TO_STDOUT, Constants.DEFAULT_TRACE_TO_STDOUT);
 		traceStdOutJson = ConfigurationReader.confBool(Constants.PROP_STDOUT_JSON, Constants.DEFAULT_STDOUT_JSON);
+		traceLoggerName = ConfigurationReader.conf(Constants.PROP_TRACE_LOGNAME, Constants.DEFAULT_TRACE_LOGNAME);				
 		forceLowerCase = ConfigurationReader.confBool(Constants.PROP_FORCE_LOWER_CASE, Constants.DEFAULT_FORCE_LOWER_CASE);
+
+		if(traceLoggerName!=null && !traceLoggerName.trim().isEmpty()) {
+			traceLogger = LogManager.getLogger(traceLoggerName.trim());
+		}
+		
+		
 	}
 	
 	/**
@@ -701,6 +714,7 @@ public class MetricBuilder {
 	public static void trace(final OTMetric metric, final long timestamp, final Object value) {
 		if(metric==null) throw new IllegalArgumentException("The passed metric was null");
 		if(value==null) throw new IllegalArgumentException("The passed value was null");
+		
 		if(traceToStdOut) {
 			if(traceStdOutJson) {
 				System.out.println(metric.toJSON(timestamp, value));
@@ -709,6 +723,9 @@ public class MetricBuilder {
 			}
 		} else {
 			METRIC_BUFFER.append(metric, timestamp, value);
+		}
+		if(traceLogger!=null) {
+			traceLogger.info(traceStdOutJson ? metric.toJSON(timestamp, value) : metric.toString() + ":[" + timestamp + "/" + value + "]");
 		}
 //		final ChannelBuffer chBuff = bufferFactory.getBuffer();
 //		metric.toJSON(timestamp, value, chBuff, false);

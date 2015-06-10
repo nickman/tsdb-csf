@@ -6,12 +6,13 @@
 		tsdb.http.compression.enabled=true
 		tsdb.http.tsdb.url=http://pdk-pt-cltsdb-01:8070
 		tsdb.id.app=test
+    tsdb.trace.stdout=true
+    tsdb.trace.stdout.json=true
+		
 	]]></sysprops>
 	
 	<!--
 	
-		#tsdb.trace.stdout=true
-		#tsdb.trace.stdout.json=true
 
 	 
 	 Loads the platform MBeanServer and Hotspot Internals MBean monitors.
@@ -31,8 +32,9 @@
 	 -->
 	
 	<platform period="15" collectormbeans="true">
-		<includes>java.lang:type=*</includes>
-		<includes>sun.management:type=*</includes>
+		<includes>java.lang:type=GarbageCollector,*</includes>
+		<!-- <includes>java.lang:type=MemoryPool,*</includes> -->
+		<!-- <includes>sun.management:type=*</includes> -->
 	</platform>
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>

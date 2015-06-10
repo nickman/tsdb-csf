@@ -122,7 +122,7 @@ public class XMLLoader {
 	 */
 	protected static void createHeliosMBean(final String domain) {
 		try {
-			Class<?> clazz = Class.forName("com.heliosapm.opentsdb.client.util.HeliosMBeanServer");
+			Class<?> clazz = Class.forName("com.heliosapm.utils.jmx.HeliosMBeanServer");
 			Constructor<?> ctor = clazz.getDeclaredConstructor(String.class, boolean.class, JMXServiceURL.class);
 			heliosMBeanServer = ctor.newInstance(domain, true, null);
 			deploymentMBeanServer = (MBeanServer)clazz.getDeclaredMethod("getMBeanServer").invoke(heliosMBeanServer);

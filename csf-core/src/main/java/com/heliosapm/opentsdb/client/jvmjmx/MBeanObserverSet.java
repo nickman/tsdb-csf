@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,6 +42,7 @@ import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
+import com.heliosapm.utils.concurrency.ExtendedThreadManager;
 import com.heliosapm.utils.jmx.JMXHelper;
 import com.heliosapm.utils.xml.XMLHelper;
 
@@ -107,7 +109,8 @@ public class MBeanObserverSet implements Runnable {
 	
 	public static void main(String[] args) {
 		log("Testing XMlInstaller");
-		XMLLoader.boot("file:/c:/hprojects/tsdb-csf/csf-core/src/test/resources/configs/platform.xml");
+		ExtendedThreadManager.install();
+		XMLLoader.boot("./src/test/resources/configs/platform.xml");
 		try { Thread.currentThread().join(); } catch (Exception ex) {}
 	}
 	
@@ -139,6 +142,13 @@ public class MBeanObserverSet implements Runnable {
 		}
 		boolean hotspotEnabled = false;
 		MBeanObserver[] observers = MBeanObserver.filter(includes, excludes);
+		final StringBuffer b = new StringBuffer("Activated JMX Platform Collectors ");
+		Set<ObjectName> activated = new HashSet<ObjectName>(observers.length);
+		for(MBeanObserver mbx: observers) {
+			activated.add(mbx.objectName);
+		}
+		b.append(activated);
+		log(b.toString());
 		for(MBeanObserver mo: observers) {
 			BaseMBeanObserver base = mo.getMBeanObserver(mbeanServer, null, collectorMBeans);
 			if(base!=null) {

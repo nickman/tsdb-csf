@@ -123,6 +123,8 @@ public class LoggingConfiguration {
 	}
 	
 	private LoggingConfiguration() {
+		final String appName = AgentName.getInstance().getAppName();
+		final String hostName = AgentName.getInstance().getHostName();		
 		metricsRootDir = initOfflineStorage();		
 		//bootConfig();
 		lctx = LogManager.getContext(true);
@@ -143,7 +145,7 @@ public class LoggingConfiguration {
 		};
 		
 		Util.sdhook(t);
-		log.info("Boot Logger Initialized");
+		log.info("Boot Logger Initialized: [{}@{}]", appName, hostName);
 	}
 	
 	

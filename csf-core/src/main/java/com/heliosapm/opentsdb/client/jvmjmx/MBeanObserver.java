@@ -59,6 +59,7 @@ import org.apache.logging.log4j.Logger;
 import com.heliosapm.opentsdb.client.jvmjmx.ObserverFactories.ObserverFactory;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: MBeanObserver</p>
@@ -84,7 +85,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 		}
 	},
 	/** The compilation MXBean */
-	GARBAGE_COLLECTOR_MXBEAN(GarbageCollectorMXBean.class, Util.objectName(GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",*"), GarbageCollectorAttribute.class){
+	GARBAGE_COLLECTOR_MXBEAN(GarbageCollectorMXBean.class, Util.objectName(GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",name=*"), GarbageCollectorAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new GarbageCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
@@ -98,7 +99,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 		}
 	},
 	/** The memory pool MXBean */
-	MEMORY_POOL_MXBEAN(MemoryPoolMXBean.class, Util.objectName(MEMORY_POOL_MXBEAN_DOMAIN_TYPE + ",*"), MemoryPoolAttribute.class){
+	MEMORY_POOL_MXBEAN(MemoryPoolMXBean.class, Util.objectName(MEMORY_POOL_MXBEAN_DOMAIN_TYPE + ",name=*"), MemoryPoolAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new MemoryPoolsCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
@@ -238,7 +239,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 				try {
 					final ObjectName on = Util.objectName(s);
 					for(Map.Entry<ObjectName, MBeanObserver> entry : ALL_OBJECT_NAMES.entrySet()) {
-						if(on.apply(entry.getKey())) {
+						if(on.apply(JMXHelper.dePatternize(entry.getKey()))) {
 							set.add(entry.getValue());
 						}
 					}
@@ -263,7 +264,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 		}
 		if(!Constants.IS_JAVA_7) {
 			set.remove(NIOBUFFER_MXBEAN);
-		}
+		}		
 		return set.toArray(new MBeanObserver[set.size()]);
 	}
 	
