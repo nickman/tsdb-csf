@@ -61,7 +61,10 @@ import com.heliosapm.opentsdb.client.opentsdb.OffHeapFIFOFile;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.concurrency.ExtendedThreadManager;
 import com.heliosapm.utils.jmx.JMXHelper;
+import com.heliosapm.utils.jmx.SharedNotificationExecutor;
+import com.heliosapm.utils.system.ChangeNotifyingProperties;
 
 /**
  * <p>Title: AgentName</p>
@@ -123,6 +126,8 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 			synchronized(lock) {
 				if(instance==null) {
 					instance = new AgentName();
+					ChangeNotifyingProperties.systemInstall();
+					ExtendedThreadManager.install();					
 				}
 			}
 		}
@@ -130,17 +135,16 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	}
 	
 	private AgentName() {
-		super(Threading.getInstance().getThreadPool(), NOTIF_INFOS);
+		super(SharedNotificationExecutor.getInstance(), NOTIF_INFOS);
 		forceLowerCase = ConfigurationReader.confBool(Constants.PROP_FORCE_LOWER_CASE, Constants.DEFAULT_FORCE_LOWER_CASE);
 		shortHostName = ConfigurationReader.confBool(Constants.PROP_USE_SHORT_HOSTNAMES, Constants.DEFAULT_USE_SHORT_HOSTNAMES);
-		OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=AgentName");
+		OBJECT_NAME = JMXHelper.objectName(Util.getJMXDomain() + ":service=AgentName");
 		loadExtraTags();
 		getAppName();
 		getHostName();
 		initBufferized();
-		Util.registerMBean(this, OBJECT_NAME);
+		JMXHelper.registerMBean(this, OBJECT_NAME);
 		sendInitialNotif();
-		LoggingConfiguration.getInstance().initAppLogging(this);
 		log = LogManager.getLogger(getClass());
 	}
 	
@@ -434,7 +438,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	 * @return the remote app name
 	 */
 	public static String remoteAppName(final RuntimeMBeanServerConnection remote) {
-		final ObjectName runtimeMXBean = Util.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME);
+		final ObjectName runtimeMXBean = JMXHelper.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME);
 		try {
 			RuntimeMXBean rt = JMX.newMXBeanProxy(remote, runtimeMXBean, RuntimeMXBean.class, false);
 			final Map<String, String> sysProps = rt.getSystemProperties();
@@ -460,7 +464,7 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 	 * @return the remote host name
 	 */
 	public static String remoteHostName(final RuntimeMBeanServerConnection remote) {
-		final ObjectName runtimeMXBean = Util.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME);
+		final ObjectName runtimeMXBean = JMXHelper.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME);
 		final boolean forceLowerCase = ConfigurationReader.confBool(Constants.PROP_FORCE_LOWER_CASE, Constants.DEFAULT_FORCE_LOWER_CASE);
 		final boolean shortHost = ConfigurationReader.confBool(Constants.PROP_USE_SHORT_HOSTNAMES, Constants.DEFAULT_USE_SHORT_HOSTNAMES);
 		try {

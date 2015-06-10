@@ -109,90 +109,64 @@ public class Util {
 	
 	
 
-	/**
-	 * Creates a JMX ObjectName from the passed stringy
-	 * @param cs The stringy to create an ObjectName from
-	 * @return the built ObjectName
-	 */
-	public static ObjectName objectName(final CharSequence cs) {
-		if(cs==null || cs.toString().trim().isEmpty()) throw new IllegalArgumentException("The passed name was null or empty");
-		try {
-			return new ObjectName(cs.toString().trim());
-		} catch (Exception ex) {
-			throw new RuntimeException("Failed to create ObjectName from [" + cs + "]", ex);
-		}
-	}
 	
-	/**
-	 * Determines if the passed stringy is a valid object name
-	 * @param cs The stringy to test
-	 * @return true if the stringy is a valid object name, false otherwise
-	 */
-	public static boolean isObjectName(final CharSequence cs) {
-		if(cs==null || cs.toString().trim().isEmpty()) return false;
-		try {
-			objectName(cs);
-			return true;
-		} catch (Exception ex) {
-			return false;
-		}
-	}
 	
-	/**
-	 * Creates a JMX ObjectName from the passed metric name and tags
-	 * @param metric The ObjectName's domain
-	 * @param tags The ObjectName's properties in the form of <b>=</b> separated key value pairs
-	 * @return the built ObjectName
-	 */
-	public static ObjectName objectName(final String metric, final String...tags) {
-		if(metric==null || metric.trim().isEmpty()) throw new IllegalArgumentException("The passed metric name was null or empty");
-		if(tags.length==0) throw new IllegalArgumentException("The passed tags array was zero length");
-		StringBuilder b = new StringBuilder(clean(metric)).append(":");
-		int tcount = 0;
-		for(String tag: tags) {
-			String s = clean(tag);
-			if(s==null || s.trim().isEmpty() || s.indexOf('=')==0) continue;
-			b.append(s).append(",");
-			tcount++;
-		}
-		if(tcount==0) if(tags.length==0) throw new IllegalArgumentException("The passed tags array contained no legal tags");
-		b.deleteCharAt(b.length()-1);
-		return objectName(b);
-	}
+//	/**
+//	 * Determines if the passed stringy is a valid object name
+//	 * @param cs The stringy to test
+//	 * @return true if the stringy is a valid object name, false otherwise
+//	 */
+//	public static boolean isObjectName(final CharSequence cs) {
+//		if(cs==null || cs.toString().trim().isEmpty()) return false;
+//		try {
+//			objectName(cs);
+//			return true;
+//		} catch (Exception ex) {
+//			return false;
+//		}
+//	}
 	
-	/**
-	 * Registers an MBean on the default (helios) MBeanServer 
-	 * @param bean The mbean to register
-	 * @param objectName The ObjectName to register under
-	 */
-	public static void registerMBean(final Object bean, final ObjectName objectName) {
-		if(bean==null) throw new IllegalArgumentException("The passed bean was null");
-		if(objectName==null) throw new IllegalArgumentException("The passed ObjectName was null");
-		try {
-			JMXHelper.getHeliosMBeanServer().registerMBean(bean, objectName);
-		} catch (Exception ex) {
-			throw new RuntimeException("Failed to register the bean under [" + objectName + "]", ex);
-		}		
-	}
+//	/**
+//	 * Creates a JMX ObjectName from the passed metric name and tags
+//	 * @param metric The ObjectName's domain
+//	 * @param tags The ObjectName's properties in the form of <b>=</b> separated key value pairs
+//	 * @return the built ObjectName
+//	 */
+//	public static ObjectName objectName(final String metric, final String...tags) {
+//		if(metric==null || metric.trim().isEmpty()) throw new IllegalArgumentException("The passed metric name was null or empty");
+//		if(tags.length==0) throw new IllegalArgumentException("The passed tags array was zero length");
+//		StringBuilder b = new StringBuilder(clean(metric)).append(":");
+//		int tcount = 0;
+//		for(String tag: tags) {
+//			String s = clean(tag);
+//			if(s==null || s.trim().isEmpty() || s.indexOf('=')==0) continue;
+//			b.append(s).append(",");
+//			tcount++;
+//		}
+//		if(tcount==0) if(tags.length==0) throw new IllegalArgumentException("The passed tags array contained no legal tags");
+//		b.deleteCharAt(b.length()-1);
+//		return objectName(b);
+//	}
+
 	
-	/**
-	 * Registers the passed MBean on all located MBeanServers
-	 * @param bean The bean to register
-	 * @param objectName The ObjectName to register the bean with
-	 * @return the number of MBeanServers registered with
-	 */
-	public static int registerMBeanEverywhere(final Object bean, final ObjectName objectName) {
-		int cnt = 0;
-		for(MBeanServer mbs: MBeanServerFactory.findMBeanServer(null)) {
-			if(!mbs.isRegistered(objectName)) {
-				try {
-					mbs.registerMBean(bean, objectName);
-					cnt++;
-				} catch (Exception ex) {/* No Op */}
-			}
-		}
-		return cnt;
-	}
+//	/**
+//	 * Registers the passed MBean on all located MBeanServers
+//	 * @param bean The bean to register
+//	 * @param objectName The ObjectName to register the bean with
+//	 * @return the number of MBeanServers registered with
+//	 */
+//	public static int registerMBeanEverywhere(final Object bean, final ObjectName objectName) {
+//		int cnt = 0;
+//		for(MBeanServer mbs: MBeanServerFactory.findMBeanServer(null)) {
+//			if(!mbs.isRegistered(objectName)) {
+//				try {
+//					mbs.registerMBean(bean, objectName);
+//					cnt++;
+//				} catch (Exception ex) {/* No Op */}
+//			}
+//		}
+//		return cnt;
+//	}
 	
 	/**
 	 * Returns the agent properties

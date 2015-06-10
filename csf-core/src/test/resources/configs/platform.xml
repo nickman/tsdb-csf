@@ -32,7 +32,7 @@
 	 -->
 	
 	<platform period="15" collectormbeans="true">
-		<includes>java.lang:type=GarbageCollector,*</includes>
+		<includes>java.lang:type=*</includes>
 		<!-- <includes>java.lang:type=MemoryPool,*</includes> -->
 		<!-- <includes>sun.management:type=*</includes> -->
 	</platform>

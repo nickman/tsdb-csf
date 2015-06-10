@@ -61,6 +61,7 @@ import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.jmx.JMXHelper;
 import com.heliosapm.utils.url.URLHelper;
 
 /**
@@ -117,7 +118,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 	 */
 	private RetransformerLite() {
 		super(RetransformerLiteMBean.class, false);
-		OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=RetransformerLite");
+		OBJECT_NAME = JMXHelper.objectName(Util.getJMXDomain() + ":service=RetransformerLite");
 		Instrumentation instr = null;
 		try {
 			Class<?> transformerManagerClass = Class.forName("com.heliosapm.opentsdb.client.aop.TransformerManager");
@@ -166,7 +167,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 		}
 		byteCodeDir = byteCodeDirReady ? f.getAbsolutePath() : null;
 		log.info("Transient ByteCode Directory: {}", byteCodeDir);
-		final int cnt = Util.registerMBeanEverywhere(this, OBJECT_NAME);
+		final int cnt = JMXHelper.registerMBeanEverywhere(this, OBJECT_NAME);
 		log.info("Registered RetransformerLite on [{}] MBeanServers", cnt);
 		
 	}
@@ -638,8 +639,8 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 			return new URLClassLoader(new URL[]{url});
 		} else if(obj instanceof ObjectName) {
 			return getClassLoader((ObjectName)obj);
-		} else if(Util.isObjectName(obj.toString())) {
-			return getClassLoader(Util.objectName(obj.toString()));
+		} else if(JMXHelper.isObjectName(obj.toString())) {
+			return getClassLoader(JMXHelper.objectName(obj.toString()));
 		} else if(obj instanceof File) {
 			File f = (File)obj;
 			return new URLClassLoader(new URL[]{URLHelper.toURL(f)});

@@ -173,7 +173,7 @@ public class RuntimeMBeanServerConnection implements MBeanServerConnection, Noti
 	private static String getRuntimeName(final MBeanServerConnection delegate) {
 		if(delegate==null) throw new IllegalArgumentException("The passed MBeanServerConnection was null");
 		try {
-			return (String)delegate.getAttribute(Util.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME), "Name");
+			return (String)delegate.getAttribute(JMXHelper.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME), "Name");
 		} catch (Exception x) {
 			throw new RuntimeException("Failed to get Runtime Name for [" + delegate + "]");
 		}

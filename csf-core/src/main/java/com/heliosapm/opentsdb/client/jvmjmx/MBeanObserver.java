@@ -71,63 +71,63 @@ import com.heliosapm.utils.jmx.JMXHelper;
 
 public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 	/** The class loading MXBean */
-	CLASSLOADING_MXBEAN(ClassLoadingMXBean.class, Util.objectName(CLASS_LOADING_MXBEAN_NAME), ClassLoadingAttribute.class){
+	CLASSLOADING_MXBEAN(ClassLoadingMXBean.class, JMXHelper.objectName(CLASS_LOADING_MXBEAN_NAME), ClassLoadingAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new ClassLoadingMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
 		}
 	},	
 	/** The compilation MXBean */
-	COMPILATION_MXBEAN(CompilationMXBean.class, Util.objectName(COMPILATION_MXBEAN_NAME), CompilationAttribute.class){
+	COMPILATION_MXBEAN(CompilationMXBean.class, JMXHelper.objectName(COMPILATION_MXBEAN_NAME), CompilationAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new CompilationMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
 		}
 	},
 	/** The compilation MXBean */
-	GARBAGE_COLLECTOR_MXBEAN(GarbageCollectorMXBean.class, Util.objectName(GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",name=*"), GarbageCollectorAttribute.class){
+	GARBAGE_COLLECTOR_MXBEAN(GarbageCollectorMXBean.class, JMXHelper.objectName(GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",name=*"), GarbageCollectorAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new GarbageCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
 		}
 	},
 	/** The memory MXBean */
-	MEMORY_MXBEAN(MemoryMXBean.class, Util.objectName(MEMORY_MXBEAN_NAME), MemoryAttribute.class){
+	MEMORY_MXBEAN(MemoryMXBean.class, JMXHelper.objectName(MEMORY_MXBEAN_NAME), MemoryAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new MemoryCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
 		}
 	},
 	/** The memory pool MXBean */
-	MEMORY_POOL_MXBEAN(MemoryPoolMXBean.class, Util.objectName(MEMORY_POOL_MXBEAN_DOMAIN_TYPE + ",name=*"), MemoryPoolAttribute.class){
+	MEMORY_POOL_MXBEAN(MemoryPoolMXBean.class, JMXHelper.objectName(MEMORY_POOL_MXBEAN_DOMAIN_TYPE + ",name=*"), MemoryPoolAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new MemoryPoolsCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
 		}
 	},
 	/** The OS MXBean */
-	OPERATING_SYSTEM_MXBEAN(OperatingSystemMXBean.class, Util.objectName(OPERATING_SYSTEM_MXBEAN_NAME), OperatingSystemAttribute.class){
+	OPERATING_SYSTEM_MXBEAN(OperatingSystemMXBean.class, JMXHelper.objectName(OPERATING_SYSTEM_MXBEAN_NAME), OperatingSystemAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new OperatingSystemCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
 		}
 	},
 	/** The runtime MXBean */
-	RUNTIME_MXBEAN(RuntimeMXBean.class, Util.objectName(RUNTIME_MXBEAN_NAME), RuntimeAttribute.class){
+	RUNTIME_MXBEAN(RuntimeMXBean.class, JMXHelper.objectName(RUNTIME_MXBEAN_NAME), RuntimeAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return null;  // FIXME
 		}
 	},
 	/** The threading MXBean */
-	THREAD_MXBEAN(ThreadMXBean.class, Util.objectName(THREAD_MXBEAN_NAME), ThreadingAttribute.class){
+	THREAD_MXBEAN(ThreadMXBean.class, JMXHelper.objectName(THREAD_MXBEAN_NAME), ThreadingAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new ThreadingCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
 		}
 	},
 	/** The NIO Buffer Pool MXBean */
-	NIOBUFFER_MXBEAN(Util.loadClassByName("java.lang.management.BufferPoolMXBean", null), Util.objectName("java.nio:type=BufferPool,name=*"), BufferPoolAttribute.class){
+	NIOBUFFER_MXBEAN(Util.loadClassByName("java.lang.management.BufferPoolMXBean", null), JMXHelper.objectName("java.nio:type=BufferPool,name=*"), BufferPoolAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return null; // FIXME
@@ -135,7 +135,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 	},     	
 	/** The Hotspot Internal Memory MBean */
 	@SuppressWarnings("restriction")
-	HOTSPOT_MEMORY_MBEAN(sun.management.HotspotMemoryMBean.class, Util.objectName("sun.management:type=HotspotMemory"), HotspotInternalMemoryAttribute.class){
+	HOTSPOT_MEMORY_MBEAN(sun.management.HotspotMemoryMBean.class, JMXHelper.objectName("sun.management:type=HotspotMemory"), HotspotInternalMemoryAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return GCConfiguration.getInstance(mbeanServerConn, Pattern.compile(".*"));
@@ -143,7 +143,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 	},
 	/** The Hotspot Internal ClassLoading MBean */
 	@SuppressWarnings("restriction")
-	HOTSPOT_CLASSLOADING_MBEAN(sun.management.HotspotClassLoadingMBean.class, Util.objectName("sun.management:type=HotspotClassLoading"), HotspotInternalClassLoadingAttribute.class){
+	HOTSPOT_CLASSLOADING_MBEAN(sun.management.HotspotClassLoadingMBean.class, JMXHelper.objectName("sun.management:type=HotspotClassLoading"), HotspotInternalClassLoadingAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new HotSpotInternalsBaseMBeanObserver(mbeanServerConn, publishObserverMBean, tags, "ClassLoading", ".*");
@@ -151,7 +151,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 	},
 	/** The Hotspot Internal Compilation MBean */
 	@SuppressWarnings("restriction")
-	HOTSPOT_COMPILATION_MBEAN(sun.management.HotspotCompilationMBean.class, Util.objectName("sun.management:type=HotspotCompilation"), HotspotInternalCompilationAttribute.class){
+	HOTSPOT_COMPILATION_MBEAN(sun.management.HotspotCompilationMBean.class, JMXHelper.objectName("sun.management:type=HotspotCompilation"), HotspotInternalCompilationAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new HotSpotInternalsBaseMBeanObserver(mbeanServerConn, publishObserverMBean, tags, "Compilation", ".*");
@@ -159,7 +159,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 	},
 	/** The Hotspot Internal Runtime MBean */
 	@SuppressWarnings("restriction")
-	HOTSPOT_RUNTIME_MBEAN(sun.management.HotspotRuntimeMBean.class, Util.objectName("sun.management:type=HotspotRuntime"), HotspotInternalRuntimeAttribute.class){
+	HOTSPOT_RUNTIME_MBEAN(sun.management.HotspotRuntimeMBean.class, JMXHelper.objectName("sun.management:type=HotspotRuntime"), HotspotInternalRuntimeAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new HotSpotInternalsBaseMBeanObserver(mbeanServerConn, publishObserverMBean, tags, "Runtime", ".*");
@@ -167,7 +167,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 	},
 	/** The Hotspot Internal Runtime MBean */
 	@SuppressWarnings("restriction")
-	HOTSPOT_THREADING_MBEAN(sun.management.HotspotThreadMBean.class, Util.objectName("sun.management:type=HotspotThreading"), HotspotInternalThreadingAttribute.class){
+	HOTSPOT_THREADING_MBEAN(sun.management.HotspotThreadMBean.class, JMXHelper.objectName("sun.management:type=HotspotThreading"), HotspotInternalThreadingAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new HotSpotInternalsBaseMBeanObserver(mbeanServerConn, publishObserverMBean, tags, "Threading", ".*");
@@ -195,9 +195,9 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 	/** The hotspot internal MBeanObservers keyed by the short name */
 	public static final Map<String, MBeanObserver> hotspotMbeanObservers;
 	
-	public static final ObjectName PLATFORM_PATTERN = Util.objectName("java.lang:*");
-	public static final ObjectName PLATFORM_NIO_PATTERN = Util.objectName("java.nio:*");
-	public static final ObjectName HOTSPOT_PATTERN = Util.objectName("sun.management:*");
+	public static final ObjectName PLATFORM_PATTERN = JMXHelper.objectName("java.lang:*");
+	public static final ObjectName PLATFORM_NIO_PATTERN = JMXHelper.objectName("java.nio:*");
+	public static final ObjectName HOTSPOT_PATTERN = JMXHelper.objectName("sun.management:*");
 	
 	
 	/** All known ObjectNames. Any others must use a custom collector */
@@ -237,7 +237,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 		} else {
 			for(String s: includes) {
 				try {
-					final ObjectName on = Util.objectName(s);
+					final ObjectName on = JMXHelper.objectName(s);
 					for(Map.Entry<ObjectName, MBeanObserver> entry : ALL_OBJECT_NAMES.entrySet()) {
 						if(on.apply(JMXHelper.dePatternize(entry.getKey()))) {
 							set.add(entry.getValue());
@@ -251,7 +251,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 		if(excludes!=null && !excludes.isEmpty()) {
 			for(String s: excludes) {
 				try {
-					final ObjectName on = Util.objectName(s);
+					final ObjectName on = JMXHelper.objectName(s);
 					for(Map.Entry<ObjectName, MBeanObserver> entry : ALL_OBJECT_NAMES.entrySet()) {
 						if(on.apply(entry.getKey())) {
 							set.remove(entry.getValue());

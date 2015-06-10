@@ -280,8 +280,8 @@ public class ClassLoaderRepository implements RemovalListener<Object, ClassLoade
 			return new URLClassLoader(new URL[]{url});
 		} else if(obj instanceof ObjectName) {
 			return getClassLoader((ObjectName)obj);
-		} else if(Util.isObjectName(obj.toString())) {
-			return getClassLoader(Util.objectName(obj.toString()));
+		} else if(JMXHelper.isObjectName(obj.toString())) {
+			return getClassLoader(JMXHelper.objectName(obj.toString()));
 		} else if(obj instanceof File) {
 			File f = (File)obj;
 			return new URLClassLoader(new URL[]{URLHelper.toURL(f)});

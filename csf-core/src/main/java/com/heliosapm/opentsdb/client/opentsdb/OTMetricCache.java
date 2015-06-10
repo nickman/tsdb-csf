@@ -39,6 +39,7 @@ import com.google.common.cache.CacheBuilderSpec;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: OTMetricCache</p>
@@ -89,7 +90,7 @@ public class OTMetricCache implements RemovalListener<String, OTMetric>, MetricR
 	private OTMetricCache() {
 		log = LogManager.getLogger(getClass());
 		log.info("Initializing OTMetric Cache.\n\tGuavaCache location:[{}]", CacheBuilderSpec.class.getProtectionDomain().getCodeSource().getLocation());
-		OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=OTMetricCache");
+		OBJECT_NAME = JMXHelper.objectName(Util.getJMXDomain() + ":service=OTMetricCache");
 		CacheBuilderSpec spec = null;
 		String cacheSpec = ConfigurationReader.conf(Constants.PROP_OTMETRIC_CACHE_SPEC, Constants.DEFAULT_OTMETRIC_CACHE_SPEC);
 		try {	
@@ -111,7 +112,7 @@ public class OTMetricCache implements RemovalListener<String, OTMetric>, MetricR
 		if(cacheSpec.contains("recordStats")) {
 			OTMetricCacheStats stats = new OTMetricCacheStats(cache);
 			try {
-				Util.registerMBean(stats, OBJECT_NAME);
+				JMXHelper.registerMBean(stats, OBJECT_NAME);
 			} catch (Exception ex) {
 				log.warn("Failed to register OTMetricCacheStats. Will Continue without");
 			}

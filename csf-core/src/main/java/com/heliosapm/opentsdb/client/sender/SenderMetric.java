@@ -29,7 +29,7 @@ import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
-import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: SenderMetric</p>
@@ -69,7 +69,7 @@ public class SenderMetric implements MetricSet, SenderMetricMXBean {
 	 * @param tags The metric tags 
 	 */
 	public SenderMetric(final String metric, final String...tags) {
-		objectName = Util.objectName(metric, tags);
+		objectName = JMXHelper.objectName(metric, tags);
 		sendCounter = new Counter();
 		failedSendCounter = new Counter();
 		badContentCounter = new Counter();
@@ -83,7 +83,7 @@ public class SenderMetric implements MetricSet, SenderMetricMXBean {
 //		OpenTsdb.getInstance().getMetricRegistry().registerAll(this);
 		snapshot.set(timer.getSnapshot());
 		snapshotTimestamp.set(System.currentTimeMillis() + SNAPSHOT_EXPIRY);
-		Util.registerMBean(this, objectName);
+		JMXHelper.registerMBean(this, objectName);
 	}
 	
 	/**

@@ -18,9 +18,6 @@ package com.heliosapm.opentsdb.client.jvmjmx;
 
 import static com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.COMPILATION_MXBEAN;
 
-import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.ClassLoadingAttribute;
-import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.CompilationAttribute;
-
 import java.lang.management.ManagementFactory;
 import java.util.Map;
 
@@ -28,10 +25,11 @@ import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 
+import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.CompilationAttribute;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
-import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: CompilationMBeanObserver</p>
@@ -50,7 +48,7 @@ public class CompilationMBeanObserver extends BaseMBeanObserver {
 	protected final OTMetric compileRate;
 	
 	/** The compiler MXBean ObjectName */
-	final ObjectName objectName = Util.objectName(ManagementFactory.COMPILATION_MXBEAN_NAME);
+	final ObjectName objectName = JMXHelper.objectName(ManagementFactory.COMPILATION_MXBEAN_NAME);
 
 	/**
 	 * Creates a new CompilationMBeanObserver

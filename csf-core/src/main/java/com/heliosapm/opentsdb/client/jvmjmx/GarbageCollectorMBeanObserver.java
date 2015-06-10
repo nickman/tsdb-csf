@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.MBeanServerConnection;
 import javax.management.Notification;
-import javax.management.NotificationListener;
 import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
 import javax.management.remote.JMXConnector;
@@ -42,6 +41,7 @@ import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: GarbageCollectorMBeanObserver</p>
@@ -92,7 +92,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	protected final boolean liveGc;
 	
 	/** The OperatingSystem MXBean ObjectName */
-	protected static final ObjectName OS_OBJECT_NAME = Util.objectName(ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME);
+	protected static final ObjectName OS_OBJECT_NAME = JMXHelper.objectName(ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME);
 	/** The base metric name */
 	protected static final String BASEMN = "java.lang.gc";
 	/** The GC Name tag key */
@@ -363,7 +363,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 * @return an array of the memory pool names
 	 */
 	protected String[] getPoolNames() {
-		Set<ObjectName> poolObjectNames = new LinkedHashSet<ObjectName>(mbs.queryNames(Util.objectName(ManagementFactory.MEMORY_POOL_MXBEAN_DOMAIN_TYPE + ",*"), null));
+		Set<ObjectName> poolObjectNames = new LinkedHashSet<ObjectName>(mbs.queryNames(JMXHelper.objectName(ManagementFactory.MEMORY_POOL_MXBEAN_DOMAIN_TYPE + ",*"), null));
 		Set<String> poolNames = new LinkedHashSet<String>(poolObjectNames.size());
 		for(ObjectName on: poolObjectNames) {
 			poolNames.add(on.getKeyProperty("name"));

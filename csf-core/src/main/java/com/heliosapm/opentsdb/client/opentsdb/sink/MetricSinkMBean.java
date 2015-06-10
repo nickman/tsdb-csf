@@ -18,6 +18,7 @@ package com.heliosapm.opentsdb.client.opentsdb.sink;
 import javax.management.ObjectName;
 
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: MetricSinkMBean</p>
@@ -30,7 +31,7 @@ import com.heliosapm.opentsdb.client.util.Util;
 public interface MetricSinkMBean {
 	
 	/** The MetricSink JMX ObjectName */
-	public static final ObjectName OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=MetricSink");
+	public static final ObjectName OBJECT_NAME = JMXHelper.objectName(Util.getJMXDomain() + ":service=MetricSink");
 	
 	/**
 	 * Returns the number of processed submissions
