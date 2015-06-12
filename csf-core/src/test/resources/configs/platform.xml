@@ -8,6 +8,7 @@
 		tsdb.id.app=test
     tsdb.trace.stdout=true
     tsdb.trace.stdout.json=true
+    tsdb.trace.logname=tracemetrics
 		
 	]]></sysprops>
 	

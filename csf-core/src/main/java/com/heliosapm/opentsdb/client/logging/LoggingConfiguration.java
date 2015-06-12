@@ -31,26 +31,16 @@ import java.io.FilenameFilter;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.net.URL;
-import java.util.Date;
+import java.nio.charset.Charset;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Filter;
-import org.apache.logging.log4j.core.appender.ConsoleAppender;
-import org.apache.logging.log4j.core.appender.ConsoleAppender.Target;
-import org.apache.logging.log4j.core.appender.RollingFileAppender;
-import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
-import org.apache.logging.log4j.core.appender.rolling.RollingFileManager;
-import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
-import org.apache.logging.log4j.core.config.AppenderRef;
+import org.apache.logging.log4j.core.Layout;
+import org.apache.logging.log4j.core.appender.SocketAppender;
 import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.core.config.ConfigurationSource;
-import org.apache.logging.log4j.core.config.DefaultConfiguration;
-import org.apache.logging.log4j.core.config.LoggerConfig;
-import org.apache.logging.log4j.core.config.xml.XmlConfiguration;
-import org.apache.logging.log4j.core.filter.ThresholdFilter;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.apache.logging.log4j.core.net.ssl.SslConfiguration;
 import org.apache.logging.log4j.spi.LoggerContext;
 
 import com.heliosapm.opentsdb.client.name.AgentName;
@@ -143,10 +133,95 @@ public class LoggingConfiguration {
 				}
 			}
 		};
-		
 		Util.sdhook(t);
+		SocketAppender sa = SocketAppender.createAppender(
+      "127.0.0.1", //@PluginAttribute("host") final String host,
+      "1588", //@PluginAttribute(value = "port", defaultInt = 0) final int port,
+      "UDP", //@PluginAttribute("protocol") final String protocolStr,
+      (SslConfiguration)null, //@PluginElement("SSL") final SslConfiguration sslConfig,
+//      "5000", //@PluginAliases("reconnectionDelay") // deprecated  @PluginAttribute(value = "reconnectionDelayMillis", defaultInt = 0) final int reconnectionDelayMillis,
+      "5000", //@PluginAttribute("reconnectionDelayMillis") final String delayMillis,
+      "true", //@PluginAttribute("immediateFail") final String immediateFail,
+      "METRICS", //@PluginAttribute("name") final String name,
+      "true", //@PluginAttribute("immediateFlush") final String immediateFlush,
+      "false", //@PluginAttribute("ignoreExceptions") final String ignore,
+      PatternLayout.createLayout("%m%n", null, null, Charset.defaultCharset(), false, true, null, null), //@PluginElement("Layout") Layout<? extends Serializable> layout,
+      (Filter)null, //@PluginElement("Filter") final Filter filter,
+      (String)null, //@PluginAttribute("advertise") final String advertise, 
+      (Configuration)null //@PluginConfiguration final Configuration config
+        );
+//		SyslogAppender appender = SyslogAppender.createAppender(        
+//        "127.0.0.1", //@PluginAttribute("host") final String host,
+//        1589, //@PluginAttribute(value = "port", defaultInt = 0) final int port,
+//        "UDP", //@PluginAttribute("protocol") final String protocolStr,
+//        (SslConfiguration)null, //@PluginElement("SSL") final SslConfiguration sslConfig,
+//        5000, //@PluginAliases("reconnectionDelay") // deprecated  @PluginAttribute(value = "reconnectionDelayMillis", defaultInt = 0) final int reconnectionDelayMillis,
+//        true, //@PluginAttribute(value = "immediateFail", defaultBoolean = true) final boolean immediateFail,
+//        "SYSLOG", //@PluginAttribute("name") final String name,
+//        true, //@PluginAttribute(value = "immediateFlush", defaultBoolean = true) final boolean immediateFlush,
+//        false, //@PluginAttribute(value = "ignoreExceptions", defaultBoolean = true) final boolean ignoreExceptions,
+//        Facility.LOCAL7, //@PluginAttribute(value = "facility", defaultString = "LOCAL0") final Facility facility,
+//        "App", //@PluginAttribute("id") final String id,
+//        18060, //@PluginAttribute(value = "enterpriseNumber", defaultInt = Rfc5424Layout.DEFAULT_ENTERPRISE_NUMBER) final int enterpriseNumber,
+//        false, //@PluginAttribute(value = "includeMdc", defaultBoolean = true) final boolean includeMdc,
+//        "mdc", //@PluginAttribute("mdcId") final String mdcId,
+//        "csf", //@PluginAttribute("mdcPrefix") final String mdcPrefix,
+//        "csf-event", //@PluginAttribute("eventPrefix") final String eventPrefix,
+//        false, //@PluginAttribute(value = "newLine", defaultBoolean = false) final boolean newLine,
+//        (String)null, //@PluginAttribute("newLineEscape") final String escapeNL,
+//        appName, //@PluginAttribute("appName") final String appName,
+//        "Audit", //@PluginAttribute("messageId") final String msgId,
+//        (String)null, //@PluginAttribute("mdcExcludes") final String excludes,
+//        (String)null, // @PluginAttribute("mdcIncludes") final String includes,
+//        (String)null, //@PluginAttribute("mdcRequired") final String required,
+//        "RFC5424", //@PluginAttribute("format") final String format,
+//        (Filter)null, //@PluginElement("Filter") final Filter filter,
+//        (Configuration)null, //@PluginConfiguration final Configuration config,
+//        Charset.defaultCharset(), //@PluginAttribute(value = "charset", defaultString = "UTF-8") final Charset charsetName,
+//        (String)null, //@PluginAttribute("exceptionPattern") final String exceptionPattern,
+//        (LoggerFields[])null, //@PluginElement("LoggerFields") final LoggerFields[] loggerFields,
+//        false //@PluginAttribute(value = "advertise", defaultBoolean = false) final boolean advertise
+//        );
+		org.apache.logging.log4j.core.Logger rootLogger = (org.apache.logging.log4j.core.Logger)LogManager.getRootLogger();
+//		appender.start();
+		sa.start();
+		rootLogger.addAppender(sa);
+//		rootLogger.addAppender(appender);
+		
 		log.info("Boot Logger Initialized: [{}@{}]", appName, hostName);
 	}
+//  @PluginAttribute("host") final String host,
+//  @PluginAttribute(value = "port", defaultInt = 0) final int port,
+//  @PluginAttribute("protocol") final String protocolStr,
+//  @PluginElement("SSL") final SslConfiguration sslConfig,
+//  @PluginAliases("reconnectionDelay") // deprecated
+//  @PluginAttribute(value = "reconnectionDelayMillis", defaultInt = 0) final int reconnectionDelayMillis,
+//  @PluginAttribute(value = "immediateFail", defaultBoolean = true) final boolean immediateFail,
+//  @PluginAttribute("name") final String name,
+//  @PluginAttribute(value = "immediateFlush", defaultBoolean = true) final boolean immediateFlush,
+//  @PluginAttribute(value = "ignoreExceptions", defaultBoolean = true) final boolean ignoreExceptions,
+//  @PluginAttribute(value = "facility", defaultString = "LOCAL0") final Facility facility,
+//  @PluginAttribute("id") final String id,
+//  @PluginAttribute(value = "enterpriseNumber", defaultInt = Rfc5424Layout.DEFAULT_ENTERPRISE_NUMBER) final int enterpriseNumber,
+//  @PluginAttribute(value = "includeMdc", defaultBoolean = true) final boolean includeMdc,
+//  @PluginAttribute("mdcId") final String mdcId,
+//  @PluginAttribute("mdcPrefix") final String mdcPrefix,
+//  @PluginAttribute("eventPrefix") final String eventPrefix,
+//  @PluginAttribute(value = "newLine", defaultBoolean = false) final boolean newLine,
+//  @PluginAttribute("newLineEscape") final String escapeNL,
+//  @PluginAttribute("appName") final String appName,
+	
+//  @PluginAttribute("messageId") final String msgId,
+//  @PluginAttribute("mdcExcludes") final String excludes,
+//  @PluginAttribute("mdcIncludes") final String includes,
+//  @PluginAttribute("mdcRequired") final String required,
+//  @PluginAttribute("format") final String format,
+//  @PluginElement("Filter") final Filter filter,
+//  @PluginConfiguration final Configuration config,
+//  @PluginAttribute(value = "charset", defaultString = "UTF-8") final Charset charsetName,
+//  @PluginAttribute("exceptionPattern") final String exceptionPattern,
+//  @PluginElement("LoggerFields") final LoggerFields[] loggerFields,
+//  @PluginAttribute(value = "advertise", defaultBoolean = false) final boolean advertise) {
 	
 	
 	public void initAppLogging(final AgentName agentName) {

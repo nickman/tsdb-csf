@@ -5,6 +5,12 @@
     	<Property name="contextName">TSDBCSF</Property>
   	</Properties>
   <Appenders>  
+    <Syslog name="SYSLOG" format="RFC5424" host="127.0.0.1" port="1589"
+            protocol="UDP" appName="TSDB-CSF" includeMDC="true"
+            facility="LOCAL7" enterpriseNumber="18060" newLine="false"
+            messageId="Audit" id="App">
+    </Syslog>    
+  
     <Console name="Console" target="SYSTEM_OUT">
       <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
     </Console>
@@ -15,6 +21,7 @@
     </Logger>
     <Root level="info">
       <AppenderRef ref="Console"/>
+      <AppenderRef ref="SYSLOG"/>
     </Root>
   </Loggers>
 </Configuration>
