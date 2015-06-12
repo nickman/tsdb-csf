@@ -50,6 +50,8 @@ public class OpenTsdb {
 	/** The Http metric poster */
 	protected HttpMetricsPoster httpClient;
 	
+	protected Logger traceLogger = LogManager.getLogger("trace-metrics");
+	
 			
 	
     /** Static class logger */

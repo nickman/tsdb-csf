@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="info" name="TSDB-CSF-BOOT" packages="org.apache.logging.log4j.test">
+<Configuration status="debug" name="TSDB-CSF-BOOT" packages="org.apache.logging.log4j.test">
   <Properties>
     <Property name="filename">${sys:tsdb.logging.dir}/tsdb-csf-${sys:tsdb.logging.pid}-${sys:tsdb.logging.host}-boot-${sys:tsdb.logging.systime}.log</Property>
   </Properties>
   <ThresholdFilter level="info"/>
   <Appenders>
+    <Syslog name="SYSLOG" format="RFC5424" host="127.0.0.1" port="1589"
+            protocol="UDP" appName="TSDB-CSF" includeMDC="true" mdcId="mdc"
+            facility="LOCAL7" enterpriseNumber="18060" newLine="false"
+            messageId="Audit" id="App" ignoreExceptions="false" />
     <Console name="STDOUT">
       <PatternLayout pattern="%m%n"/>
     </Console>
     <File name="BootFile" fileName="${filename}">
-      <PatternLayout>
+      <PatternLayout>   
         <pattern>%d %p %C{1.} [%t] %m%n</pattern>
       </PatternLayout>
     </File>    
@@ -17,6 +21,7 @@
   <Loggers>
    <Root level="info">
      <AppenderRef ref="STDOUT" level="info"/>
+     <AppenderRef ref="SYSLOG" level="trace"/>
      <AppenderRef ref="BootFile" level="trace"/>
    </Root>
  </Loggers>
