@@ -72,6 +72,7 @@ import com.heliosapm.opentsdb.client.opentsdb.opt.LongIdOTMetricCache;
 import com.heliosapm.opentsdb.client.opentsdb.opt.Measurement;
 import com.heliosapm.opentsdb.client.opentsdb.sink.MetricSink;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.jmx.JMXHelper;
 import com.heliosapm.utils.lang.StringHelper;
 
 /**
@@ -133,7 +134,7 @@ public class ShorthandCompiler {
 	 * Creates a new ShorthandCompiler
 	 */
 	private ShorthandCompiler() {
-		OBJECT_NAME = Util.objectName(Util.getJMXDomain() + ":service=ShorthandCompiler");
+		OBJECT_NAME = JMXHelper.objectName(Util.getJMXDomain() + ":service=ShorthandCompiler");
 		instrumentation = TransformerManager.getInstrumentation();
 		classPool = new ClassPool();
 		try {

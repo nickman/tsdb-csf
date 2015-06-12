@@ -1,0 +1,157 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.heliosapm.tsdb</groupId>
+        <artifactId>tsdb-csf-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+
+    <groupId>com.heliosapm.tsdb</groupId>
+    <artifactId>csf-javaagent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <name>TSDB-CSF :: javaagent</name>
+    <url>https://github.com/nickman/tsdb-csf</url>
+
+    <description>OpenTSDB Java Agent for injecting Collect, Store and Forward services into a JVM instance</description>
+
+    <dependencies>
+    
+        <dependency>
+          <groupId>com.heliosapm.tsdb</groupId>
+          <artifactId>csf-core</artifactId>
+          <version>${project.version}</version>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <plugin> 
+                <groupId>org.apache.maven.plugins</groupId> 
+                <artifactId>maven-dependency-plugin</artifactId> 
+                <version>${maven-dependency.version}</version>
+                <executions> 
+                    <execution> 
+                        <id>copy-dependencies</id> 
+                        <phase>prepare-package</phase> 
+                        <goals> 
+                            <goal>copy-dependencies</goal> 
+                        </goals> 
+                        <configuration> 
+               <outputDirectory>${project.build.directory}/classes/lib</outputDirectory> 
+                            <overWriteReleases>false</overWriteReleases> 
+                            <overWriteSnapshots>false</overWriteSnapshots> 
+                            <overWriteIfNewer>true</overWriteIfNewer> 
+                        </configuration> 
+                    </execution> 
+                </executions> 
+            </plugin> 
+
+
+            <plugin> 
+                <groupId>org.apache.maven.plugins</groupId> 
+                <artifactId>maven-jar-plugin</artifactId> 
+                <version>${jar-plugin.version}</version>
+                <configuration>
+                	 
+                    <archive> 
+                        <manifest> 
+                        	<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        	<addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+							<addClasspath>false</addClasspath>                     	
+                        </manifest> 
+                <manifestEntries> 
+                  <Premain-Class>com.heliosapm.opentsdb.client.boot.JavaAgent</Premain-Class>
+                  <Agent-Class>com.heliosapm.opentsdb.client.boot.JavaAgent</Agent-Class>
+                  <Can-Redefine-Classes>true</Can-Redefine-Classes>
+                  <Can-Retransform-Classes>true</Can-Retransform-Classes>
+                  <Can-Set-Native-Method-Prefix>true</Can-Set-Native-Method-Prefix>     
+                  <agent-core>lib/csf-core-${project.version}.jar</agent-core>              
+                </manifestEntries>
+                	  
+                    </archive>
+                     
+                </configuration> 
+            </plugin>  
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
+                <configuration>
+                    <source>${compiler-source.version}</source>
+                    <target>${compiler-target.version}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>${source-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${javadoc-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-eclipse-plugin</artifactId>
+            <version>${eclipse-plugin.version}</version>
+            <configuration>
+                <downloadJavadocs>true</downloadJavadocs>
+                <downloadSources>true</downloadSources>
+                <classpathContainers>
+                <classpathContainer>
+            org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7
+                </classpathContainer>
+                </classpathContainers>
+            </configuration>
+            </plugin>
+
+
+
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+
+            </build>
+        </profile>
+    </profiles>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>sonatype-nexus-snapshots</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>sonatype-nexus-staging</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
+
+</project>

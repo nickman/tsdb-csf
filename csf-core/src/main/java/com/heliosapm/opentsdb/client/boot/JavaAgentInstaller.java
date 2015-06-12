@@ -126,6 +126,10 @@ public class JavaAgentInstaller {
 					if("-config".equalsIgnoreCase(args[i])) {
 						i++;
 						final URL url = URLHelper.toURL(args[i]);
+						if(!URLHelper.resolves(url)) {
+							System.err.println("Cannot resolve the URL [" + url + "]. Exiting ....");
+							System.exit(-1);
+						}
 						b.append(url).append("|~");
 					}
 				}

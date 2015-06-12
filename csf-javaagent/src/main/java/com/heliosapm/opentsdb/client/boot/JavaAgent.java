@@ -15,19 +15,18 @@
  */
 package com.heliosapm.opentsdb.client.boot;
 
+import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Properties;
-import java.util.Stack;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 
 import javax.management.ObjectName;
-
-import com.heliosapm.utils.reflect.PrivateAccessor;
 
 /**
  * <p>Title: JavaAgent</p>
@@ -101,26 +100,6 @@ public class JavaAgent {
 		System.err.println("[CSF-JavaAgent]" + String.format(fmt.toString(), args));
 	}
 	
-	private static Object UCP() {
-		if(systemURLClassPath==null) {
-			systemURLClassPath = PrivateAccessor.getFieldValue(ClassLoader.getSystemClassLoader(), "ucp");
-		}
-		return systemURLClassPath;
-	}
-
-	private static ArrayList<URL> getCp() {
-		return new ArrayList<URL>((ArrayList<URL>)PrivateAccessor.getFieldValue(UCP(), "path"));
-	}
-	
-	private static void setCp(final ArrayList<URL> urls) {
-		PrivateAccessor.setFieldValue(UCP(), "path", urls);
-		Stack<URL> stack = new Stack<URL>();
-		for(URL url: urls) {
-			stack.add(0, url);
-		}
-		PrivateAccessor.setFieldValue(UCP(), "urls", stack);
-	}
-	
 	/**
 	 * The agent boot entry point
 	 * @param agentArgs The agent configuration arguments
@@ -135,12 +114,41 @@ public class JavaAgent {
 		
 		// systemcl.ucp.path (arraylist)
 		// systemcl.ucp.urls (stack)
-		StringBuilder b = new StringBuilder();
-		for(URL url: getCp()) {
-			b.append("\n\t\t").append(url);
+		final String version = JavaAgent.class.getPackage().getImplementationVersion();
+		final String vname = JavaAgent.class.getPackage().getImplementationTitle();
+		final String spec = JavaAgent.class.getPackage().getSpecificationTitle();
+		
+		log("\n\tjavaAgent Code Source: [%s]\n\tClassLoader: [%s]\n\tVersion: [%s]\n\tName: [%s]\n\tSpec: [%s]", codeSource, cl, version, vname, spec);
+		//  path will be [lib/csf-core-1.0-SNAPSHOT.jar]
+		// version is [1.0-SNAPSHOT]
+		// from manifest:   agent-core: lib/csf-core-1.0-SNAPSHOT.jar
+		/*
+		 * Add to conf/hbase-env.cmd[sh]:
+		 * :: ===============================================================================================================================================================================
+		 * ::		Install tsdb-csf agent 
+		 * :: ===============================================================================================================================================================================
+		 * set HBASE_OPTS="-javaagent:c:\hprojects\tsdb-csf\csf-javaagent\target\csf-javaagent-1.0-SNAPSHOT.jar=-config file:/c:\hprojects\tsdb-csf\csf-core\hbase.xml" %HBASE_OPTS%
+		 * :: ===============================================================================================================================================================================
+		 */
+		URL hiddenClassLoaderURL = null;
+		InputStream is = null;
+		JarInputStream jis = null;
+		try {
+			is = codeSource.openStream();
+			jis = new JarInputStream(is, false);
+			JarEntry je = null;
+			while((je = jis.getNextJarEntry()) != null) {
+				final String name = je.getName();
+				log("--------------------------------------> [%s]", name);
+			}
+			
+			
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+		} finally {
+			if(jis != null) try { jis.close(); } catch (Exception x) {/* No Op */}
+			if(is != null) try { is.close(); } catch (Exception x) {/* No Op */}
 		}
-		 final String s = System.getProperty("java.class.path");
-		log("\n\tjavaAgent Code Source: [%s]\n\tClassLoader: [%s]\n\tClasspath: ", codeSource, cl, s);
 		agentmain(agentArgs + ARGS_DELIM + codeSource.toString(), inst);
 	}
 	

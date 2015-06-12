@@ -8,6 +8,7 @@
 	]]></sysprops>
 	<platform period="15" collectormbeans="true">
 		<includes>java.lang:type=*</includes>
+		<includes>sun.management:type=*</includes>
 	</platform>
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
