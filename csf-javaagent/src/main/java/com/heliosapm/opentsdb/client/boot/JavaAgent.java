@@ -23,10 +23,12 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Arrays;
 import java.util.Properties;
-import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 
 import javax.management.ObjectName;
+
+import com.heliosapm.utils.classload.IsolatedClassLoader;
 
 /**
  * <p>Title: JavaAgent</p>
@@ -124,25 +126,47 @@ public class JavaAgent {
 		// from manifest:   agent-core: lib/csf-core-1.0-SNAPSHOT.jar
 		/*
 		 * Add to conf/hbase-env.cmd[sh]:
-		 * :: ===============================================================================================================================================================================
-		 * ::		Install tsdb-csf agent 
-		 * :: ===============================================================================================================================================================================
-		 * set HBASE_OPTS="-javaagent:c:\hprojects\tsdb-csf\csf-javaagent\target\csf-javaagent-1.0-SNAPSHOT.jar=-config file:/c:\hprojects\tsdb-csf\csf-core\hbase.xml" %HBASE_OPTS%
-		 * :: ===============================================================================================================================================================================
+:: ===============================================================================================================================================================================
+::		Install tsdb-csf agent 
+:: ===============================================================================================================================================================================
+set HBASE_OPTS="-javaagent:c:\hprojects\tsdb-csf\csf-javaagent\target\csf-javaagent-1.0-SNAPSHOT.jar=-config file:/c:\hprojects\tsdb-csf\csf-core\hbase.xml" %HBASE_OPTS%
+:: ===============================================================================================================================================================================
+
+OR
+
+# ===============================================================================================================================================================================
+#		Install tsdb-csf agent 
+# ===============================================================================================================================================================================
+export JAGENT="/home/nwhitehead/hprojects/tsdb-csf/csf-javaagent/target/csf-javaagent-1.0-SNAPSHOT.jar"
+export JAGENT_ARGS=""-config file:/home/nwhitehead/tsdb-csf/csf-core/hbase.xml""
+export HBASE_OPTS="-javaagent:$JAGENT=$JAGENT_ARGS $HBASE_OPTS"
+# ===============================================================================================================================================================================
+
 		 */
 		URL hiddenClassLoaderURL = null;
+		String hiddenJarName = null;
 		InputStream is = null;
 		JarInputStream jis = null;
 		try {
 			is = codeSource.openStream();
 			jis = new JarInputStream(is, false);
-			JarEntry je = null;
-			while((je = jis.getNextJarEntry()) != null) {
-				final String name = je.getName();
-				log("--------------------------------------> [%s]", name);
-			}
-			
-			
+			final Manifest manifest = jis.getManifest();
+			hiddenJarName = manifest.getMainAttributes().getValue("agent-core");
+			log("Isolated Agent Jar: [%s]", hiddenJarName);
+			hiddenClassLoaderURL = new URL("jar:" + codeSource + "!/" + hiddenJarName);
+			log("Isolated Agent Jar URL: [%s]", hiddenClassLoaderURL);
+			agentClassLoader = new IsolatedClassLoader(new ObjectName(ISOL_OBJECT_NAME), new URL[]{hiddenClassLoaderURL});
+			final Thread bootThread = new Thread("csf-javaagent-boot-thread") {
+				@Override
+				public void run() {					
+					Thread.currentThread().setContextClassLoader(agentClassLoader);
+					processArgs(agentArgs.trim().replaceAll("\\s+", ARGS_DELIM));
+					markAgentInstalled();
+
+				}
+			};
+			bootThread.setDaemon(true);
+			bootThread.start();
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 		} finally {
