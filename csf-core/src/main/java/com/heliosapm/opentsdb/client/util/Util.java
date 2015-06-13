@@ -16,26 +16,15 @@
 package com.heliosapm.opentsdb.client.util;
 
 import java.io.File;
-import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
-import java.net.URL;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Pattern;
-
-import javax.management.MBeanServer;
-import javax.management.MBeanServerConnection;
-import javax.management.MBeanServerFactory;
-import javax.management.ObjectName;
-
-import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
-import com.heliosapm.opentsdb.client.opentsdb.Constants;
-import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
  * <p>Title: Util</p>

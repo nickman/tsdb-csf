@@ -39,6 +39,8 @@ import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.appender.SocketAppender;
 import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.ConfigurationSource;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.core.net.ssl.SslConfiguration;
 import org.apache.logging.log4j.spi.LoggerContext;
@@ -95,6 +97,15 @@ public class LoggingConfiguration {
 		if(instance==null) {
 			synchronized(lock) {
 				if(instance==null) {
+					try {
+						final ClassLoader cl = Thread.currentThread().getContextClassLoader(); 
+						final InputStream is = cl.getResourceAsStream("log4j/tsdb-csf-log4j2.xml");
+						System.err.println("\n\t====================================================\n\n\tLoggingConfiguration CLASSLOADER: [" + cl + "]\n\tIS: [" + is + "]\n\t=====================================\n");
+						
+						Configurator.initialize(cl, new ConfigurationSource(is));
+					} catch (Exception ex) {
+						ex.printStackTrace(System.err);
+					}
 					instance = new LoggingConfiguration();
 				}
 			}
@@ -116,7 +127,7 @@ public class LoggingConfiguration {
 		final String appName = AgentName.getInstance().getAppName();
 		final String hostName = AgentName.getInstance().getHostName();		
 		metricsRootDir = initOfflineStorage();		
-		//bootConfig();
+		//bootConfig();		
 		lctx = LogManager.getContext(true);
 		log = LogManager.getLogger(getClass());
 		Thread t = new Thread("BootLoggerCleanUp") {
@@ -182,10 +193,10 @@ public class LoggingConfiguration {
 //        (LoggerFields[])null, //@PluginElement("LoggerFields") final LoggerFields[] loggerFields,
 //        false //@PluginAttribute(value = "advertise", defaultBoolean = false) final boolean advertise
 //        );
-		org.apache.logging.log4j.core.Logger rootLogger = (org.apache.logging.log4j.core.Logger)LogManager.getRootLogger();
-//		appender.start();
-		sa.start();
-		rootLogger.addAppender(sa);
+//		org.apache.logging.log4j.core.Logger rootLogger = (org.apache.logging.log4j.core.Logger)LogManager.getRootLogger();
+////		appender.start();
+//		sa.start();
+//		rootLogger.addAppender(sa);
 //		rootLogger.addAppender(appender);
 		
 		log.info("Boot Logger Initialized: [{}@{}]", appName, hostName);

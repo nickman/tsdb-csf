@@ -17,12 +17,9 @@ package com.heliosapm.opentsdb.client.boot;
 
 import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.net.URL;
-import java.net.URLClassLoader;
-import java.util.Arrays;
 import java.util.Properties;
+import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -52,19 +49,13 @@ public class JavaAgent {
 	/** The arguments passed to this agent */
 	public static String AGENT_ARGS = null;
 	
-	/** The isolated classloader class name */
-	public static final String ISOL_CLASSLOADER_NAME = "com.heliosapm.utils.classload.IsolatedClassLoader";
 	/** The isolated classloader ObjectName */
 	public static final String ISOL_OBJECT_NAME = "com.heliosapm:service=IsolatedClassLoader";
 	
 	
-	/** The agent args delimiter */
-	public static final String ARGS_DELIM = "|~";
 	/** The full agent class loader */
 	public static ClassLoader agentClassLoader = null;
 	
-	/** The system class loader search path for classes and resources */ 
-	private static volatile Object systemURLClassPath = null;
 	
 	/**
 	 * Creates a new JavaAgent
@@ -112,15 +103,18 @@ public class JavaAgent {
 		
 		final ClassLoader cl = JavaAgent.class.getClassLoader();
 		final URL codeSource = JavaAgent.class.getProtectionDomain().getCodeSource().getLocation();
-		final URLClassLoader systemcl = (URLClassLoader)ClassLoader.getSystemClassLoader();
-		
-		// systemcl.ucp.path (arraylist)
-		// systemcl.ucp.urls (stack)
 		final String version = JavaAgent.class.getPackage().getImplementationVersion();
 		final String vname = JavaAgent.class.getPackage().getImplementationTitle();
 		final String spec = JavaAgent.class.getPackage().getSpecificationTitle();
 		
 		log("\n\tjavaAgent Code Source: [%s]\n\tClassLoader: [%s]\n\tVersion: [%s]\n\tName: [%s]\n\tSpec: [%s]", codeSource, cl, version, vname, spec);
+		try {
+			agentClassLoader = IsolatedClassLoader.embeddedJarClassLoader(codeSource, "agent-core", new ObjectName(ISOL_OBJECT_NAME));
+		} catch (Exception ex) {
+			loge("Failed to created IsolatedClassLoader for agent core jar [" + codeSource + "]. Stack trace follows...");
+			ex.printStackTrace(System.err);
+			return;
+		}
 		//  path will be [lib/csf-core-1.0-SNAPSHOT.jar]
 		// version is [1.0-SNAPSHOT]
 		// from manifest:   agent-core: lib/csf-core-1.0-SNAPSHOT.jar
@@ -138,116 +132,62 @@ OR
 #		Install tsdb-csf agent 
 # ===============================================================================================================================================================================
 export JAGENT="/home/nwhitehead/hprojects/tsdb-csf/csf-javaagent/target/csf-javaagent-1.0-SNAPSHOT.jar"
-export JAGENT_ARGS=""-config file:/home/nwhitehead/tsdb-csf/csf-core/hbase.xml""
+export JAGENT_ARGS=""-config file:/home/nwhitehead/hprojects/tsdb-csf/csf-core/hbase.xml""
 export HBASE_OPTS="-javaagent:$JAGENT=$JAGENT_ARGS $HBASE_OPTS"
 # ===============================================================================================================================================================================
 
 		 */
-		URL hiddenClassLoaderURL = null;
-		String hiddenJarName = null;
-		InputStream is = null;
-		JarInputStream jis = null;
 		try {
-			is = codeSource.openStream();
-			jis = new JarInputStream(is, false);
-			final Manifest manifest = jis.getManifest();
-			hiddenJarName = manifest.getMainAttributes().getValue("agent-core");
-			log("Isolated Agent Jar: [%s]", hiddenJarName);
-			hiddenClassLoaderURL = new URL("jar:" + codeSource + "!/" + hiddenJarName);
-			log("Isolated Agent Jar URL: [%s]", hiddenClassLoaderURL);
-			agentClassLoader = new IsolatedClassLoader(new ObjectName(ISOL_OBJECT_NAME), new URL[]{hiddenClassLoaderURL});
 			final Thread bootThread = new Thread("csf-javaagent-boot-thread") {
 				@Override
 				public void run() {					
 					Thread.currentThread().setContextClassLoader(agentClassLoader);
-					processArgs(agentArgs.trim().replaceAll("\\s+", ARGS_DELIM));
+					bootAgent(agentArgs.trim());
 					markAgentInstalled();
-
 				}
 			};
 			bootThread.setDaemon(true);
 			bootThread.start();
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
-		} finally {
-			if(jis != null) try { jis.close(); } catch (Exception x) {/* No Op */}
-			if(is != null) try { is.close(); } catch (Exception x) {/* No Op */}
-		}
-		agentmain(agentArgs + ARGS_DELIM + codeSource.toString(), inst);
+		}		
 	}
 	
-	/**
-	 * The agent boot entry point
-	 * @param agentArgs The agent configuration arguments
-	 * @param inst The instrumentation instance
-	 */
-	public static void premainx(final String agentArgs, final Instrumentation inst) {
-		ClassLoader isolatedClassLoader = null;
-//		try {			
-//			Class<?> isoClazz = Class.forName(ISOL_CLASSLOADER_NAME);
-//			Constructor<?> ctor = isoClazz.getDeclaredConstructor(URL.class);
-//			URL classpath = JavaAgent.class.getProtectionDomain().getCodeSource().getLocation();
-//			log("Agent Classpath: [%s]", classpath);
-//			isolatedClassLoader = new ParentLastURLClassLoader(classpath);
-//			Thread.currentThread().setContextClassLoader(isolatedClassLoader);
-//			MLet mlet = new MLet(new URL[0], isolatedClassLoader);
-//			ObjectName objectName = new ObjectName("com.heliosapm.boot:service=AgentClassLoader");
-//			ManagementFactory.getPlatformMBeanServer().registerMBean(mlet, objectName);			
+//	protected static boolean dumpCoreJar(final URL url) {
+//		InputStream is = null;
+//		JarInputStream jis = null;
+//		try {
+//			is = url.openStream();
+//			jis = new JarInputStream(is, true);
+//			JarEntry je = null;
+//			while((je = jis.getNextJarEntry())!=null) {
+//				//log("\t\t--- [%s]", je.getName());
+//			}
+//			return true;
 //		} catch (Exception ex) {
 //			ex.printStackTrace(System.err);
-//			return;
-//		}
-//		AGENT_ARGS = agentArgs;
-//		INSTRUMENTATION = inst;
-//		try {			
-//			if(!processArgs(agentArgs)) {				
-//				log("Executing premain.....\n\tLoading class [" + MANUAL_LOAD_CLASS + "]");
-//				Class<?> bootClass = Class.forName(MANUAL_LOAD_CLASS, true, isolatedClassLoader);
-//				log("Loaded class [" + MANUAL_LOAD_CLASS + "]\n\tInvoking boot....");
-//				bootClass.getDeclaredMethod("boot").invoke(null);				
-//			}
-//			markAgentInstalled();
-//			log("\n\n\n\tAgent Booted. Bye...");			
-//		} catch (Throwable ex) {
-//			loge("Failed to boot. Stack trace follows:");
-//			ex.printStackTrace(System.err);
-//			log("Failed to boot. Stack trace follows:");
-//			ex.printStackTrace(System.out);			
-//		}
-	}
+//			return false;
+//		} finally {
+//			if(jis != null) try { jis.close(); } catch (Exception x) {/* No Op */}
+//			if(is != null) try { is.close(); } catch (Exception x) {/* No Op */}
+//		}		
+//	}
 	
 	/**
-	 * Processes the agent arguments passed at boot time (from the -javaagent) or from the agent installer
-	 * @param argStr The agent arguments string
-	 * @return true if a configuration directive was executed
+	 * Boots the agent
+	 * @param configUrl The URL of the config file
 	 */
-	protected static boolean processArgs(final String argStr) {
-		log("Processing AgentArgs: [%s]", argStr);
-		if(argStr==null || argStr.trim().isEmpty()) return false;
-		boolean configured = false;
-		String[] options = argStr.split("\\|~");
-		for(int i = 0; i < options.length; i++) {
-			if("-p".equalsIgnoreCase(options[i])) {
-				i++;
-				String[] sysPropPair = options[i].split("=");
-				System.setProperty(sysPropPair[0].trim(), sysPropPair[1].trim());
-				System.out.println("Set SysProp [" + sysPropPair[0].trim() + "]=[" + sysPropPair[1].trim() + "]");
-			} else if ("-config".equalsIgnoreCase(options[i])) {
-				try {
-					Class<?> bootClass = Class.forName(XML_LOAD_CLASS, true, agentClassLoader);
-					i++;
-					String resource = options[i]; 
-					log("Loaded class [%s]\n\tInvoking boot with [%s]", XML_LOAD_CLASS, resource);
-					bootClass.getDeclaredMethod("boot", String.class).invoke(null, resource);
-					configured = true;
-				} catch (Exception ex) {
-					loge("Failed to load XMLConfig. Stack trace follows:");
-					ex.printStackTrace(System.err);
-				}
-
-			}
+	protected static void bootAgent(final String configUrl) {
+		log("Booting agent with config: [%s]", configUrl);
+		System.setProperty("Log4jLogEventFactory", "org.apache.logging.log4j.core.impl.Log4jContextFactory");
+		System.setProperty("log4j.configurationFactory", "com.heliosapm.opentsdb.client.logging.CSFLoggingConfiguration");
+		try {
+			Class<?> bootClass = Class.forName(XML_LOAD_CLASS, true, agentClassLoader);
+			bootClass.getDeclaredMethod("boot", String.class).invoke(null, configUrl);
+		} catch (Exception ex) {
+			loge("Failed to load XMLConfig. Stack trace follows:");
+			ex.printStackTrace(System.err);
 		}
-		return configured;
 	}
 
 	/**
@@ -258,58 +198,6 @@ export HBASE_OPTS="-javaagent:$JAGENT=$JAGENT_ARGS $HBASE_OPTS"
 		premain(agentArgs, null);
 	}
 	
-	/**
-	 * Boots the agent on a hot install
-	 * @param agentArgs The agent arguments
-	 * @param inst The instrumentation instance
-	 */
-	public static void agentmain(final String agentArgs, final Instrumentation inst) {
-		log("Entering agentmain (args,inst)");
-		if(agentArgs==null || agentArgs.trim().isEmpty()) {
-			log("No args. We're outa here....");
-			return;
-		}
-		log("AgentArgs: [%s]", agentArgs);
-		final String[] parsedArgs = agentArgs.trim().split("\\" + ARGS_DELIM);
-		if(parsedArgs.length <2) {
-			log("Insufficient args: \n[%s]\nWe're outa here...", Arrays.toString(parsedArgs));
-			return;			
-		}
-		try {
-			final ObjectName agentCLObjectName = new ObjectName(ISOL_OBJECT_NAME);
-			final URL classLoaderClassLoaderUrl = JavaAgent.class.getProtectionDomain().getCodeSource().getLocation();
-			log("JavaAgent Code Location: [%s]", JavaAgent.class.getProtectionDomain().getCodeSource().getLocation());
-			final URLClassLoader classLoaderClassLoader = new URLClassLoader(new URL[]{classLoaderClassLoaderUrl}, JavaAgent.class.getClassLoader());			
-			Class<?> isolClass = classLoaderClassLoader.loadClass(ISOL_CLASSLOADER_NAME);			
-			Constructor<?> ctor = isolClass.getDeclaredConstructor(ObjectName.class, URL[].class);
-			ctor.setAccessible(true);
-			final URL classLoaderUrl = new URL(parsedArgs[parsedArgs.length-1]);
-			log("Core agent classpath: [%s]", classLoaderUrl);
-			try {
-				Method m = URLClassLoader.class.getDeclaredMethod("close");
-				m.setAccessible(true);
-				m.invoke(classLoaderClassLoader);
-			} catch (Exception x) { /* No Op */}
-			agentClassLoader = (ClassLoader) ctor.newInstance(agentCLObjectName, new URL[]{classLoaderUrl});	
-			Thread.currentThread().setContextClassLoader(agentClassLoader);
-			// ==================
-			final int index = agentArgs.lastIndexOf(ARGS_DELIM);
-			processArgs(agentArgs.trim().substring(0, index));
-			markAgentInstalled();
-		} catch (Exception ex) {
-			loge("Failed to process agent arguments. Stack trace follows...");
-			ex.printStackTrace(System.err);
-		}		
-	}
-
-	/**
-	 * Boots the agent on a hot install
-	 * @param agentArgs The agent arguments
-	 */
-	public static void agentmain(final String agentArgs) {
-		log("Entering agentmain (args)");
-		agentmain(agentArgs, null);
-	}
 	
 	
 }

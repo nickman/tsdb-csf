@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -147,14 +148,22 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 		initializeAgentName();
 		clock = ConfigurationReader.confBool(Constants.PROP_TIME_IN_SEC, Constants.DEFAULT_TIME_IN_SEC) ? EpochClock.INSTANCE : Clock.defaultClock();
 		String objName = mbeanObserver.objectName.toString();
-		if(objName.endsWith(",*")) {
-			objName = objName.replaceFirst(",\\*$", "");
+		ObjectName obObserver = JMXHelper.objectName(objName);
+		if(obObserver.isPropertyPattern()) {
+			final String dom = obObserver.getDomain();
+			final Hashtable<String, String> props = new Hashtable<String, String>();
+			for(final Map.Entry<String, String> entry : obObserver.getKeyPropertyList().entrySet()) {
+				if(!obObserver.isPropertyValuePattern(entry.getKey())) {
+					props.put(entry.getKey(), entry.getValue());
+				}
+			}
+			obObserver = JMXHelper.objectName(dom, props);
 		}
 		if(publishObserverMBean) {
 			try {
-				JMXHelper.registerMBean(this, JMXHelper.objectName("csf.observer." + objName));
+				JMXHelper.registerMBean(this, JMXHelper.objectName("csf.observer." + obObserver.toString()));
 			} catch (Exception ex) {
-				log.warn("Failed to register ObserverMBean for [{}]", objName, ex);
+				log.warn("Failed to register ObserverMBean for [{}]", obObserver.toString(), ex);
 			}
 		}
 	}
