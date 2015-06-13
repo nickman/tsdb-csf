@@ -20,7 +20,7 @@
     
         <dependency>
           <groupId>com.heliosapm.tsdb</groupId>
-          <artifactId>tsdb-core</artifactId>
+          <artifactId>csf-core</artifactId>
           <version>${project.version}</version>
         </dependency>
 
