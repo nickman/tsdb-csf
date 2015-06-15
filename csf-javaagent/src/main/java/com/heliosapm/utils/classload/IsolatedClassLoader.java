@@ -210,6 +210,14 @@ public class IsolatedClassLoader extends ClassLoader implements IsolatedClassLoa
       }
   }
   
+  public String toString() {
+	  final StringBuilder b = new StringBuilder("JavaAgent IsolatedClassLoader [");
+	  for(URL url: childClassLoader.getURLs()) {
+		  b.append("\n\t").append(url);
+	  }
+	  return b.append("\n]").toString();
+  }
+  
   /**
  * {@inheritDoc}
  * @see java.lang.ClassLoader#findResource(java.lang.String)
@@ -338,9 +346,9 @@ public class IsolatedClassLoader extends ClassLoader implements IsolatedClassLoa
     protected Class<?> _findClass(final String name) throws ClassNotFoundException
     {
         try {
-            return AccessController.doPrivileged(
-                new PrivilegedExceptionAction<Class>() {
-                    public Class run() throws ClassNotFoundException {
+//            return AccessController.doPrivileged(
+//                new PrivilegedExceptionAction<Class>() {
+//                    public Class run() throws ClassNotFoundException {
                         final String path = name.replace('.', '/').concat(".class");
                         ByteBuffer bb = jarItems.get(path);
                         ProtectionDomain pd = protectionDomains.get(path);
@@ -352,10 +360,10 @@ public class IsolatedClassLoader extends ClassLoader implements IsolatedClassLoa
                         }
 //						log("[%s] not found in cache", path);
 						throw new ClassNotFoundException(path);
-                    }
-                }, acc);
-        } catch (java.security.PrivilegedActionException pae) {
-            throw (ClassNotFoundException) pae.getException();
+//                    }
+//                }, acc);
+        } catch (Exception pae) {
+            throw new ClassNotFoundException(name);
         }
     }    
     

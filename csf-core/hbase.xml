@@ -12,5 +12,10 @@
 	</platform>
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
+		<server port="18012" iface="0.0.0.0" jmxdomain="jboss"/>
 	</jmxmp>
+	<lite-instrumentation>
+		<instr class="groovy.lang.Script" methods="evaluate"/>
+	</lite-instrumentation>
+
 </csf-config>

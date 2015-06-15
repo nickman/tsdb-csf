@@ -23,7 +23,9 @@ import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Pattern;
@@ -122,7 +124,7 @@ public class JavaAgentInstaller {
 			if(args.length > 1) {
 				StringBuilder b = new StringBuilder();
 				for(int i = 1; i < args.length; i++) {
-					b.append(args[i]).append("|~");
+					b.append(args[i]).append(",");
 					if("-config".equalsIgnoreCase(args[i])) {
 						i++;
 						final URL url = URLHelper.toURL(args[i]);
@@ -130,7 +132,7 @@ public class JavaAgentInstaller {
 							System.err.println("Cannot resolve the URL [" + url + "]. Exiting ....");
 							System.exit(-1);
 						}
-						b.append(url).append("|~");
+						b.append(url).append(",");
 					}
 				}
 				b.append(JavaAgentInstaller.class.getProtectionDomain().getCodeSource().getLocation());				
@@ -298,7 +300,14 @@ public class JavaAgentInstaller {
 	 */
 	public static void writeClassesToJar(final JarOutputStream jos, final Class<?>...classes) throws IOException {
 		for(Class<?> clazz: classes) {
+			final Set<Class<?>> innerClasses = new HashSet<Class<?>>();
+			for(Class<?> inner: clazz.getClasses()) {
+				innerClasses.add(inner);
+			}			
 			for(Class<?> inner: clazz.getDeclaredClasses()) {
+				innerClasses.add(inner);
+			}
+			for(Class<?> inner: innerClasses) {
 				writeClassesToJar(jos, inner);
 			}
 			InputStream clazzIn = null;

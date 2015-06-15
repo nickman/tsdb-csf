@@ -15,13 +15,9 @@
  */
 package com.heliosapm.opentsdb.client.boot;
 
-import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
 import java.net.URL;
 import java.util.Properties;
-import java.util.jar.JarEntry;
-import java.util.jar.JarInputStream;
-import java.util.jar.Manifest;
 
 import javax.management.ObjectName;
 
@@ -37,6 +33,29 @@ import com.heliosapm.utils.classload.IsolatedClassLoader;
  */
 
 public class JavaAgent {
+	//  path will be [lib/csf-core-1.0-SNAPSHOT.jar]
+	// version is [1.0-SNAPSHOT]
+	// from manifest:   agent-core: lib/csf-core-1.0-SNAPSHOT.jar
+	/*
+	 * Add to conf/hbase-env.cmd[sh]:
+:: ===============================================================================================================================================================================
+::		Install tsdb-csf agent 
+:: ===============================================================================================================================================================================
+set HBASE_OPTS="-javaagent:c:\hprojects\tsdb-csf\csf-javaagent\target\csf-javaagent-1.0-SNAPSHOT.jar=-config file:/c:\hprojects\tsdb-csf\csf-core\hbase.xml" %HBASE_OPTS%
+:: ===============================================================================================================================================================================
+
+OR
+
+# ===============================================================================================================================================================================
+#		Install tsdb-csf agent 
+# ===============================================================================================================================================================================
+export JAGENT="/home/nwhitehead/hprojects/tsdb-csf/csf-javaagent/target/csf-javaagent-1.0-SNAPSHOT.jar"
+export JAGENT_ARGS=""-config file:/home/nwhitehead/hprojects/tsdb-csf/csf-core/hbase.xml""
+export HBASE_OPTS="-javaagent:$JAGENT=$JAGENT_ARGS $HBASE_OPTS"
+# ===============================================================================================================================================================================
+
+	 */
+	
 	/** The default class to instantiate and boot */
 	public static final String MANUAL_LOAD_CLASS = "com.heliosapm.opentsdb.client.boot.ManualLoader";
 	/** The XML loader boot class */
@@ -50,7 +69,11 @@ public class JavaAgent {
 	public static String AGENT_ARGS = null;
 	
 	/** The isolated classloader ObjectName */
-	public static final String ISOL_OBJECT_NAME = "com.heliosapm:service=IsolatedClassLoader";
+	public static final String ISOL_OBJECT_NAME = "com.heliosapm:service=IsolatedClassLoader,source=agent-premain";
+	
+	/** The instrumentation capture service class name */
+	public static final String INSTRUMENTATION_SERVICE_CLASS = "com.heliosapm.utils.instrumentation.Instrumentation";
+
 	
 	
 	/** The full agent class loader */
@@ -100,7 +123,7 @@ public class JavaAgent {
 	 */
 	public static void premain(final String agentArgs, final Instrumentation inst) {
 		log("Entering premain with agent args [%s]", agentArgs);
-		
+		INSTRUMENTATION = inst;
 		final ClassLoader cl = JavaAgent.class.getClassLoader();
 		final URL codeSource = JavaAgent.class.getProtectionDomain().getCodeSource().getLocation();
 		final String version = JavaAgent.class.getPackage().getImplementationVersion();
@@ -115,28 +138,6 @@ public class JavaAgent {
 			ex.printStackTrace(System.err);
 			return;
 		}
-		//  path will be [lib/csf-core-1.0-SNAPSHOT.jar]
-		// version is [1.0-SNAPSHOT]
-		// from manifest:   agent-core: lib/csf-core-1.0-SNAPSHOT.jar
-		/*
-		 * Add to conf/hbase-env.cmd[sh]:
-:: ===============================================================================================================================================================================
-::		Install tsdb-csf agent 
-:: ===============================================================================================================================================================================
-set HBASE_OPTS="-javaagent:c:\hprojects\tsdb-csf\csf-javaagent\target\csf-javaagent-1.0-SNAPSHOT.jar=-config file:/c:\hprojects\tsdb-csf\csf-core\hbase.xml" %HBASE_OPTS%
-:: ===============================================================================================================================================================================
-
-OR
-
-# ===============================================================================================================================================================================
-#		Install tsdb-csf agent 
-# ===============================================================================================================================================================================
-export JAGENT="/home/nwhitehead/hprojects/tsdb-csf/csf-javaagent/target/csf-javaagent-1.0-SNAPSHOT.jar"
-export JAGENT_ARGS=""-config file:/home/nwhitehead/hprojects/tsdb-csf/csf-core/hbase.xml""
-export HBASE_OPTS="-javaagent:$JAGENT=$JAGENT_ARGS $HBASE_OPTS"
-# ===============================================================================================================================================================================
-
-		 */
 		try {
 			final Thread bootThread = new Thread("csf-javaagent-boot-thread") {
 				@Override
@@ -153,25 +154,6 @@ export HBASE_OPTS="-javaagent:$JAGENT=$JAGENT_ARGS $HBASE_OPTS"
 		}		
 	}
 	
-//	protected static boolean dumpCoreJar(final URL url) {
-//		InputStream is = null;
-//		JarInputStream jis = null;
-//		try {
-//			is = url.openStream();
-//			jis = new JarInputStream(is, true);
-//			JarEntry je = null;
-//			while((je = jis.getNextJarEntry())!=null) {
-//				//log("\t\t--- [%s]", je.getName());
-//			}
-//			return true;
-//		} catch (Exception ex) {
-//			ex.printStackTrace(System.err);
-//			return false;
-//		} finally {
-//			if(jis != null) try { jis.close(); } catch (Exception x) {/* No Op */}
-//			if(is != null) try { is.close(); } catch (Exception x) {/* No Op */}
-//		}		
-//	}
 	
 	/**
 	 * Boots the agent
@@ -181,6 +163,14 @@ export HBASE_OPTS="-javaagent:$JAGENT=$JAGENT_ARGS $HBASE_OPTS"
 		log("Booting agent with config: [%s]", configUrl);
 		System.setProperty("Log4jLogEventFactory", "org.apache.logging.log4j.core.impl.Log4jContextFactory");
 		System.setProperty("log4j.configurationFactory", "com.heliosapm.opentsdb.client.logging.CSFLoggingConfiguration");
+		try {
+			Class<?> instrClass = Class.forName(INSTRUMENTATION_SERVICE_CLASS, true, agentClassLoader);
+			instrClass.getDeclaredMethod("install", Instrumentation.class).invoke(null, INSTRUMENTATION);
+			log("Instrumentation Service Installed.");
+		} catch (Exception ex) {
+			loge("Failed to install JVM instrumentation instance. Stack trace follows:");
+			ex.printStackTrace(System.err);
+		}		
 		try {
 			Class<?> bootClass = Class.forName(XML_LOAD_CLASS, true, agentClassLoader);
 			bootClass.getDeclaredMethod("boot", String.class).invoke(null, configUrl);
@@ -198,6 +188,25 @@ export HBASE_OPTS="-javaagent:$JAGENT=$JAGENT_ARGS $HBASE_OPTS"
 		premain(agentArgs, null);
 	}
 	
+//	protected static boolean dumpCoreJar(final URL url) {
+//	InputStream is = null;
+//	JarInputStream jis = null;
+//	try {
+//		is = url.openStream();
+//		jis = new JarInputStream(is, true);
+//		JarEntry je = null;
+//		while((je = jis.getNextJarEntry())!=null) {
+//			//log("\t\t--- [%s]", je.getName());
+//		}
+//		return true;
+//	} catch (Exception ex) {
+//		ex.printStackTrace(System.err);
+//		return false;
+//	} finally {
+//		if(jis != null) try { jis.close(); } catch (Exception x) {/* No Op */}
+//		if(is != null) try { is.close(); } catch (Exception x) {/* No Op */}
+//	}		
+//}
 	
 	
 }

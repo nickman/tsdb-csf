@@ -61,6 +61,7 @@ import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
 import com.heliosapm.opentsdb.client.util.Util;
+import com.heliosapm.utils.instrumentation.InstrumentationMBean;
 import com.heliosapm.utils.jmx.JMXHelper;
 import com.heliosapm.utils.url.URLHelper;
 
@@ -121,6 +122,12 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 		OBJECT_NAME = JMXHelper.objectName(Util.getJMXDomain() + ":service=RetransformerLite");
 		Instrumentation instr = null;
 		try {
+			instr = JMXHelper.getAttribute(InstrumentationMBean.OBJECT_NAME, "Instance");
+			log.info("Acquired Instrumentation instance from [{}]", InstrumentationMBean.OBJECT_NAME);
+		} catch (Exception ex) {
+			log.warn("Failed to get Instrumentation instance from [{}]", InstrumentationMBean.OBJECT_NAME, ex);
+		}
+		try {
 			Class<?> transformerManagerClass = Class.forName("com.heliosapm.opentsdb.client.aop.TransformerManager");
 			log.info("Loaded class [{}]", transformerManagerClass);
 			Object obj = transformerManagerClass.getDeclaredMethod("getInstrumentation").invoke(null);
@@ -129,11 +136,11 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 			} else {
 				log.info("Returned value from getInstrumentation(): {}", obj);
 			}
-			instr = (Instrumentation)obj;
+			if(instr==null) instr = (Instrumentation)obj;
 		} catch (Throwable t) {
 			log.warn("\n\t==============================\n\tFailed to load TransformerManager\n\t==============================\n");
 			try {
-				instr = JavaAgent.INSTRUMENTATION;
+//				instr = JavaAgent.INSTRUMENTATION;
 				if(instr!=null) {
 					log.info("JavaAgent saved the day. Instrumentation is: {}", instr);
 				} else {
