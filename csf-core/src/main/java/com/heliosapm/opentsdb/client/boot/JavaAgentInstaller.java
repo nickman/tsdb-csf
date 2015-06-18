@@ -267,8 +267,6 @@ public class JavaAgentInstaller {
 			manifest.append("Can-Redefine-Classes: ").append("true\n");
 			manifest.append("Can-Retransform-Classes: ").append("true\n");
 			manifest.append("Can-Set-Native-Method-Prefix: ").append(JavaAgent.class.getName()).append("\n");
-			manifest.append("Agent-Class: ").append(JavaAgent.class.getName()).append("\n");
-			
 			
 			ByteArrayInputStream bais = new ByteArrayInputStream(manifest.toString().getBytes());
 			Manifest mf = new Manifest(bais);

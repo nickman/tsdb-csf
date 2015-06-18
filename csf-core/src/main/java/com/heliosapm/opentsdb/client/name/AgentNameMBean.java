@@ -38,7 +38,7 @@ import com.heliosapm.opentsdb.client.opentsdb.Constants;
  * <p><code>com.heliosapm.opentsdb.client.name.AgentNameMXBean</code></p>
  */
 
-public interface AgentNameMXBean {
+public interface AgentNameMBean {
 	
 	/** Notification type for initial name and host assignment */
 	public static final String NOTIF_ASSIGNED = "tsdb.agentname.assigned";

@@ -74,7 +74,7 @@ import com.heliosapm.utils.system.ChangeNotifyingProperties;
  * <p><code>com.heliosapm.opentsdb.client.name.AgentName</code></p>
  */
 
-public class AgentName extends NotificationBroadcasterSupport  implements AgentNameMXBean {
+public class AgentName extends NotificationBroadcasterSupport  implements AgentNameMBean {
 	/** The singleton instance */
 	private static volatile AgentName instance = null;
 	/** The singleton instance ctor lock */
