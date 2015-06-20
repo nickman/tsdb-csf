@@ -5,6 +5,8 @@
 		tsdb.http.tsdb.url=http://localhost:8070		
 		tsdb.trace.stdout=true
 		tsdb.trace.stdout.json=true
+		tsdb.id.app=CalcService
+		tsdb.id.host=perf-test-calc-01
 	]]></sysprops>
 	<platform period="15" collectormbeans="true">
 		<includes>java.lang:type=*</includes>
@@ -12,7 +14,6 @@
 	</platform>
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
-		<server port="18012" iface="0.0.0.0" jmxdomain="jboss"/>
 	</jmxmp>
 	<lite-instrumentation>
 		<instr class="groovy.lang.Script" methods="evaluate"/>
