@@ -190,22 +190,22 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 					}					
 				}
 				compileGCTags(counters);
-				log.info("======================================");
+//				log.info("======================================");
 				for(Counter ctr: counters) {
 					String name = ctr.getName();
 					if(name.contains(".name")) continue;
 					int[] indx = extractNameIndexes(name);
 					if(indx.length>0) {
-						log.info("\t{} : {}", name, ctr.getValue());
+//						log.info("\t{} : {}", name, ctr.getValue());
 					}
 				}
-				log.info("======================================");
+//				log.info("======================================");
 				for(Counter ctr: counters) {
 					String name = ctr.getName();
 					if(name.contains(".name")) continue;
 					int[] indx = extractNameIndexes(name);
 					if(indx.length==0) {
-						log.info("\t{} : {}", name, ctr.getValue());
+//						log.info("\t{} : {}", name, ctr.getValue());
 					}
 				}
 				
@@ -331,7 +331,7 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 				citer.remove();
 				continue;
 			}
-			log.info("\t{}", ctr.getName());
+//			log.info("\t{}", ctr.getName());
 			final int[] indexes = extractNameIndexes(name);
 			final String indexKey = str(indexes);
 			if(indexes.length==0) {

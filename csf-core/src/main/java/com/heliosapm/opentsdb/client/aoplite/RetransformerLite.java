@@ -343,11 +343,11 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 		for(Method m: clazz.getDeclaredMethods()) {
 //			if(Modifier.isPrivate(m.getModifiers())) continue;
 			if(mNames.contains(m.getName())) {
-				methods.put(m.getName(), m);
+				methods.put(m.toGenericString(), m);
 			} else {
 				if(merge && existingInstrMethods!=null && !existingInstrMethods.isEmpty()) {
 					if(existingInstrMethods.contains(m.getName())) {
-						methods.put(m.getName(), m);
+						methods.put(m.toGenericString(), m);
 					}
 				}
 			}
@@ -368,7 +368,7 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 	            ctm.addLocalVariable("xxxstart", CtClass.longType);
 	            ctm.addLocalVariable("xxxelapsed", CtClass.longType);
 	            ctm.insertBefore("xxxstart = System.nanoTime();");
-	            ctm.insertAfter("xxxelapsed = System.nanoTime() - xxxstart; OTMetricCache.getInstance().getOTMetric(\"" + metricName + "\").trace(xxxelapsed);");            
+	            ctm.insertAfter("xxxelapsed = System.nanoTime() - xxxstart; System.out.println(\"Elapsed:\" + xxxelapsed); OTMetricCache.getInstance().getOTMetric(\"" + metricName + "\").trace(xxxelapsed);");            
 	            target.addMethod(ctm);
 			}
 			final byte[] instrumentedByteCode = target.toBytecode();
@@ -378,6 +378,35 @@ public class RetransformerLite extends StandardMBean implements RetransformerLit
 				log.debug("Saved transformed class [{}] to [{}]", target.getName(), byteCodeDir);
 			}
 			instrumentedClasses.put(clazz, methods.keySet());
+			final String internalName = b2i(clazz.getName());
+			final ClassFileTransformer instrumentor = new ClassFileTransformer() {				
+				@Override
+				public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
+						ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
+					if(internalName.equals(className)) {
+						return instrumentedByteCode;
+					}
+					cp.appendClassPath(new ByteArrayClassPath(i2b(className), classfileBuffer));
+					cp.appendClassPath(new LoaderClassPath(loader));
+					try {
+						CtClass ctclazz = cp.get(i2b(className));
+						if(ctclazz.subclassOf(target)) {
+							log.info("Subclass of target:" + className);
+							ctclazz.writeFile(byteCodeDir);
+						}
+						return classfileBuffer;
+					} catch (Exception ex) {
+						ex.printStackTrace(System.err);
+						return classfileBuffer;
+					}
+				}
+			};
+			try {
+				instrumentation.addTransformer(instrumentor, true);
+				instrumentation.retransformClasses(clazz);
+			} finally {
+				//instrumentation.removeTransformer(instrumentor);
+			}
 			return methods.size();
 			//ByteCapturingClassTransform transformer = new ByteCapturingClassTransform(clazz, instrumentedByteCode);
 		} catch (Exception ex) {
