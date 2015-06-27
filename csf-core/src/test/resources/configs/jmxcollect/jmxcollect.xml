@@ -1,0 +1,63 @@
+<csf-config domain="DefaultDomain">
+	<sysprops><![CDATA[
+		tsdb.http.compression.enabled=false
+		tsdb.http.tsdb.url=http://localhost:4242
+		tsdb.id.app=hbase
+		tsdb.trace.stdout=true
+		tsdb.trace.stdout.json=true
+	]]></sysprops>
+	<jmxmp>
+		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
+	</jmxmp>
+	<scripts>  <!-- types: transformer -->
+		<script id="" type="" src="">  <!-- in: collection context, out: Map<String, Number> where string is [metric]:kv1,kv2....kvn -->
+		
+		</script>
+	</scripts>
+	<queryexps>
+		<queryexp id="">
+	     <and>
+	         <gt>
+	             <attr v="age"/>
+	             <value v="5" t="int"/>         
+	         </gt>
+	         <match>
+	             <attr v="name"/>
+	             <value v="smith" t="string"/>
+	         </match>
+	    </and>    
+		</queryexp>
+	</queryexps>
+	<jmxcollect server="" period="" metric-prefix="" tags="">  <!-- period, mp and t can be respecified at any level -->
+		<collect pattern="" query="">
+		
+		</collect>
+	</jmxcollect>
+	
+	<!-- 
+		QueryExp exp = Query.and(
+			Query.gt(Query.attr("age"),Query.value(5)),
+            Query.match(Query.attr("name"), Query.value("Smith"))
+        );	
+	
+	 -->
+	 
+	
+	
+	
+	
+	
+	
+	<!-- 
+	<customjmx freq="5">
+		<mbeanserver domain="DefaultDomain" prefix="java.lang:">
+			<monitor objectName="type=Threading" freq="3">
+				<attributes include="" exclude="" numericsonly="true"/> 
+				<tracer include="" numericsonly="true" exclude="" dynamic="false" processor="">
+					$od{}.threading.$ak{}									
+				</tracer>
+			</monitor>
+		</mbeanserver>
+	</customjmx>
+	--> 
+</csf-config>
