@@ -1,3 +1,0 @@
-/target/
-/${sys:tsdb.logging.dir}/
-/dependency-reduced-pom.xml
