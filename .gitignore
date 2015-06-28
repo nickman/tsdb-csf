@@ -18,3 +18,10 @@ hs_err_pid*
 /target/
 /${sys:tsdb.logging.dir}/
 /dependency-reduced-pom.xml
+
+.settings/
+.classpath
+.project
+target/
+${sys:tsdb.logging.dir}/
+dependency-reduced-pom.xml
