@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import test.com.heliosapm.base.BaseTest;
@@ -43,6 +44,7 @@ import com.heliosapm.opentsdb.client.classloaders.ClassLoaderRepository;
  * <p><code>test.com.heliosapm.shorthand.ShorthandCompilerTestCases</code></p>
  */
 @SuppressWarnings("static-method")
+@Ignore
 public class ShorthandCompilerTestCase extends BaseTest {
 	
 	/**
