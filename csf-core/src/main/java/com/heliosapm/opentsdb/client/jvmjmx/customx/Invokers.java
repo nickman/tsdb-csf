@@ -548,9 +548,7 @@ public abstract class Invokers {
 		 */
 		@Override
 		public QueryExp invoke(final Node... xmlArgs) {
-			final Object ret = resolve(xmlArgs);
-			if(ret instanceof QueryExp) return (QueryExp)ret;
-			final Object[] exps = (Object[]) ret;
+			final Object[] exps = (Object[]) resolve(xmlArgs);
 			return Query.and((QueryExp)exps[0], (QueryExp)exps[1]);
 		}
 	}
@@ -571,7 +569,6 @@ public abstract class Invokers {
 		@Override
 		public QueryExp invoke(final Node... xmlArgs) {
 			final Object ret = resolve(xmlArgs);
-//			if(ret.getClass().getSimpleName().equals("NotQueryExp")) return (QueryExp) ret;
 			return Query.not((QueryExp)ret);
 		}
 	}
@@ -635,9 +632,7 @@ public abstract class Invokers {
 		 */
 		@Override
 		public QueryExp invoke(final Node... xmlArgs) {
-			final Object ret = resolve(xmlArgs);
-			if(ret instanceof QueryExp) return (QueryExp) ret;
-			final Object[] exps = (Object[]) ret;
+			final Object[] exps = (Object[]) resolve(xmlArgs);
 			return Query.or((QueryExp)exps[0], (QueryExp)exps[1]);
 		}
 	}

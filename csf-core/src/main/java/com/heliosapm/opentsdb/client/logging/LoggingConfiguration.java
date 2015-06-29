@@ -98,6 +98,7 @@ public class LoggingConfiguration {
 			synchronized(lock) {
 				if(instance==null) {
 					try {
+						final AgentName an = AgentName.getInstance();
 						final ClassLoader cl = Thread.currentThread().getContextClassLoader(); 
 						final InputStream is = cl.getResourceAsStream("log4j/tsdb-csf-log4j2.xml");
 						System.err.println("\n\t====================================================\n\n\tLoggingConfiguration CLASSLOADER: [" + cl + "]\n\tIS: [" + is + "]\n\t=====================================\n");

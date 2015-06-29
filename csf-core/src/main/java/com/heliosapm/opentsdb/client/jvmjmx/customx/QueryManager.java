@@ -58,7 +58,8 @@ public class QueryManager {
 	public static final String QUERY_COLLECTION_NAME = "queryexps";
 	
 	public static void main(String[] args) {
-		LoggingConfiguration.getInstance();
+		//LoggingConfiguration.getInstance();		
+		
 		final QueryManager qm = QueryManager.getInstance();
 		final Logger LOG = qm.log;
 		LOG.info("QueryManager Test");

@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="debug" name="TSDB-CSF-BOOT" packages="org.apache.logging.log4j.test">
   <Properties>
+  	<!-- 
     <Property name="filename">${sys:tsdb.logging.dir}/tsdb-csf-${sys:tsdb.logging.pid}-${sys:tsdb.logging.host}-boot-${sys:tsdb.logging.systime}.log</Property>
+    -->
+    <Property name="filename">${sys:java.io.tmpdir}/tsdb-csf.log</Property>
   </Properties>
   <ThresholdFilter level="info"/>
   <Appenders>
@@ -20,11 +23,11 @@
   </Appenders>
   <Loggers>
    <Root level="info">
-     <AppenderRef ref="STDOUT" level="trace"/>
-     <!-- 
+     <AppenderRef ref="STDOUT" level="trace"/>  
+     
      <AppenderRef ref="SYSLOG" level="trace"/>
      <AppenderRef ref="BootFile" level="trace"/>
-     -->
+     
    </Root>
  </Loggers>
 </Configuration>
