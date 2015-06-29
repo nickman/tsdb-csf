@@ -16,6 +16,7 @@
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import javax.management.AttributeValueExp;
@@ -25,7 +26,6 @@ import javax.management.StringValueExp;
 import javax.management.ValueExp;
 
 import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
 import com.heliosapm.utils.xml.XMLHelper;
 
@@ -72,7 +72,7 @@ public abstract class Invokers {
 		 */
 		@Override
 		public T eval(Map<String, String> attributes) {
-			throw new RuntimeException("QueryDecode type is not terminal so eval is not supported");
+			throw new RuntimeException("QueryDecode type is not terminal so eval from [" + this.getClass().getName() + "] with [" + attributes + "] is not supported");
 		}
 		
 		/**
@@ -102,13 +102,8 @@ public abstract class Invokers {
 		 * @return an array of child nodes
 		 */
 		public static Node[] toArray(final Node node) {
-			final NodeList nl = node.getChildNodes();
-			final int size = nl.getLength();
-			final Node[] nodes = new Node[size];
-			for(int i = 0; i < size; i++) {
-				nodes[i] = nl.item(i);
-			}
-			return nodes;
+			final List<Node> list = XMLHelper.getElementChildNodes(node);			
+			return list.toArray(new Node[list.size()]);
 		}
 
 	}
@@ -549,11 +544,13 @@ public abstract class Invokers {
 	public static class AndInvoker extends AbstractQueryDecodeInvoker<QueryExp> {
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.qinvokers.AbstractQueryDecodeInvoker#invoke(org.w3c.dom.Node[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.AbstractQueryDecodeInvoker#invoke(org.w3c.dom.Node[])
 		 */
 		@Override
 		public QueryExp invoke(final Node... xmlArgs) {
-			final Object[] exps = (Object[]) resolve(xmlArgs);
+			final Object ret = resolve(xmlArgs);
+			if(ret instanceof QueryExp) return (QueryExp)ret;
+			final Object[] exps = (Object[]) ret;
 			return Query.and((QueryExp)exps[0], (QueryExp)exps[1]);
 		}
 	}
@@ -569,11 +566,13 @@ public abstract class Invokers {
 	public static class NotInvoker extends AbstractQueryDecodeInvoker<QueryExp> {
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.qinvokers.AbstractQueryDecodeInvoker#invoke(org.w3c.dom.Node[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.AbstractQueryDecodeInvoker#invoke(org.w3c.dom.Node[])
 		 */
 		@Override
 		public QueryExp invoke(final Node... xmlArgs) {
-			return Query.not((QueryExp)resolve(xmlArgs));
+			final Object ret = resolve(xmlArgs);
+//			if(ret.getClass().getSimpleName().equals("NotQueryExp")) return (QueryExp) ret;
+			return Query.not((QueryExp)ret);
 		}
 	}
 	
@@ -589,22 +588,37 @@ public abstract class Invokers {
 	public static class AttrInvoker extends AbstractQueryDecodeInvoker<AttributeValueExp> {
 		/** Static re-usable instance */
 		public static final AttrInvoker INSTANCE = new AttrInvoker();
+//		/**
+//		 * {@inheritDoc}
+//		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.qinvokers.AbstractQueryDecodeInvoker#invoke(org.w3c.dom.Node[])
+//		 */
+//		@Override
+//		public AttributeValueExp invoke(final Node... xmlArgs) {
+//			final Object exp = resolve(xmlArgs);
+//			if(exp.getClass().isArray()) {
+//				return Query.attr((String)exp);
+//			}
+//			final Object[] exps = (Object[])exp;
+//			return Query.attr((String)exps[0], (String)exps[1]);
+//		}
+//	}
+		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.qinvokers.AbstractQueryDecodeInvoker#invoke(org.w3c.dom.Node[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.AbstractQueryDecodeInvoker#eval(java.util.Map)
 		 */
 		@Override
-		public AttributeValueExp invoke(final Node... xmlArgs) {
-			final Object exp = resolve(xmlArgs);
-			if(exp.getClass().isArray()) {
-				return Query.attr((String)exp);
-			}
-			final Object[] exps = (Object[])exp;
-			return Query.attr((String)exps[0], (String)exps[1]);
+		public AttributeValueExp eval(Map<String, String> attributes) {
+			final String className = attributes.get("c");
+			final String name = attributes.get("v");
+			if(name==null) throw new RuntimeException("The 'name' attribute with a key of 'v' was null");
+			if(className==null || className.trim().isEmpty()) {
+				return Query.attr(name);
+			} 
+			return Query.attr(className.trim(), name);
 		}
+	
 	}
-	
-	
 	
 	/**
 	 * <p>Title: OrInvoker</p>
@@ -617,11 +631,13 @@ public abstract class Invokers {
 	public static class OrInvoker extends AbstractQueryDecodeInvoker<QueryExp> {
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.qinvokers.AbstractQueryDecodeInvoker#invoke(org.w3c.dom.Node[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.AbstractQueryDecodeInvoker#invoke(org.w3c.dom.Node[])
 		 */
 		@Override
 		public QueryExp invoke(final Node... xmlArgs) {
-			final Object[] exps = (Object[]) resolve(xmlArgs);
+			final Object ret = resolve(xmlArgs);
+			if(ret instanceof QueryExp) return (QueryExp) ret;
+			final Object[] exps = (Object[]) ret;
 			return Query.or((QueryExp)exps[0], (QueryExp)exps[1]);
 		}
 	}

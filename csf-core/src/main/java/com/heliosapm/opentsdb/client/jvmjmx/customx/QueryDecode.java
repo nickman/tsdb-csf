@@ -31,6 +31,7 @@ import org.w3c.dom.Node;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.AndInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.AnySubstringInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.AttrInvoker;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.OrInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.BetweenInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.ClassAttrInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.DivInvoker;
@@ -46,7 +47,6 @@ import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.LtInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.MatchInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.MinusInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.NotInvoker;
-import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.OrInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.PlusInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.TimesInvoker;
 import com.heliosapm.opentsdb.client.jvmjmx.customx.Invokers.ValueExpInvoker;
@@ -145,7 +145,17 @@ public enum QueryDecode implements QueryDecodeInvoker<Object> {
 	/** The parameter types */
 	private final Class<?>[] types;
 	/** The decoder */
-	private final QueryDecodeInvoker<? extends Object> decoder;
+	private final QueryDecodeInvoker<? extends Object> decoder; 
+	
+	/**
+	 * Returns the QueryDecode represented by the passed XML node
+	 * @param xmlNode The xml node 
+	 * @return the QueryDecode or null if it was not matched
+	 */
+	public static QueryDecode getNodeType(final Node xmlNode) {
+		if(xmlNode==null) throw new IllegalArgumentException("The passed node was null");
+		return forNameOrNull(xmlNode.getNodeName());
+	}
 	
 	/**
 	 * Returns the QueryDecode for the passed name

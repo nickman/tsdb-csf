@@ -20,9 +20,11 @@
   </Appenders>
   <Loggers>
    <Root level="info">
-     <AppenderRef ref="STDOUT" level="info"/>
+     <AppenderRef ref="STDOUT" level="trace"/>
+     <!-- 
      <AppenderRef ref="SYSLOG" level="trace"/>
      <AppenderRef ref="BootFile" level="trace"/>
+     -->
    </Root>
  </Loggers>
 </Configuration>
