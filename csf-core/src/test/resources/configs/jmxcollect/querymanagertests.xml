@@ -1,0 +1,26 @@
+<queryexps>
+	<!--									-->
+	<and id="SmithsOlderThan30">
+		<gt>
+			<attr v="Age"/>
+			<!-- c for class -->
+			<value v="30" t="int"/>
+		</gt>
+		<eq>
+			<attr v="LastName"/>
+			<value v="Smith" t="string"/>
+		</eq>
+	</and>
+	<!--									-->	
+	<anySubstring id="LastNamesWithIt">
+		<attr v="LastName"/>
+		<value v="it" t="string"/>
+	</anySubstring>
+	<!--									-->	
+	<between id="AgesBetween27and33">
+		<attr v="Age"/>
+		<value v="27" t="int"/>
+		<value v="33" t="int"/>		
+	</between>
+	
+</queryexps>

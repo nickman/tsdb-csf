@@ -182,12 +182,12 @@ public class QueryManager {
 				if(q.isTerminal()) {
 					final ValueExp v = (ValueExp)q.eval(XMLHelper.getAttributeMap(node));
 					log.info("Compiled ValueExp: [{} / {}]", v.getClass().getSimpleName(), v);
-					valueExpCache.put(id, v);					
+					valueExpCache.put(id.trim().toLowerCase(), v);					
 					vcnt++;
 				} else {
 					final QueryExp query = (QueryExp)q.invoke(XMLHelper.getElementChildNodes(node).toArray(new Node[0]));
-					log.info("Compiled QueryExp: [{} / {}]", query.getClass().getSimpleName(), query);
-					queryExpCache.put(id, query);
+					log.info("Compiled QueryExp: [{}] : [{} / {}]", id, query.getClass().getSimpleName(), query);
+					queryExpCache.put(id.trim().toLowerCase(), query);
 					qcnt++;
 				}
 			}
