@@ -27,6 +27,7 @@
         <compiler-target.version>1.6</compiler-target.version>        
         <metrics.version>3.1.0</metrics.version>  <!-- 4.0.0-SNAPSHOT -->
         <ning.version>1.8.14</ning.version>
+        <quartz.version>2.1.5</quartz.version>
         <reflections.version>0.9.9-RC2</reflections.version>
         <junit.version>4.12</junit.version>
         <json.version>20131018</json.version>
@@ -158,6 +159,15 @@
     		  <artifactId>log4j-slf4j-impl</artifactId>
     		  <version>${log4j.version}</version>
     		</dependency>
+
+            <!-- Quartz scheduler -->
+
+            <dependency>
+              <groupId>org.quartz-scheduler</groupId>
+              <artifactId>quartz</artifactId>
+              <version>${quartz.version}</version>
+            </dependency>
+            
     		
             <!--
                 =============================

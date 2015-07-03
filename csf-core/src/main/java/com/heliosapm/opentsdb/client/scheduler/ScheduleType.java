@@ -13,30 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.jvmjmx.customx;
+package com.heliosapm.opentsdb.client.scheduler;
 
 /**
- * <p>Title: Tokener</p>
- * <p>Description: Enumerates the recognized scripting tokens and 
- * parses and resolves expression containing these tokens.</p> 
+ * <p>Title: ScheduleType</p>
+ * <p>Description: Enumerates the scheduling types</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.Tokener</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.scheduler.ScheduleType</code></p>
  */
 
-public enum Tokener {
-	/** A named attribute value */
-	ATTR,
-	/** A named operation return value */
-	OP,
-	/** The ObjectName domain or a subscript thereof */
-	OND,
-	/** An ObjectName key property value */
-	ONK,
-	/** A named script return value */
-	SCR,
-	/** The MBean description or a subscript thereof */
-	MBD,
-	/** An MBean descriptor value */
-	DESCR;
+public enum ScheduleType {
+	/** Fixed rate scheduling */
+	FIXED_RATE,
+	/** Fixed delay scheduling */
+	FIXED_DELAY,
+	/** Cron scheduling */
+	CRON,
+	/** No Schedule */
+	NONE;
 }

@@ -16,27 +16,22 @@
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
 /**
- * <p>Title: Tokener</p>
- * <p>Description: Enumerates the recognized scripting tokens and 
- * parses and resolves expression containing these tokens.</p> 
+ * <p>Title: ScheduledMonitor</p>
+ * <p>Description: A monitor that periodically executes custom JMX data collection definitions
+ * and traces the results</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.Tokener</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.ScheduledMonitor</code></p>
  */
 
-public enum Tokener {
-	/** A named attribute value */
-	ATTR,
-	/** A named operation return value */
-	OP,
-	/** The ObjectName domain or a subscript thereof */
-	OND,
-	/** An ObjectName key property value */
-	ONK,
-	/** A named script return value */
-	SCR,
-	/** The MBean description or a subscript thereof */
-	MBD,
-	/** An MBean descriptor value */
-	DESCR;
+public class ScheduledMonitor {
+	/** The collection period expression. Defaults to <b><code>15s</code></b>. */
+	protected String period = "15s";
+	/**
+	 * Creates a new ScheduledMonitor
+	 */
+	public ScheduledMonitor() {
+		// TODO Auto-generated constructor stub
+	}
+
 }
