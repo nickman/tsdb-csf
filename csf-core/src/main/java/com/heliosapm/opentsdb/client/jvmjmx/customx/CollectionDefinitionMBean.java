@@ -15,21 +15,14 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
-
 /**
- * <p>Title: TokenResolver</p>
- * <p>Description: Defines a class that accepts a parsed token expression and a monitor context and returns the resolved value</p> 
+ * <p>Title: CollectionDefinitionMBean</p>
+ * <p>Description: The JMX MBean interface for {@link CollectionDefinition} instances</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolver</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionDefinitionMBean</code></p>
  */
 
-public interface TokenResolver {
-	/**
-	 * Resolves the passed token instance values
-	 * @param dctx The expression data context
-	 * @param args The expression tokener's arguments expression
-	 * @return the resolved value
-	 */
-	public CharSequence resolve(CollectionDefinition dctx, CharSequence args);
+public interface CollectionDefinitionMBean {
+
 }

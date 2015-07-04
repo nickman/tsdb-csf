@@ -48,7 +48,13 @@ public enum MBeanFeature implements MBeanFeatureInfoGetter {
 	/** Enum for MBean Feature Info Descriptors */
 	DESCRIPTOR{@Override public MBeanFeatureInfo[] getFeatures(final MBeanInfo info) {return DescriptorFeatureInfo.build(info);}};
 	
-	
+	/**
+	 * Returns an array of the features needed for collection
+	 * @return an array of features
+	 */
+	public static MBeanFeature[] getCollectionFeatures() {
+		return new MBeanFeature[]{ATTRIBUTE, DESCRIPTOR};
+	}
 	
 	/**
 	 * <p>Title: DescriptorFeatureInfo</p>

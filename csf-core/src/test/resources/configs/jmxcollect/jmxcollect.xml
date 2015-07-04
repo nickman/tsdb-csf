@@ -14,48 +14,24 @@
 		
 		</script>
 	</scripts>
-	<queryexps>
-	     <and id="SmithsOlderThan5">
-	         <gt>
-	             <attr v="age"/>  <!-- c for class -->
-	             <value v="5" t="int"/>         
-	         </gt>
-	         <match>
-	             <attr v="name"/>
-	             <value v="smith" t="string"/>
-	         </match>
-	    </and>
-       <or id="SmithOrOlderThan5">
-           <gt>
-               <attr v="age"/>  <!-- c for class -->
-               <value v="5" t="int"/>         
-           </gt>
-           <match>
-               <attr v="name"/>
-               <value v="smith" t="string"/>
-           </match>
-      </or>    
-       <not id="NotSmith">
-           <match>
-               <attr v="name"/>
-               <value v="smith" t="string"/>
-           </match>
-      </not>    
-	        
-	</queryexps>
-	<jmxcollect server="" period="" metric-prefix="" tags="">  <!-- period, mp and t can be respecified at any level -->
-		<collect pattern="" query="">
+	<customjmx>
+		<queryexps>
+		</queryexps>
+		<mbeanserver server="" period="" metric-prefix="" metric-suffix="" tags="">
+			<collect id="" pattern="" query="">  <!-- optionally override period="" metric-prefix="" metric-suffix="" tags="" -->
+			
+			</collect>
+		</mbeanserver>
 		
-		</collect>
-	</jmxcollect>
-	
-	<!-- 
-		QueryExp exp = Query.and(
-			Query.gt(Query.attr("age"),Query.value(5)),
-            Query.match(Query.attr("name"), Query.value("Smith"))
-        );	
-	
-	 -->
+		
+		
+		
+		<jmxcollect server="" period="" metric-prefix="" tags="">  <!-- period, mp and t can be respecified at any level -->
+			<collect pattern="" query="">
+			
+			</collect>
+		</jmxcollect>
+	</customjmx>	
 	 
 	
 	
