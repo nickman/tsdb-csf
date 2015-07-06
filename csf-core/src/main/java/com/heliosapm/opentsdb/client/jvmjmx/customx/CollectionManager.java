@@ -33,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Node;
 
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
+import com.heliosapm.opentsdb.client.scripts.ScriptManager;
 import com.heliosapm.utils.io.CloseableService;
 import com.heliosapm.utils.jmx.JMXHelper;
 import com.heliosapm.utils.jmx.JMXManagedScheduler;
@@ -65,6 +66,12 @@ public class CollectionManager implements NotificationListener, CollectionManage
 	/** The collection executor */
 	protected final JMXManagedThreadPool executor;
 	
+	/** The script manager */
+	protected final ScriptManager sm;
+	/** The JMX query manager */ 
+	protected final QueryManager qm;
+
+	
 	/** The CollectionManager JMX ObjectName  */
 	public static final ObjectName OBJECT_NAME = JMXHelper.objectName(CollectionManager.class);
 	/** The CollectionManager's scheduler JMX ObjectName  */
@@ -96,11 +103,19 @@ public class CollectionManager implements NotificationListener, CollectionManage
 		scheduler = new JMXManagedScheduler(SCHEDULER_OBJECT_NAME, "JMXCollectionScheduler", 1, false);
 		JMXHelper.registerAutoCloseMBean(scheduler, SCHEDULER_OBJECT_NAME, "stop");
 		executor = new JMXManagedThreadPool(EXECUTOR_OBJECT_NAME, "JMXCollectionExecutor", 2, 4, 128, 60000, 100, 99, false);
-		JMXHelper.registerAutoCloseMBean(executor, EXECUTOR_OBJECT_NAME, "stop");		
+		executor.prestartAllCoreThreads();
+		JMXHelper.registerAutoCloseMBean(executor, EXECUTOR_OBJECT_NAME, "stop");
+		JMXHelper.registerAutoCloseMBean(this, OBJECT_NAME, "stop");
+		sm = ScriptManager.getInstance();
+		qm = QueryManager.getInstance();
 	}
 	
 /*
 	<customjmx>
+		<scripts>
+			<script name="foo" src="URL" ext="js" classpath="">
+		</scripts>
+	
 		<queryexps>
 		</queryexps>
 		<mbeanserver server="" period="" metric-prefix="" metric-suffix="" tags="">
@@ -110,26 +125,48 @@ public class CollectionManager implements NotificationListener, CollectionManage
 		</mbeanserver>
  	
  */
-	
 	/**
 	 * Loads an XML collection configuration
 	 * @param config The configuration node
 	 */
 	public void load(final Node config) {
 		if(config==null) throw new IllegalArgumentException("The passed configuration node was null");
-		// load queries first
-		final QueryManager qm = QueryManager.getInstance();
-		int cnt = 0;
+		executor.execute(new Runnable(){
+			@Override
+			public void run() {
+				log.info("Loading CollectionManager...");
+				final long start = System.currentTimeMillis();
+				_load(config);
+				final long elapsed = System.currentTimeMillis() - start;
+				log.info("CollectionManager loaded in [{}] ms.", elapsed);
+				
+			}
+		});
+	}
+
+	
+	/**
+	 * Loads an XML collection configuration
+	 * @param config The configuration node
+	 */
+	private void _load(final Node config) {
+		int scnt = 0;
+		for(Node snode : XMLHelper.getChildNodesByName(config, "scripts", false)) {
+			scnt += sm.load(snode);
+		}
+		log.info("Loaded [{}] Scripts", scnt);
+		
+		int qcnt = 0;
 		for(Node qnode : XMLHelper.getChildNodesByName(config, "queryexps", false)) {
 			try { 
-				cnt += qm.load(qnode);
+				qcnt += qm.load(qnode);
 			} catch (Exception ex) {
 				log.error("Failed to load queries from QueryExp node [{}]", XMLHelper.renderNode(qnode), ex);
 			}
 		}
-		log.info("Loaded [{}] QueryExp expressions", cnt);
+		log.info("Loaded [{}] QueryExp expressions", qcnt);
 		// load collections
-		cnt = 0;
+		qcnt = 0;
 		for(Node mnode : XMLHelper.getChildNodesByName(config, "mbeanserver", false)) {
 			JMXServerDefinition def = new JMXServerDefinition();
 			try {
@@ -171,6 +208,13 @@ public class CollectionManager implements NotificationListener, CollectionManage
 				log.error("Failed to create mbeanserver configuration [{}]", XMLHelper.renderNode(mnode), ex);				
 			}
 		}
+	}
+	
+	/**
+	 * Stops this service, deallocating all resources
+	 */
+	public void stop() {
+		// TODO
 	}
 	
 	/**

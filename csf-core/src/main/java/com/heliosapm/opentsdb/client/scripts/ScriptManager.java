@@ -90,6 +90,7 @@ public class ScriptManager {
 	 * @param objectName The compiled object name if getting an interface instance from a scripted object, null otherwise
 	 * @param clazz The type of the interface to return an implementation of 
 	 * @return the interface implementation
+	 * @param <T> The assumed type of the returned object
 	 */
 	public <T> T getInterface(final String scriptName, final String objectName, Class<T> clazz) {
 		if(scriptName==null || scriptName.trim().isEmpty()) throw new IllegalArgumentException("The passed script name was null or empty"); 
@@ -99,10 +100,9 @@ public class ScriptManager {
 		if(objectName != null) {
 			Object compiledObject = ((ScriptEngine)se).get(objectName.trim());
 			if(compiledObject==null) throw new RuntimeException("No compiled object named [" + compiledObject + "] found in script [" + scriptName + "]");
-			return ((Invocable)se).getInterface(compiledObject, clazz);
-		} else {
-			return ((Invocable)se).getInterface(clazz);
+			return se.getInterface(compiledObject, clazz);
 		}
+		return se.getInterface(clazz);
 	}
 	
 	/**
@@ -110,6 +110,7 @@ public class ScriptManager {
 	 * @param scriptName The name of the registered invocable script
 	 * @param clazz The type of the interface to return an implementation of 
 	 * @return the interface implementation
+	 * @param <T> The assumed type of the returned object
 	 */
 	public <T> T getInterface(final String scriptName, Class<T> clazz) {		
 		return getInterface(scriptName, null, clazz);
@@ -245,17 +246,30 @@ public class ScriptManager {
 	 * Loads an agent XML configuration node
 	 * @param configNode A script config node
 	 * <pre><script name="foo" src="URL" ext="js" classpath=""></pre>
+	 * @return The number of scripts that were loaded
 	 */
-	public void loadConfig(final Node configNode) {
-		if(configNode==null) return;
-		for(Node scriptNode: XMLHelper.getChildNodesByName(configNode, "script", false)) {
+	public int load(final Node configNode) {
+		int cnt = 0;
+		if(configNode==null) return cnt;
+		if("script".equals(configNode.getNodeName())) {
 			try {
-				installScript(scriptNode);
+				installScript(configNode);
+				cnt++;
 			} catch (Exception ex) {
-				log.warn("Failed to prepare script for node [{}]", XMLHelper.renderNode(scriptNode), ex);
-				continue;
-			}
+				log.warn("Failed to prepare script for node [{}]", XMLHelper.renderNode(configNode), ex);				
+			}			
+		} else if("scripts".equals(configNode.getNodeName())) {
+			for(Node scriptNode: XMLHelper.getChildNodesByName(configNode, "script", false)) {
+				try {
+					installScript(scriptNode);
+					cnt++;
+				} catch (Exception ex) {
+					log.warn("Failed to prepare script for node [{}]", XMLHelper.renderNode(scriptNode), ex);
+					continue;
+				}
+			}						
 		}
+		return cnt;
 	}
 	
 	/**

@@ -15,15 +15,22 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
+import static com.heliosapm.opentsdb.client.jvmjmx.customx.CollectorStatus.*;
+import static com.heliosapm.opentsdb.client.logging.LogLevel.INFO;
+
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.management.MBeanFeatureInfo;
 import javax.management.MBeanInfo;
@@ -39,9 +46,11 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
 
 import com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionManager.JMXServerDefinition;
+import com.heliosapm.opentsdb.client.logging.LogLevel;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.utils.jmx.JMXHelper;
 import com.heliosapm.utils.lang.StringHelper;
+import com.heliosapm.utils.unsafe.collections.ConcurrentLongSlidingWindow;
 import com.heliosapm.utils.xml.XMLHelper;
 
 /**
@@ -71,15 +80,46 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 	protected ObjectName targetObjectName = null;
 	/** The JMX Query further specifying which MBeans to collect from */
 	protected QueryExp query = null;
+	/** The attribute names to retrieve from each polled MBean */
+	protected final Set<String> polledAttributeNames = new HashSet<String>();
 	/** The ObjectNames of known MBeans so far with the MBeanInfo for each */
 	protected ConcurrentHashMap<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>> knownMBeans = new ConcurrentHashMap<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>>();
 	/** The base tags to apply to all metrics traced by these collections */
 	protected final Map<String, String> baseTags = Collections.synchronizedMap(new TreeMap<String, String>());	
-	/** Indicates if a collection is currently running */
-	protected final AtomicBoolean running = new AtomicBoolean(false);
-	/** The last collected attribute values, keyed by the composite attribute name within a map keyed by ObjectName */
-	protected final Map<ObjectName, Map<String, Object>> attributeValues = new LinkedHashMap<ObjectName, Map<String, Object>>();
 	
+	
+	/** The status of this CollectionDefinition */
+	protected final AtomicReference<CollectorStatus> status = new AtomicReference<CollectorStatus>(CREATED);
+	/** The logging level of this CollectionDefinition */
+	protected final AtomicReference<LogLevel> logLevel = new AtomicReference<LogLevel>(INFO);
+
+	
+	/** The last collected attribute values, keyed by the composite attribute name within a map keyed by ObjectName */
+	protected final Map<ObjectName, Map<String, Object>> attributeValues = new LinkedHashMap<ObjectName, Map<String, Object>>();	
+	/** The cummulative count of successful collections */
+	private final AtomicLong successfulCollections = new AtomicLong(0L);
+	/** The count of consecutive successful collections */
+	private final AtomicLong consecutiveCollections = new AtomicLong(0L);
+	/** The cummulative count of failed collections */
+	private final AtomicLong failures = new AtomicLong(0L);
+	/** The count of consecutive failed collections */
+	private final AtomicLong consecutiveFailures = new AtomicLong(0L);
+	/** The timestamp of the last successful collection */
+	private final AtomicLong lastCollectionDate = new AtomicLong(0L);
+	/** The timestamp of the last failed collection */
+	private final AtomicLong lastFailedDate = new AtomicLong(0L);
+	/** A sliding window of elapsed collection times */
+	private final ConcurrentLongSlidingWindow collectionTimes = new ConcurrentLongSlidingWindow(100);
+	
+/*
+			<collect id="" pattern="" query="" attrs="">  <!-- optionally override period="" metric-prefix="" metric-suffix="" tags="" -->
+			
+			</collect>
+	
+ */
+	
+	
+
 	/** The MBeanServerNotification filter */
 	private static final NotificationFilterSupport NOTIF_FILTER = new NotificationFilterSupport();
 	
@@ -111,6 +151,9 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 			} else {
 				this.baseTags.putAll(tmpTags);
 			}				
+		} else if(XMLHelper.hasAttribute(jmxCollection, "atags")) {
+			this.baseTags.putAll(sd.getBaseTags());
+			this.baseTags.putAll(StringHelper.splitKeyValues(XMLHelper.getAttributeByName(jmxCollection, "atags", "")));			
 		}
 		collectionPeriod = XMLHelper.getAttributeByName(jmxCollection, "period", sd.getCollectionPeriod());
 		this.metricPrefix = XMLHelper.getAttributeByName(jmxCollection, "metric-prefix", sd.getMetricPrefix());
@@ -132,7 +175,12 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 			}
 		}
 		
-		
+		for(ObjectName on: this.server.queryNames(targetObjectName, query)) {
+			final Set<String> attributeNames = ingest(on);
+			if(attributeNames!=null && !attributeNames.isEmpty()) {
+				polledAttributeNames.addAll(attributeNames);
+			}
+		}
 		
 	}
 	
@@ -143,21 +191,48 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 	 */
 	@Override
 	public void run() {		
-		if(running.compareAndSet(false, true)) {
+		if(status.compareAndSet(SCHEDULED, COLLECTING)) {
 			try {
-				// collect
+				for(final ObjectName on: server.queryNames(targetObjectName, query)) {
+					final Map<String, Object> attrMap = JMXHelper.getAttributes(on, server, polledAttributeNames.toArray(new String[polledAttributeNames.size()]));
+					log.info("AttrMap: [{}]", attrMap);
+					for(Map.Entry<String, Object> entry: attrMap.entrySet()) {
+						focus(server, on, entry.getKey(), entry.getValue());
+					}
+				}
 				
+			} catch (Exception ex) {
+				log.warn("Collection failed", ex);
 			} finally {
-				running.compareAndSet(true, false);
+				status.set(SCHEDULED);
 			}
+		} else {
+			log.warn("CollectionDefinition skipped. Status was not [{}], but was [{}]", SCHEDULED, status.get());
 		}
+		
 	}
+	
+	/**
+	 * Sets the focus of the data context
+	 * @param rmbs The mbean server 
+	 * @param objectName The attribute's parent ObjectName
+	 * @param attrMap The attribute map of value keyed by the attribute name
+	 * @return this data context
+	 */
+	public CollectionDefinition focus(final RuntimeMBeanServerConnection rmbs, final ObjectName objectName, final Map<String, Object> attrMap) {
+		
+		return this;
+	}
+	
+	
 	
 	/**
 	 * Ingests and indexes the MBeanInfo for the MBean with the passed objectName
 	 * @param actualTarget The objectname of the MBean to ingest
+	 * @return The attribute names
 	 */
-	protected void ingest(final ObjectName actualTarget) {
+	protected Set<String> ingest(final ObjectName actualTarget) {
+		Set<String> attributeNames = Collections.emptySet();
 		if(actualTarget!=null && !knownMBeans.containsKey(actualTarget)) {
 			final MBeanInfo minfo = server.getMBeanInfo(actualTarget);
 			final Map<MBeanFeature, Map<String, MBeanFeatureInfo>> fmap = new EnumMap<MBeanFeature, Map<String, MBeanFeatureInfo>>(MBeanFeature.class);
@@ -169,97 +244,14 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 				for(MBeanFeatureInfo f: features) {
 					f2Map.put(f.getName(), f);
 				}
+				if(mbf==MBeanFeature.ATTRIBUTE) {
+					attributeNames = f2Map.keySet();
+				}
 			}
 		}
+		return attributeNames;
 	}
 	
-//	/**
-//	 * Returns the focused ObjectName, which may be a wildcard
-//	 * @return the focused ObjectName
-//	 */
-//	public ObjectName focusedObjectName();
-//	
-//	/**
-//	 * Returns the focused MBeanServer
-//	 * @return the focused MBeanServer
-//	 */
-//	public RuntimeMBeanServerConnection focusedMBeanServer();
-//	
-//	/**
-//	 * Returns a map of values keyed by the MBean attribute name, within a map keyed by the ObjectName of the MBean
-//	 * @return the attribute value map
-//	 */
-//	public Map<ObjectName, Map<String, Object>> attributeValues();
-//	
-//	/**
-//	 * Returns a map of MBeanFeatureInfos keyed by the feature name, within a map keyed by the MBeanFeature enum member, 
-//	 * within a map keyed by the ObjectName of the MBean 
-//	 * @return the meta data map
-//	 */
-//	public Map<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>> metaData();
-//	
-//	/**
-//	 * Returns the configured key pattern includer (never null)
-//	 * @return the configured key pattern includer
-//	 */
-//	public Pattern keyIncludePattern();
-//	
-//	/**
-//	 * Returns the configured key pattern excluder (can be null)
-//	 * @return the configured key pattern excluder
-//	 */
-//	public Pattern keyExcludePattern();
-//	
-//	/**
-//	 * Returns the delimeter for the key pattern
-//	 * @return the delimeter for the key pattern
-//	 */
-//	public String getKeyDelim();
-//	
-//	/**
-//	 * Returns the current tags
-//	 * @return the current tags
-//	 */
-//	public Map<String, String> tags();
-//	
-//	/**
-//	 * Adds a tag and returns the current tags. Ignored if key is already present.
-//	 * @param key The tag key
-//	 * @param value The tag value
-//	 * @return the current tags
-//	 */
-//	public Map<String, String> tag(String key, String value);
-//	
-//	/**
-//	 * Adds a tag and returns the current tags. Overwrites if key is already present.
-//	 * @param key The tag key
-//	 * @param value The tag value
-//	 * @return the current tags
-//	 */
-//	public Map<String, String> forceTag(String key, String value);
-//	
-//	/**
-//	 * Sets the focus of the data context
-//	 * @param rmbs The mbean server 
-//	 * @param objectName The attribute's parent ObjectName
-//	 * @param attributeName The attribute name
-//	 * @param attributeValue The attribute value
-//	 * @return this data context
-//	 */
-//	public CollectionDefinition focus(final RuntimeMBeanServerConnection rmbs, final ObjectName objectName, final String attributeName, final Object attributeValue);
-//	
-//	/**
-//	 * Returns the focused attribute name
-//	 * @return the focused attribute name
-//	 */
-//	public String focusedAttributeName();
-//	
-//	/**
-//	 * Returns the focused attribute value
-//	 * @return the focused attribute value
-//	 */
-//	public Object focusedAttributeValue();
-//
 
 	/**
 	 * {@inheritDoc}
