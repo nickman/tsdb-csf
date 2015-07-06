@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.management.MBeanServerConnection;
 import javax.management.Notification;
 import javax.management.NotificationListener;
+import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
@@ -32,7 +33,10 @@ import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Node;
 
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
+import com.heliosapm.utils.io.CloseableService;
 import com.heliosapm.utils.jmx.JMXHelper;
+import com.heliosapm.utils.jmx.JMXManagedScheduler;
+import com.heliosapm.utils.jmx.JMXManagedThreadPool;
 import com.heliosapm.utils.jmx.notifcations.ConnectionNotification;
 import com.heliosapm.utils.lang.StringHelper;
 import com.heliosapm.utils.xml.XMLHelper;
@@ -45,7 +49,7 @@ import com.heliosapm.utils.xml.XMLHelper;
  * <p><code>configs.jmxcollect.CollectionManager</code></p>
  */
 
-public class CollectionManager implements NotificationListener {
+public class CollectionManager implements NotificationListener, CollectionManagerMBean {
 	/** The singleton instance */
 	private static volatile CollectionManager instance = null;
 	/** The singleton instance ctor lock */
@@ -54,12 +58,21 @@ public class CollectionManager implements NotificationListener {
 	/** Instance logger */
 	private final Logger log = LogManager.getLogger(getClass());
 	
-	/** A map of connectors keyed by the configured server name */
-	final Map<String, JMXConnector> connectors = new ConcurrentHashMap<String, JMXConnector>();
-	/** A map of MBeanServers keyed by the configured server name */
-	final Map<String, MBeanServerConnection> mbeanServers = new ConcurrentHashMap<String, MBeanServerConnection>();
-	
+	/** A map of server definitions keyed by the server name */
 	final Map<String, JMXServerDefinition> serverDefinitions = new ConcurrentHashMap<String, JMXServerDefinition>();
+	/** The collection scheduler */
+	protected final JMXManagedScheduler scheduler;
+	/** The collection executor */
+	protected final JMXManagedThreadPool executor;
+	
+	/** The CollectionManager JMX ObjectName  */
+	public static final ObjectName OBJECT_NAME = JMXHelper.objectName(CollectionManager.class);
+	/** The CollectionManager's scheduler JMX ObjectName  */
+	public static final ObjectName SCHEDULER_OBJECT_NAME = JMXHelper.objectName(OBJECT_NAME + ",threadpool=Scheduler");
+	/** The CollectionManager's executor JMX ObjectName  */
+	public static final ObjectName EXECUTOR_OBJECT_NAME = JMXHelper.objectName(OBJECT_NAME + ",threadpool=Executor");
+
+	
 
 	/**
 	 * Acquires the CollectionManager singleton instance
@@ -80,6 +93,10 @@ public class CollectionManager implements NotificationListener {
 	 * Creates a new CollectionManager
 	 */
 	private CollectionManager() {
+		scheduler = new JMXManagedScheduler(SCHEDULER_OBJECT_NAME, "JMXCollectionScheduler", 1, false);
+		JMXHelper.registerAutoCloseMBean(scheduler, SCHEDULER_OBJECT_NAME, "stop");
+		executor = new JMXManagedThreadPool(EXECUTOR_OBJECT_NAME, "JMXCollectionExecutor", 2, 4, 128, 60000, 100, 99, false);
+		JMXHelper.registerAutoCloseMBean(executor, EXECUTOR_OBJECT_NAME, "stop");		
 	}
 	
 /*
@@ -128,14 +145,11 @@ public class CollectionManager implements NotificationListener {
 					final JMXServiceURL surl = new JMXServiceURL(def.server);
 					def.connector = JMXConnectorFactory.newJMXConnector(surl, env);
 					def.connector.addConnectionNotificationListener(this, null, def.server);
-					connectors.put(def.server, def.connector);
 					log.info("Acquired connector for [{}]", def.server);
 					final MBeanServerConnection msc = def.connector.getMBeanServerConnection();
-					mbeanServers.put(def.server, msc);
 					def.runtimeMBeanServer = RuntimeMBeanServerConnection.newInstance(msc);
 				} else {
 					MBeanServerConnection msc = JMXHelper.getLocalMBeanServer(def.server);
-					mbeanServers.put(def.server, msc);
 					def.runtimeMBeanServer = RuntimeMBeanServerConnection.newInstance(msc);					
 				}
 				def.collectionPeriod = XMLHelper.getAttributeByName(mnode, "period", 15);
@@ -147,7 +161,12 @@ public class CollectionManager implements NotificationListener {
 						def.baseTags= tmpTags;
 					}				
 				}
-				
+				serverDefinitions.put(def.server, def);
+				for(Node collectNode: XMLHelper.getChildNodesByName(mnode, "collect", false)) {
+					final CollectionDefinition cd = new CollectionDefinition(def, collectNode);
+					def.collectionDefinitions.put(cd.id, cd);
+				}
+				log.info("Created Server Definition for [{}]", def.server);
 			} catch (Exception ex) {
 				log.error("Failed to create mbeanserver configuration [{}]", XMLHelper.renderNode(mnode), ex);				
 			}
@@ -163,19 +182,21 @@ public class CollectionManager implements NotificationListener {
 	 */
 	public class JMXServerDefinition {
 		/** The server name */
-		String server = null;
+		private String server = null;
 		/** The MBeanServer */
-		RuntimeMBeanServerConnection runtimeMBeanServer = null;
+		private RuntimeMBeanServerConnection runtimeMBeanServer = null;
 		/** The JMXConnector used to get the MBeanServer connection */
-		JMXConnector connector = null;
+		private JMXConnector connector = null;
 		/** The collection period in seconds */
-		int collectionPeriod = 15;
+		private int collectionPeriod = 15;
 		/** The metric prefix prepended to all trace metric names */
-		String metricPrefix = "";
+		private String metricPrefix = "";
 		/** The metric suffox appended to all trace metric names */
-		String metricSuffix = "";
+		private String metricSuffix = "";
 		/** The default base metric tags */
-		Map<String, String> baseTags = Collections.emptyMap();
+		private Map<String, String> baseTags = Collections.emptyMap();
+		/** A map of the collection definitions for this server */
+		private final Map<String, CollectionDefinition> collectionDefinitions = new ConcurrentHashMap<String, CollectionDefinition>();
 		/**
 		 * Returns the server name
 		 * @return the server

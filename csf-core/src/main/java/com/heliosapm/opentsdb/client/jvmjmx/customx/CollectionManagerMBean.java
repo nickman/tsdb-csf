@@ -16,22 +16,13 @@
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
 /**
- * <p>Title: ScheduledMonitor</p>
- * <p>Description: A monitor that periodically executes custom JMX data collection definitions
- * and traces the results</p> 
+ * <p>Title: CollectionManagerMBean</p>
+ * <p>Description: JMX MBean interface for {@link CollectionManager}</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.ScheduledMonitor</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionManagerMBean</code></p>
  */
 
-public class ScheduledMonitor {
-	/** The collection period expression. Defaults to <b><code>15s</code></b>. */
-	protected String period = "15s";
-	/**
-	 * Creates a new ScheduledMonitor
-	 */
-	public ScheduledMonitor() {
-		// TODO Auto-generated constructor stub
-	}
+public interface CollectionManagerMBean {
 
 }
