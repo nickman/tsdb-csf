@@ -63,9 +63,10 @@ public abstract class TokenResolvers {
 		/** The name delimeter for compound attribute names */
 		public static final Pattern ATTR_NAME_DELIM = Pattern.compile("/");
 		
-		public String resolveRange(final String base, final String rangeDef) {
+		public String resolveRange(final String base, final String args, final String delim, final String rangeDef) {
 			if(args!=null && !args.trim().isEmpty()) {
-				final String[] fragments = ATTR_NAME_DELIM.split(attrName); 
+				final Pattern p = Pattern.compile(delim);
+				final String[] fragments = p.split(base); 
 				final StringBuffer b = new StringBuffer();				
 				final Matcher m = ARGS_PARSER.matcher(args);
 				while(m.find()) {
@@ -80,7 +81,7 @@ public abstract class TokenResolvers {
 				m.appendTail(b);
 				return b.toString();
 			}			
-			return attrName;
+			return base;
 		}
 		
 		/**
