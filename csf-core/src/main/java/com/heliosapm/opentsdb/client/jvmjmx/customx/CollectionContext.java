@@ -16,7 +16,6 @@
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import javax.management.MBeanFeatureInfo;
 import javax.management.ObjectName;
@@ -32,36 +31,70 @@ import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
  */
 
 public interface CollectionContext {
+
+	
 	/**
-	 * Returns the focused ObjectName, which may be a wildcard
+	 * Returns the focused attribute name
+	 * @return the focused attribute name
+	 */
+	public String name();
+	
+	/**
+	 * Returns the focused attribute value
+	 * @return the focused attribute value
+	 */
+	public Object value();
+	
+
+	/**
+	 * Returns the focused ObjectName, which will not be a wildcard
 	 * @return the focused ObjectName
 	 */
-	public ObjectName focusedObjectName();
+	public ObjectName objectName();
 	
 	/**
 	 * Returns the focused MBeanServer
 	 * @return the focused MBeanServer
 	 */
-	public RuntimeMBeanServerConnection focusedMBeanServer();
+	public RuntimeMBeanServerConnection mbeanServer();
+	
+	/**
+	 * The current MBean's attribute value map
+	 * @return a map of attribute values keyed by the attribute name
+	 */
+	public Map<String, Object> values();
+	
+	/**
+	 * Returns a map of the current MBean's MBeanFeatureInfos keyed by the feature name, within a map keyed by the MBeanFeature enum member
+	 * @return the meta data map
+	 */
+	public Map<MBeanFeature, Map<String, MBeanFeatureInfo>> metaData();
+	
 	
 	/**
 	 * Returns a map of values keyed by the MBean attribute name, within a map keyed by the ObjectName of the MBean
 	 * @return the attribute value map
 	 */
-	public Map<ObjectName, Map<String, Object>> attributeValues();
+	public Map<ObjectName, Map<String, Object>> allValues();
 	
 	/**
 	 * Returns a map of MBeanFeatureInfos keyed by the feature name, within a map keyed by the MBeanFeature enum member, 
 	 * within a map keyed by the ObjectName of the MBean 
 	 * @return the meta data map
 	 */
-	public Map<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>> metaData();
+	public Map<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>> allMetaData();
 	
 	/**
-	 * Returns the delimeter for the key pattern
-	 * @return the delimeter for the key pattern
+	 * Appends a suffix to the metric name
+	 * @param suffix The metric name suffix to append
 	 */
-	public String getKeyDelim();
+	public void appendMetric(final String suffix);
+	
+	/**
+	 * Prepends a prefix to the metric name
+	 * @param prefix The metric name prefix to prepend
+	 */
+	public void prependMetric(final String prefix);
 	
 	/**
 	 * Returns the current tags
@@ -85,27 +118,6 @@ public interface CollectionContext {
 	 */
 	public Map<String, String> forceTag(String key, String value);
 	
-	/**
-	 * Sets the focus of the data context
-	 * @param rmbs The mbean server 
-	 * @param objectName The attribute's parent ObjectName
-	 * @param attributeName The attribute name
-	 * @param attributeValue The attribute value
-	 * @return this data context
-	 */
-	public CollectionDefinition focus(final RuntimeMBeanServerConnection rmbs, final ObjectName objectName, final String attributeName, final Object attributeValue);
-	
-	/**
-	 * Returns the focused attribute name
-	 * @return the focused attribute name
-	 */
-	public String focusedAttributeName();
-	
-	/**
-	 * Returns the focused attribute value
-	 * @return the focused attribute value
-	 */
-	public Object focusedAttributeValue();
 
 
 }

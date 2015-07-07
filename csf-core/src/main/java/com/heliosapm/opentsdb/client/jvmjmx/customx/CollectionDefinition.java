@@ -113,7 +113,13 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 	
 /*
 			<collect id="" pattern="" query="" attrs="">  <!-- optionally override period="" metric-prefix="" metric-suffix="" tags="" -->
-			
+				<es>
+					<mp v="" />   			<!-- metric name prepend -->
+					<ma v="" />					<!-- metric name append -->
+					<tag k="" v="" />		<!-- add tag -->
+					<ftag k="" v="" />	<!-- force override tag -->
+					<value v="">				<!-- return numeric -->
+				</es>
 			</collect>
 	
  */
@@ -193,12 +199,16 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 	public void run() {		
 		if(status.compareAndSet(SCHEDULED, COLLECTING)) {
 			try {
+				final Set<ObjectName> queriedObjectNames = server.queryNames(targetObjectName, query);
+				final Map<ObjectName, Map<String, Object>> queriedData = new LinkedHashMap<ObjectName, Map<String, Object>>();
+				final CollectionContextImpl cci = new CollectionContextImpl(queriedData);
 				for(final ObjectName on: server.queryNames(targetObjectName, query)) {
 					final Map<String, Object> attrMap = JMXHelper.getAttributes(on, server, polledAttributeNames.toArray(new String[polledAttributeNames.size()]));
 					log.info("AttrMap: [{}]", attrMap);
-					for(Map.Entry<String, Object> entry: attrMap.entrySet()) {
-						focus(server, on, entry.getKey(), entry.getValue());
-					}
+					focus(server, on, attrMap);
+//					for(Map.Entry<String, Object> entry: attrMap.entrySet()) {
+//						focus(server, on, entry.getKey(), entry.getValue());
+//					}
 				}
 				
 			} catch (Exception ex) {
@@ -208,6 +218,169 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 			}
 		} else {
 			log.warn("CollectionDefinition skipped. Status was not [{}], but was [{}]", SCHEDULED, status.get());
+		}		
+	}
+	
+	/**
+	 * <p>Title: CollectionContextImpl</p>
+	 * <p>Description: The CollectionContext impl.</p> 
+	 * <p>Company: Helios Development Group LLC</p>
+	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionDefinition.CollectionContextImpl</code></p>
+	 */
+	class CollectionContextImpl implements CollectionContext {
+		/** The queried data */
+		final Map<ObjectName, Map<String, Object>> queriedData;
+		
+		/** The collector expression supplied traces */
+		final Map<String, Number> traces = new HashMap<String, Number>();
+		
+		final StringBuilder metricNameBuilder = new StringBuilder();
+		
+		/**
+		 * Creates a new CollectionContextImpl
+		 * @param queriedData The looked up results
+		 */
+		CollectionContextImpl(final Map<ObjectName, Map<String, Object>> queriedData) {
+			this.queriedData = queriedData;
+		}
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#name()
+		 */
+		@Override
+		public String name() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#value()
+		 */
+		@Override
+		public Object value() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#objectName()
+		 */
+		@Override
+		public ObjectName objectName() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#mbeanServer()
+		 */
+		@Override
+		public RuntimeMBeanServerConnection mbeanServer() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#values()
+		 */
+		@Override
+		public Map<String, Object> values() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#metaData()
+		 */
+		@Override
+		public Map<MBeanFeature, Map<String, MBeanFeatureInfo>> metaData() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#allValues()
+		 */
+		@Override
+		public Map<ObjectName, Map<String, Object>> allValues() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#allMetaData()
+		 */
+		@Override
+		public Map<ObjectName, Map<MBeanFeature, Map<String, MBeanFeatureInfo>>> allMetaData() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#appendMetric(java.lang.String)
+		 */
+		@Override
+		public void appendMetric(final String suffix) {
+			if(suffix!=null) {
+				final String s = suffix.trim();
+				if(!s.isEmpty()) {
+					metricNameBuilder.append(s);
+				}
+			}
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#prependMetric(java.lang.String)
+		 */
+		@Override
+		public void prependMetric(final String prefix) {
+			if(prefix!=null) {
+				final String s = prefix.trim();
+				if(!s.isEmpty()) {
+					metricNameBuilder.insert(0, s);
+				}
+			}			
+		}
+		
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#tags()
+		 */
+		@Override
+		public Map<String, String> tags() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#tag(java.lang.String, java.lang.String)
+		 */
+		@Override
+		public Map<String, String> tag(String key, String value) {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#forceTag(java.lang.String, java.lang.String)
+		 */
+		@Override
+		public Map<String, String> forceTag(String key, String value) {
+			// TODO Auto-generated method stub
+			return null;
 		}
 		
 	}

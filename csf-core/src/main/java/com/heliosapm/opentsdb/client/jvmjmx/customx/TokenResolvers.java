@@ -15,7 +15,10 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.heliosapm.utils.lang.StringHelper;
 
 /**
  * <p>Title: TokenResolvers</p>
@@ -28,17 +31,82 @@ import java.util.regex.Pattern;
 public abstract class TokenResolvers {
 	
 	/** The token expression matcher */
-	public static final Pattern TOKEN_EXPR_PATTERN = Pattern.compile("\\$(.*?)\\{(.*)\\}");
+	public static final Pattern TOKEN_EXPR_PATTERN = Pattern.compile("\\$(.*?)\\{(.*?)\\}");
+	
+	public static String resolve(final String expression, final CollectionContext ctx) {
+		final Matcher m = TOKEN_EXPR_PATTERN.matcher(expression);
+		final StringBuffer b = new StringBuffer();
+		while(m.find()) {
+			final String tokenerName = m.group(1);
+			final Tokener t = Tokener.forName(tokenerName);
+			final TokenResolver tr = t.resolver;
+			final String tokenerArgs = m.group(2);
+			final String resolved = tr.resolve(ctx, tokenerArgs);
+			m.appendReplacement(b, resolved);
+		}
+		if(b.length()==0) throw new RuntimeException("Failed to resolved expression [" + expression + "]");
+		m.appendTail(b);
+		return b.toString();
+	}
+	
+	protected static abstract class AbstractTokenResolver implements TokenResolver {
+		/** The arguments expression parser */
+		public static final Pattern ARGS_PARSER = Pattern.compile("\\[(" + StringHelper.intRange.pattern() + ")\\]");
+		/** The name delimeter for compound attribute names */
+		public static final Pattern ATTR_NAME_DELIM = Pattern.compile("/");
+		
+	}
 
-	public class AttributeTokenResolver implements TokenResolver {
+	public static class AttributeNameTokenResolver implements TokenResolver {
+		/** The arguments expression parser */
+		public static final Pattern ARGS_PARSER = Pattern.compile("\\[(" + StringHelper.intRange.pattern() + ")\\]");
+		/** The name delimeter for compound attribute names */
+		public static final Pattern ATTR_NAME_DELIM = Pattern.compile("/");
+		
+		public String resolveRange(final String base, final String rangeDef) {
+			if(args!=null && !args.trim().isEmpty()) {
+				final String[] fragments = ATTR_NAME_DELIM.split(attrName); 
+				final StringBuffer b = new StringBuffer();				
+				final Matcher m = ARGS_PARSER.matcher(args);
+				while(m.find()) {
+					final StringBuilder buff = new StringBuilder();
+					final String rangeStr = m.group(1);
+					final int[] range = StringHelper.compileRange(rangeStr);
+					for(int i = 0; i < range.length; i++) {
+						buff.append(fragments[range[i]]);
+					}
+					m.appendReplacement(b, buff.toString());
+				}
+				m.appendTail(b);
+				return b.toString();
+			}			
+			return attrName;
+		}
+		
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolver#resolve(com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionDefinition, java.lang.CharSequence)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolver#resolve(com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionDefinition, java.lang.String)
 		 */
 		@Override
-		public CharSequence resolve(CollectionDefinition dctx, CharSequence args) {
-			
-			return null;
+		public String resolve(final CollectionContext ctx, final String args) {
+			final String attrName = ctx.name();
+			if(args!=null && !args.trim().isEmpty()) {
+				final String[] fragments = ATTR_NAME_DELIM.split(attrName); 
+				final StringBuffer b = new StringBuffer();				
+				final Matcher m = ARGS_PARSER.matcher(args);
+				while(m.find()) {
+					final StringBuilder buff = new StringBuilder();
+					final String rangeStr = m.group(1);
+					final int[] range = StringHelper.compileRange(rangeStr);
+					for(int i = 0; i < range.length; i++) {
+						buff.append(fragments[range[i]]);
+					}
+					m.appendReplacement(b, buff.toString());
+				}
+				m.appendTail(b);
+				return b.toString();
+			}			
+			return attrName;
 		}
 	}
 

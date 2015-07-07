@@ -15,6 +15,8 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.AttributeNameTokenResolver;
+
 /**
  * <p>Title: Tokener</p>
  * <p>Description: Enumerates the recognized scripting tokens and 
@@ -26,7 +28,9 @@ package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
 public enum Tokener {
 	/** A named attribute value */
-	ATTR,
+	ATTRV,
+	/** A named attribute */
+	ATTRN(new AttributeNameTokenResolver()),
 	/** A named operation return value */
 	OP,
 	/** The ObjectName domain or a subscript thereof */
@@ -39,4 +43,30 @@ public enum Tokener {
 	MBD,
 	/** An MBean descriptor value */
 	DESCR;
+	
+	private Tokener(final TokenResolver resolver) {
+		this.resolver = resolver;
+	}
+	private Tokener() {
+		this.resolver = null;
+	}	
+	
+	
+	public final TokenResolver resolver;
+	
+	/**
+	 * Decodes the passed type to a Tokener
+	 * @param name The name to decode
+	 * @return the decoded Tokener
+	 */
+	public static Tokener forName(final String name) {
+		if(name==null || name.trim().isEmpty()) throw new IllegalArgumentException("The passed name was null or empty");
+		final String _name = name.trim().toUpperCase();
+		try {
+			return valueOf(_name);
+		} catch (Exception ex) {
+			throw new IllegalArgumentException("The passed name [" + name + "] is not a valid Tokener");
+		}
+	}
+
 }

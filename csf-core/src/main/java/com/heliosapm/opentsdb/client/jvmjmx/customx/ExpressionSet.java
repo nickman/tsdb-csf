@@ -15,21 +15,31 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
+import java.util.Map;
+
+import javax.management.ObjectName;
 
 /**
- * <p>Title: TokenResolver</p>
- * <p>Description: Defines a class that accepts a parsed token expression and a monitor context and returns the resolved value</p> 
+ * <p>Title: ExpressionSet</p>
+ * <p>Description: The compiled expression set that queried data is passed to in order to gather traces</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolver</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.ExpressionSet</code></p>
  */
 
-public interface TokenResolver {
+public interface ExpressionSet {
 	/**
-	 * Resolves the passed token instance values
-	 * @param ctx The data context
-	 * @param args The expression tokener's arguments expression
-	 * @return the resolved value
+	 * Accepts the current focus of the collection context and generates a map of values to trace Objectname styped strings
+	 * @param ctx
+	 * @param objectName
+	 * @param attributeName
+	 * @param attributeValue
+	 * @return
 	 */
-	public String resolve(CollectionContext ctx, String args);
+	public Number collect(
+			final CollectionContext ctx, 
+			final ObjectName objectName, 
+			final String attributeName, 
+			final Object attributeValue			
+			);
 }
