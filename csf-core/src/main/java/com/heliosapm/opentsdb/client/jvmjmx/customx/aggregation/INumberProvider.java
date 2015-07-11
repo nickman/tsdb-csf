@@ -13,26 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.jvmjmx.custom;
+package com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation;
+
 
 /**
- * <p>Title: ConfigurationContext</p>
- * <p>Description: Provides a context for providing and collecting configuration details up and down the
- * installer/mbeanserver/monitor hierarchy.</p> 
+ * <p>Title: INumberProvider</p>
+ * <p>Description: A wrapper interface that can be placed around an object that is not itself a number, but can supply one.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.ConfigurationContext</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.INumberProvider</code></p>
  */
-
-public class ConfigurationContext {
-	/** The default collection period defined by the installer */
-	int defaultPeriod = 15;
-	
+public interface INumberProvider {
 	/**
-	 * Creates a new ConfigurationContext
-	 * @param defaultPeriod The default collection period defined by the installer
+	 * Returns the number we're interested in
+	 * @return the number we're interested in
 	 */
-	ConfigurationContext(final int defaultPeriod) {
-		this.defaultPeriod =defaultPeriod;
-	}
+	public Number getNumber();
 }

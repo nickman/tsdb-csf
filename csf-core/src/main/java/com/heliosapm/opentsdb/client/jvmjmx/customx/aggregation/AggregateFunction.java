@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation;
+package com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
@@ -102,7 +102,7 @@ public enum AggregateFunction implements IAggregator {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 	 */
 	@Override
 	public Object aggregate(List<Object> items) {
@@ -278,7 +278,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 		 */
 		@Override
 		public Object aggregate(List<Object> items) {
@@ -297,7 +297,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 		 */
 		@Override
 		public long aggregate(long[] items) {
@@ -315,7 +315,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -355,7 +355,7 @@ public enum AggregateFunction implements IAggregator {
 		 * Calculates a rate from the passed numbers. The time window is passed as the first entry in the list
 		 * and is assumed to be in the same unit as this Rate instance and the values are assumed to be ticks per second.
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.Delta#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.Delta#aggregate(java.util.List)
 		 */
 		@Override
 		public Object aggregate(List<Object> items) {
@@ -370,7 +370,7 @@ public enum AggregateFunction implements IAggregator {
 		 * Calculates a rate from the passed double array. The time window is passed as the first array entry
 		 * and is assumed to be in the same unit as this Rate instance and the values are assumed to be ticks per second.
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.Delta#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.Delta#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -387,7 +387,7 @@ public enum AggregateFunction implements IAggregator {
 		 * Calculates a rate from the passed long array. The time window is passed as the first array entry
 		 * and is assumed to be in the same unit as this Rate instance and the values are assumed to be ticks per second.
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.Delta#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.Delta#aggregate(double[])
 		 */
 		@Override
 		public long aggregate(long[] items) {
@@ -418,7 +418,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 		 */
 		@Override
 		public Double aggregate(List<Object> items) {
@@ -430,7 +430,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 		 */
 		@Override
 		public long aggregate(long[] items) {
@@ -438,7 +438,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -462,7 +462,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 		 */
 		@Override
 		public Double aggregate(List<Object> items) {
@@ -477,7 +477,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 		 */
 		@Override
 		public long aggregate(long[] items) {
@@ -490,7 +490,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -518,7 +518,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 		 */
 		@Override
 		public Double aggregate(List<Object> items) {
@@ -535,7 +535,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 		 */
 		@Override
 		public long aggregate(long[] items) {
@@ -545,7 +545,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -570,7 +570,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 		 */
 		@Override
 		public Double aggregate(List<Object> items) {
@@ -587,7 +587,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 		 */
 		@Override
 		public long aggregate(long[] items) {
@@ -597,7 +597,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -630,7 +630,7 @@ public enum AggregateFunction implements IAggregator {
 		/**
 		 * Counts the number if items
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 		 */
 		@Override
 		public Object aggregate(List<Object> items) {
@@ -650,7 +650,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 		 */
 		@Override
 		public long aggregate(long[] items) {			
@@ -659,7 +659,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -679,7 +679,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 		 */
 		@Override
 		public Object aggregate(List<Object> items) {
@@ -690,7 +690,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 		 */
 		@Override
 		public long aggregate(long[] items) {
@@ -702,7 +702,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -724,7 +724,7 @@ public enum AggregateFunction implements IAggregator {
 	public static class GroupAggregator implements IAggregator {
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 		 */
 		@Override
 		public Object aggregate(List<Object> items) {			
@@ -745,7 +745,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 		 */
 		@Override
 		public long aggregate(long[] items) {
@@ -754,7 +754,7 @@ public enum AggregateFunction implements IAggregator {
 
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -796,7 +796,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(java.util.List)
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(java.util.List)
 		 */
 		@Override
 		public JSONObject aggregate(List<Object> items) {
@@ -823,7 +823,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 		 */
 		@Override
 		public long aggregate(long[] items) {
@@ -831,7 +831,7 @@ public enum AggregateFunction implements IAggregator {
 		}
 		/**
 		 * {@inheritDoc}
-		 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 		 */
 		@Override
 		public double aggregate(double[] items) {
@@ -842,7 +842,7 @@ public enum AggregateFunction implements IAggregator {
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(long[])
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(long[])
 	 */
 	@Override
 	public long aggregate(long[] items) {
@@ -852,7 +852,7 @@ public enum AggregateFunction implements IAggregator {
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator#aggregate(double[])
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#aggregate(double[])
 	 */
 	@Override
 	public double aggregate(double[] items) {

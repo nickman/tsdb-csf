@@ -16,6 +16,11 @@
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
 import java.io.File;
+import java.security.AllPermission;
+import java.security.CodeSource;
+import java.security.Permissions;
+import java.security.ProtectionDomain;
+import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,11 +30,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.management.ObjectName;
+
+import javassist.CannotCompileException;
 import javassist.ClassClassPath;
 import javassist.ClassPath;
 import javassist.ClassPool;
 import javassist.CtClass;
+import javassist.CtField;
 import javassist.CtMethod;
+import javassist.Modifier;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,6 +49,14 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.AttributeNameTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.AttributeValueTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.DescriptorValueTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.MBeanOperationTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ObjectNameDomainTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ObjectNameKeyPropertyTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ObjectNamePropertyExpansionTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ScriptInvocationTokenResolver;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.utils.xml.XMLHelper;
 
@@ -81,7 +99,7 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 	/** The jmx collection classpath */
 	private final ClassPath expCompilerClassPath = new ClassClassPath(getClass());
 	/** The doTrace method */
-	private final CtMethod doTraceCtMethod;	
+//	private final CtMethod doTraceCtMethod;	
 	/** The context trace method */
 	private final CtMethod traceCtMethod;	
 	
@@ -147,7 +165,7 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 			traceCtMethod = CollectionContextCtClass.getDeclaredMethod("trace");
 			CompiledExpressionCtClass = cp.get(CompiledExpression.class.getName());
 			AbstractCompiledExpressionCtClass = cp.get(AbstractCompiledExpression.class.getName());
-			doTraceCtMethod = AbstractCompiledExpressionCtClass.getDeclaredMethod("doTrace");
+//			doTraceCtMethod = AbstractCompiledExpressionCtClass.getDeclaredMethod("doTrace");
 			log.info("Created CompiledExpressionManager");
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to initialize the Compiled Expression Manager", ex);
@@ -166,7 +184,8 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 		if(traceNode==null) throw new IllegalArgumentException("The passed trace node was null");
 		final String nodeText = XMLHelper.renderNode(traceNode, true);
 		final String innerText = XMLHelper.getNodeTextValue(traceNode, null);
-		final String valueExpression = XMLHelper.getAttributeByName(traceNode, "", "");
+		final String valueExpression = XMLHelper.getAttributeByName(traceNode, "value", "");
+		final String valueProcessorScript = XMLHelper.getAttributeByName(traceNode, "vscript", "");
 		if(!"trace".equalsIgnoreCase(traceNode.getNodeName())) throw new IllegalArgumentException("The passed node was not a valid trace: [" + nodeText + "]");
 		if(innerText==null || innerText.trim().isEmpty()) throw new IllegalArgumentException("The passed node was not a valid trace: [" + nodeText + "]");
 		final String key = innerText + EXPR_DELIM + valueExpression; 
@@ -174,7 +193,7 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 			return expressionCache.get(key, new Callable<CompiledExpression>(){
 				@Override
 				public CompiledExpression call() throws Exception {
-					return buildExpression(innerText, valueExpression);
+					return buildExpression(innerText, valueExpression, valueProcessorScript);
 				}
 			});
 		} catch (Exception ex) {
@@ -183,29 +202,106 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 		}		
 	}
 	
-	private CompiledExpression buildExpression(final String metricExpression, final String valueExpression) {
-		final Map<Integer, String> metricCode = resolve(metricExpression);
-		final Map<Integer, String> valueCode = (valueExpression==null || valueExpression.trim().isEmpty()) ? null : resolve(valueExpression);
-		final String metricTemplate = metricCode.remove(-1);
-		final String valueTemplate = valueCode.remove(-1);
-		final StringBuilder b = new StringBuilder("{\n");
-		b.append("final Object[] tokens = new Object[").append(metricCode.size()).append("];\n");
-		for(String s: metricCode.values()) {
-			b.append("\tb.append(").append(s).append(");\n");
+	/** The metric name template field name */
+	public static final String METRICTEMPL_FIELD_NAME = "METRIC_NAME_TEMPLATE";
+	/** The metric value template field name */
+	public static final String VALUETEMPL_FIELD_NAME = "METRIC_VALUE_TEMPLATE";
+	
+	public static void main(String[] args) {
+		CompiledExpressionManager cem = getInstance(); 
+		cem.buildExpression("$ATTRV{}:foo=$OND{},bar=$SCR{gitem.js}", null, null);
+	}
+	
+//	ATTRV(new AttributeValueTokenResolver()),
+//	ATTRN(new AttributeNameTokenResolver()),
+//	OP(new MBeanOperationTokenResolver()),
+//	OND(new ObjectNameDomainTokenResolver()),
+//	ONK(new ObjectNameKeyPropertyTokenResolver()),
+//	ON(new ObjectNamePropertyExpansionTokenResolver()),
+//	SCR(new ScriptInvocationTokenResolver()),
+//	DESCR(new DescriptorValueTokenResolver());
+
+	
+	
+	
+	// IMPLEMENT:  		
+//			protected Object getValue(final CollectionContext ctx) {
+//			protected abstract String getMetricFQN(final CollectionContext ctx);
+	
+	private CompiledExpression buildExpression(final String metricExpression, final String valueExpression, final String valueProcessorScript) {
+		try {
+			final Map<Integer, String> metricCode = resolve(metricExpression);
+			final Map<Integer, String> valueCode = (valueExpression==null || valueExpression.trim().isEmpty()) ? null : resolve(valueExpression);
+			final String metricTemplate = metricCode.remove(-1);
+			final String valueTemplate = valueCode==null ? null : valueCode.remove(-1);
+			final StringBuilder b = new StringBuilder("{\n");
+			final long clazzId = this.compiledExpressionSerial.incrementAndGet();
+			final String ctClassName = CompiledExpression.class.getName() + "Impl" + clazzId;
+			final CtClass implCtClass = cp.makeClass(ctClassName, AbstractCompiledExpressionCtClass);
+			
+//			implCtClass.setModifiers(implCtClass.getModifiers() | Modifier.FINAL);
+			addTemplateField(implCtClass, METRICTEMPL_FIELD_NAME, metricTemplate);
+			addTemplateField(implCtClass, VALUETEMPL_FIELD_NAME, valueTemplate);
+			b.append("String tmpl = new String(").append(METRICTEMPL_FIELD_NAME).append(");\n");
+			for(Map.Entry<Integer, String> entry: metricCode.entrySet()) {
+				final int tokenKey = entry.getKey();
+				final String code = entry.getValue();
+				final String token = "###" + tokenKey + "###";
+				final CtMethod getFragMethod = new CtMethod(ObjectCtClass, "getFragment" + tokenKey, new CtClass[] {this.CollectionContextCtClass}, implCtClass);
+				implCtClass.addMethod(getFragMethod);
+				log.info("frag: [{}], code: [{}]", getFragMethod.getName(), code);
+				getFragMethod.setBody("{" + code + "}");		
+				
+				// subst(final String token, final String working, final String value)
+				b.append("\ttmpl = subst(\"").append(token).append("\", tmpl, getFragment").append(tokenKey).append("($1));\n");				
+			}
+			b.append("return tmpl;\n}");
+			log.info("CodeGen:\n{}", b.toString());
+			final CtMethod getMetricFQNMethod = new CtMethod(StringCtClass, "getMetricFQN", new CtClass[] {this.CollectionContextCtClass}, implCtClass);
+			implCtClass.addMethod(getMetricFQNMethod);
+			getMetricFQNMethod.setBody(b.toString());
+			implCtClass.setModifiers(implCtClass.getModifiers() & ~Modifier.ABSTRACT);
+			implCtClass.setModifiers(implCtClass.getModifiers() | Modifier.FINAL);
+			implCtClass.writeFile("/tmp/.tsdb-aop");
+			//  TODO:  only do this once
+			// TODO:  Add annotation
+			final File byteCodeDir = new File("/tmp/.tsdb-aop");
+			final Permissions permissions = new Permissions();
+			permissions.add(new AllPermission());
+			final CodeSource cs = new CodeSource(byteCodeDir.toURI().toURL(), (Certificate[])null);
+			final ProtectionDomain pd = new ProtectionDomain(cs, permissions);
+			final Class<CompiledExpression> clazz = implCtClass.toClass(getClass().getClassLoader(), pd);
+			final CompiledExpression ce = clazz.newInstance();
+			log.info("Instantiated [{}]", ce.getClass().getName());
+			return ce;
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to compile expression [" + metricExpression + "] / [" + valueExpression + "]", ex);
 		}
+	}
+	
+	/**
+	 * Adds a constant template string field to the impl class
+	 * @param ctClass The impl class
+	 * @param name The field name
+	 * @param value The field value
+	 * @throws CannotCompileException thrown on compilation error
+	 */
+	protected void addTemplateField(final CtClass ctClass, final String name, final String value) throws CannotCompileException {
+		if(value==null) return;
+		final CtField templateField = new CtField(this.StringCtClass, name, ctClass);
+		ctClass.addField(templateField, CtField.Initializer.constant(value.trim()));
+		templateField.setModifiers(templateField.getModifiers() | Modifier.FINAL);
+		templateField.setModifiers(templateField.getModifiers() | Modifier.STATIC);
+		templateField.setModifiers(templateField.getModifiers() | Modifier.PRIVATE);
 		
-		b.append("}");
-		log.info("CodeGen:\n{}", b.toString());
-		
-		return null;
 	}
 	
 	
-	protected static Map<Integer, String> resolve(final String expression) {
+	protected Map<Integer, String> resolve(final String expression) {
 		final Matcher m = TOKEN_EXPR_PATTERN.matcher(expression);
-		final Map<Integer, String> codeFragments = new TreeMap<Integer, String>();
-		String template = expression;
+		final Map<Integer, String> codeFragments = new TreeMap<Integer, String>();		
 		int cnt = 0;
+		final StringBuffer b = new StringBuffer();
 		while(m.find()) {
 			final String tokenerName = m.group(1);
 			final Tokener t = Tokener.forName(tokenerName);
@@ -213,11 +309,14 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 			final String tokenerArgs = m.group(2);
 			final String jcode = tr.resolve(tokenerArgs);
 			final String key = "###" + cnt + "###";
-			template = template.replaceAll(Matcher.quoteReplacement(m.group(0)), key);
-			codeFragments.put(cnt, key);
+			m.appendReplacement(b, key);
+//			template = template.replaceAll(Matcher.quoteReplacement(m.group(0)), key);
+			codeFragments.put(cnt, jcode);
 			cnt++;
 		}
-		codeFragments.put(-1, template);
+		m.appendTail(b);
+		log.info("Template [{}]", b.toString());
+		codeFragments.put(-1, b.toString());
 		return codeFragments;
 	}
 	

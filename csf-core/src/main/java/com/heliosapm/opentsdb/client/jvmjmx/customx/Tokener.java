@@ -15,7 +15,17 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
+import javax.management.ObjectName;
+
 import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.AttributeNameTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.AttributeValueTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.DescriptorValueTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.MBeanOperationTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ObjectNameDomainTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ObjectNameKeyPropertyTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ObjectNamePropertyExpansionTokenResolver;
+import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ScriptInvocationTokenResolver;
+
 
 /**
  * <p>Title: Tokener</p>
@@ -28,30 +38,27 @@ import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.AttributeName
 
 public enum Tokener {
 	/** A named attribute value */
-	ATTRV,
-	/** A named attribute */
+	ATTRV(new AttributeValueTokenResolver()),
+	/** A named attribute or a subscript thereof */
 	ATTRN(new AttributeNameTokenResolver()),
 	/** A named operation return value */
-	OP,
+	OP(new MBeanOperationTokenResolver()),
 	/** The ObjectName domain or a subscript thereof */
-	OND,
+	OND(new ObjectNameDomainTokenResolver()),
 	/** An ObjectName key property value */
-	ONK,
+	ONK(new ObjectNameKeyPropertyTokenResolver()),
+	/** Expands the full ObjectName into key value pairs, or the same as calling {@link ObjectName#getCanonicalKeyPropertyListString()} */
+	ON(new ObjectNamePropertyExpansionTokenResolver()),
 	/** A named script return value */
-	SCR,
-	/** The MBean description or a subscript thereof */
-	MBD,
+	SCR(new ScriptInvocationTokenResolver()),
 	/** An MBean descriptor value */
-	DESCR;
+	DESCR(new DescriptorValueTokenResolver());
 	
 	private Tokener(final TokenResolver resolver) {
 		this.resolver = resolver;
 	}
-	private Tokener() {
-		this.resolver = null;
-	}	
 	
-	
+	/** The tokener's resolver */
 	public final TokenResolver resolver;
 	
 	/**

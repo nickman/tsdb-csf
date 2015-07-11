@@ -111,20 +111,6 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 	/** A sliding window of elapsed collection times */
 	private final ConcurrentLongSlidingWindow collectionTimes = new ConcurrentLongSlidingWindow(100);
 	
-/*
-			<collect id="" pattern="" query="" attrs="">  <!-- optionally override period="" metric-prefix="" metric-suffix="" tags="" -->
-				<es>
-					<mp v="" />   			<!-- metric name prepend -->
-					<ma v="" />					<!-- metric name append -->
-					<tag k="" v="" />		<!-- add tag -->
-					<ftag k="" v="" />	<!-- force override tag -->
-					<value v="">				<!-- return numeric -->
-				</es>
-			</collect>
-	
- */
-	
-	
 
 	/** The MBeanServerNotification filter */
 	private static final NotificationFilterSupport NOTIF_FILTER = new NotificationFilterSupport();
@@ -381,6 +367,15 @@ public class CollectionDefinition implements Runnable, CollectionDefinitionMBean
 		public Map<String, String> forceTag(String key, String value) {
 			// TODO Auto-generated method stub
 			return null;
+		}
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#trace(java.lang.String, java.lang.Object)
+		 */
+		@Override
+		public void trace(String metricFqn, Object value) {
+			// TODO Auto-generated method stub
+			
 		}
 		
 	}

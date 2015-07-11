@@ -169,4 +169,14 @@ public class EmptyCollectionContext implements CollectionContext {
 		return null;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext#trace(java.lang.String, java.lang.Object)
+	 */
+	@Override
+	public void trace(String metricFqn, Object value) {
+		// TODO Auto-generated method stub
+		
+	}
+
 }

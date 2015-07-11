@@ -13,24 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.jvmjmx.custom;
+package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
-import javax.management.MBeanFeatureInfo;
-import javax.management.MBeanInfo;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * <p>Title: MBeanFeatureInfoGetter</p>
- * <p>Description: Defines a getter for MBeanFeatureInfos from an MBeanInfo for a specific feature type</p> 
+ * <p>Title: CompExpr</p>
+ * <p>Description: Rutime accessible annotation to label a {@link CompiledExpression} implementation</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.MBeanFeatureInfoGetter</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.CompExpr</code></p>
  */
-
-public interface MBeanFeatureInfoGetter {
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+@Documented
+public @interface CompExpr {
 	/**
-	 * Returns an array of MBeanFeatureInfos for the passed MBeanInfo
-	 * @param info The MBeanInfo
-	 * @return the MBeanInfos features specific to this impl.
+	 * The metric name expression
 	 */
-	MBeanFeatureInfo[] getFeatures(final MBeanInfo info);
+	String name();
+	
+	/**
+	 * The metric value expression
+	 */
+	String value() default "";
 }

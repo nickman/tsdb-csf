@@ -13,20 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation;
-
-
 /**
- * <p>Title: INumberProvider</p>
- * <p>Description: A wrapper interface that can be placed around an object that is not itself a number, but can supply one.</p> 
+ * <p>Title: package-info</p>
+ * <p>Description: Constructs to support declarative aggregation in custom jmx collections</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.INumberProvider</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.package-info</code></p>
  */
-public interface INumberProvider {
-	/**
-	 * Returns the number we're interested in
-	 * @return the number we're interested in
-	 */
-	public Number getNumber();
-}
+
+package com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation;

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation;
+package com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation;
 
 import java.util.List;
 

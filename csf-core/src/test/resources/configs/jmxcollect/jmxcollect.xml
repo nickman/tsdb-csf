@@ -19,7 +19,7 @@
 		</queryexps>
 		<mbeanserver server="" period="" metric-prefix="" metric-suffix="" tags="">
 			<collect id="" pattern="" query="">  <!-- optionally override period="" metric-prefix="" metric-suffix="" tags="" -->
-			 <trace value="">Expression</trace>
+			 <trace value="" vscript="the name of a script to process the value">Expression</trace>
 			</collect>
 		</mbeanserver>
 		
@@ -28,7 +28,7 @@
 		
 		<jmxcollect server="" period="" metric-prefix="" tags="">  <!-- period, mp and t can be respecified at any level -->
 			<collect pattern="" query="">
-			
+				<trace value="">Expression</trace>
 			</collect>
 		</jmxcollect>
 	</customjmx>	

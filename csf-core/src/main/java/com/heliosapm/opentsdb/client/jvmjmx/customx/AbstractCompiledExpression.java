@@ -15,6 +15,13 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * <p>Title: AbstractCompiledExpression</p>
  * <p>Description: The base expression that compiled expression extend</p> 
@@ -24,6 +31,13 @@ package com.heliosapm.opentsdb.client.jvmjmx.customx;
  */
 
 public abstract class AbstractCompiledExpression implements CompiledExpression {
+	/** Instance logger */
+	private final Logger log = LogManager.getLogger(getClass());
+	
+	/** The splitter pattern for compound names */
+	public static final Pattern COMPOUND_NAME_SPLITTER = Pattern.compile("/");
+	/** The default split name array of the name is null or empty */
+	protected static final String[] DEFAULT_SPLIT_NAME = {""}; 
 
 	/**
 	 * Creates a new AbstractCompiledExpression
@@ -37,14 +51,63 @@ public abstract class AbstractCompiledExpression implements CompiledExpression {
 	 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CompiledExpression#trace(com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext)
 	 */
 	@Override
-	public void trace(CollectionContext ctx) {
+	public void trace(final CollectionContext ctx) {
 		try {
-			
+			ctx.trace(getMetricFQN(ctx), getValue(ctx));
 		} catch (Exception ex) {
-			
+			log.error("Trace failed", ex);
 		}
 	}
 	
-	protected abstract void doTrace(final CollectionContext ctx) throws Exception;
+	/**
+	 * Performs a string replacement
+	 * @param token The token to replace
+	 * @param working The working string to replace in
+	 * @param value The value to replace the token with
+	 * @return the new working string
+	 */
+	protected static String subst(final String token, final String working, final Object value) {
+		return working.replace(token, value==null ? "" : value.toString());
+	}
+	
+	/**
+	 * Splits a compound name and performs some basic cleanup
+	 * @param name The compound name
+	 * @return the fragments of the name
+	 */
+	protected static String[] split(final String name) {
+		if(name==null || name.trim().isEmpty()) return DEFAULT_SPLIT_NAME;
+		if(name.indexOf('/')==-1) return new String[]{name.trim()};
+		final String[] arr = COMPOUND_NAME_SPLITTER.split(name);
+		final List<String> rarr = new ArrayList<String>(arr.length);
+		int x = 0;
+		for(int i = 0; i < arr.length; i++) {
+			final String s = arr[i];
+			if(s!=null && !s.trim().isEmpty()) {
+				rarr.add(s.trim());
+				x++;
+			}
+		}
+		return rarr.toArray(new String[x]);
+	}
+	
+	
+	
+	/**
+	 * The default value provider if no value expression is provided
+	 * @param ctx The collection context
+	 * @return the value to trace
+	 */
+	@SuppressWarnings("static-method")
+	protected Object getValue(final CollectionContext ctx) {
+		return ctx.value();
+	}
+	
+	/**
+	 * Returns the fully qualified metric name to be traced
+	 * @param ctx The collection context
+	 * @return the fully qualified metric name
+	 */
+	protected abstract String getMetricFQN(final CollectionContext ctx);
 
 }
