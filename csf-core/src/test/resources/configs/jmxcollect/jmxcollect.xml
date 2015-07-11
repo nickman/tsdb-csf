@@ -19,7 +19,7 @@
 		</queryexps>
 		<mbeanserver server="" period="" metric-prefix="" metric-suffix="" tags="">
 			<collect id="" pattern="" query="">  <!-- optionally override period="" metric-prefix="" metric-suffix="" tags="" -->
-			
+			 <trace value="">Expression</trace>
 			</collect>
 		</mbeanserver>
 		

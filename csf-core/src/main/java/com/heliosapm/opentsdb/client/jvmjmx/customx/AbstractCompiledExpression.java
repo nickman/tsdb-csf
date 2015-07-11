@@ -15,19 +15,36 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
-
 /**
- * <p>Title: TokenResolver</p>
- * <p>Description: Defines a class that accepts a parsed token expression and a monitor context and returns the resolved value</p> 
+ * <p>Title: AbstractCompiledExpression</p>
+ * <p>Description: The base expression that compiled expression extend</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolver</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.AbstractCompiledExpression</code></p>
  */
 
-public interface TokenResolver {
+public abstract class AbstractCompiledExpression implements CompiledExpression {
+
 	/**
-	 * Generates the javassist code fragment to implement the intent of this token with the passed arguments.
-	 * @return the javassist code fragment
+	 * Creates a new AbstractCompiledExpression
 	 */
-	public String resolve(String args);
+	public AbstractCompiledExpression() {
+		// TODO Auto-generated constructor stub
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.CompiledExpression#trace(com.heliosapm.opentsdb.client.jvmjmx.customx.CollectionContext)
+	 */
+	@Override
+	public void trace(CollectionContext ctx) {
+		try {
+			
+		} catch (Exception ex) {
+			
+		}
+	}
+	
+	protected abstract void doTrace(final CollectionContext ctx) throws Exception;
+
 }

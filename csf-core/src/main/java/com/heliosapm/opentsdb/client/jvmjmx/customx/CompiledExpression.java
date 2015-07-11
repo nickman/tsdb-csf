@@ -15,19 +15,20 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
-
 /**
- * <p>Title: TokenResolver</p>
- * <p>Description: Defines a class that accepts a parsed token expression and a monitor context and returns the resolved value</p> 
+ * <p>Title: CompiledExpression</p>
+ * <p>Description: Defines a class that represents a compiled <b><code>trace</code></b> tag
+ * in the custom jmx collection. Instances are passed the current collection context
+ * and should invoke the context trace callback.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolver</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.CompiledExpression</code></p>
  */
 
-public interface TokenResolver {
+public interface CompiledExpression {
 	/**
-	 * Generates the javassist code fragment to implement the intent of this token with the passed arguments.
-	 * @return the javassist code fragment
+	 * Traces zero, one or more metric measurements on the passed context
+	 * @param ctx The in-focus collection context
 	 */
-	public String resolve(String args);
+	public void trace(CollectionContext ctx);
 }

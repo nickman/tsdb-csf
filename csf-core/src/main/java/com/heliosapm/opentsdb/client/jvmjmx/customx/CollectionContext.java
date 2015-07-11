@@ -118,6 +118,12 @@ public interface CollectionContext {
 	 */
 	public Map<String, String> forceTag(String key, String value);
 	
+	/**
+	 * Trace callback from a compiled expression to trace a value
+	 * @param metricFqn The fully qualified metric name
+	 * @param value The value to trace
+	 */
+	public void trace(String metricFqn, Object value);
 
 
 }
