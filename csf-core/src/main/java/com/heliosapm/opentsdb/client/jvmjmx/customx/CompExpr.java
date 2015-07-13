@@ -32,6 +32,11 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Documented
 public @interface CompExpr {
+	
+	/**
+	 * The ce serial number
+	 */
+	long	serial();
 	/**
 	 * The metric name expression
 	 */
@@ -41,4 +46,9 @@ public @interface CompExpr {
 	 * The metric value expression
 	 */
 	String value() default "";
+	
+	/**
+	 * The value processing script name
+	 */
+	String script() default "";
 }

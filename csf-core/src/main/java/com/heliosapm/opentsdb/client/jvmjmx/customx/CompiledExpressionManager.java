@@ -15,7 +15,9 @@
  */
 package com.heliosapm.opentsdb.client.jvmjmx.customx;
 
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.security.AllPermission;
 import java.security.CodeSource;
 import java.security.Permissions;
@@ -30,8 +32,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.management.ObjectName;
-
 import javassist.CannotCompileException;
 import javassist.ClassClassPath;
 import javassist.ClassPath;
@@ -40,6 +40,12 @@ import javassist.CtClass;
 import javassist.CtField;
 import javassist.CtMethod;
 import javassist.Modifier;
+import javassist.bytecode.AnnotationsAttribute;
+import javassist.bytecode.ConstPool;
+import javassist.bytecode.annotation.Annotation;
+import javassist.bytecode.annotation.LongMemberValue;
+import javassist.bytecode.annotation.StringMemberValue;
+import javassist.compiler.CompileError;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,14 +55,8 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
-import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.AttributeNameTokenResolver;
-import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.AttributeValueTokenResolver;
-import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.DescriptorValueTokenResolver;
-import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.MBeanOperationTokenResolver;
-import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ObjectNameDomainTokenResolver;
-import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ObjectNameKeyPropertyTokenResolver;
-import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ObjectNamePropertyExpansionTokenResolver;
-import com.heliosapm.opentsdb.client.jvmjmx.customx.TokenResolvers.ScriptInvocationTokenResolver;
+import com.heliosapm.opentsdb.client.name.AgentName;
+import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.utils.xml.XMLHelper;
 
@@ -73,6 +73,11 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 	private static volatile CompiledExpressionManager instance = null;
 	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
+
+	/** The metric name template field name */
+	public static final String METRICTEMPL_FIELD_NAME = "METRIC_NAME_TEMPLATE";
+	/** The metric value template field name */
+	public static final String VALUETEMPL_FIELD_NAME = "METRIC_VALUE_TEMPLATE";
 	
 	/** The name of the directory within the agent home where we'll write the transient byte code to */
 	public static final String BYTE_CODE_DIR = ".bytecode";
@@ -81,7 +86,9 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 	/** Decodes primitive classes to the javassist CtClass equivalent */
 	public static final Map<Class<?>, CtClass> PRIMITIVES;
 	/** The serial number applied to each generated class */
-	private final AtomicLong compiledExpressionSerial = new AtomicLong(0L);
+	private final AtomicLong compiledExpressionSerial = new AtomicLong(100L);
+	/** The byte code persistence root directory */
+	private final String byteCodeDir;
 	/** The shared classpool */
 	private final ClassPool cp = new ClassPool();
 	/** The CompiledExpression interface ctclass */
@@ -101,7 +108,17 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 	/** The doTrace method */
 //	private final CtMethod doTraceCtMethod;	
 	/** The context trace method */
-	private final CtMethod traceCtMethod;	
+	private final CtMethod traceCtMethod;
+	
+	/** The byte code persistence file */
+	private final File targetDir;
+	/** The protection domain permissions */
+	private final Permissions permissions = new Permissions();
+	/** The code source for the protection domain */
+	private final CodeSource cs;
+	/** The protection domain used for compiled classes */
+	private final ProtectionDomain pd;
+	
 	
 	
 	static {
@@ -156,6 +173,11 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 	 */
 	private CompiledExpressionManager() {
 		try {			
+			byteCodeDir = ConfigurationReader.conf(Constants.PROP_OFFLINE_DIR, Constants.DEFAULT_OFFLINE_DIR) + File.separator + AgentName.appName() + File.separator + BYTE_CODE_DIR;
+			targetDir = new File(byteCodeDir);
+			permissions.add(new AllPermission());
+			cs = new CodeSource(targetDir.toURI().toURL(), (Certificate[])null);
+			pd = new ProtectionDomain(cs, permissions);			
 			cp.appendSystemPath();
 			cp.appendClassPath(expCompilerClassPath);
 			StringCtClass = cp.get(String.class.getName());
@@ -166,6 +188,12 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 			CompiledExpressionCtClass = cp.get(CompiledExpression.class.getName());
 			AbstractCompiledExpressionCtClass = cp.get(AbstractCompiledExpression.class.getName());
 //			doTraceCtMethod = AbstractCompiledExpressionCtClass.getDeclaredMethod("doTrace");
+			final File collectorDir = new File(byteCodeDir + File.separator + getClass().getPackage().getName().replace('.', File.separatorChar));
+			if(collectorDir.exists() && collectorDir.isDirectory()) {
+				loadPersisted(collectorDir);
+			} else {
+				log.warn("No dir found for [{}]", collectorDir);
+			}
 			log.info("Created CompiledExpressionManager");
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to initialize the Compiled Expression Manager", ex);
@@ -175,6 +203,64 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 	}
 	
 	
+	/**
+	 * Loads any cached persisted classes
+	 * @param collectorDir The directory where the compiled expression classes will be
+	 */
+	private void loadPersisted(final File collectorDir) {
+		final long startTime = System.currentTimeMillis();
+		long maxSerial = Long.MIN_VALUE;
+		for(File classFile: collectorDir.listFiles()) {
+			if(classFile.getName().endsWith(".class")) {
+				BufferedInputStream bis = null;
+				FileInputStream fis = null;
+				boolean errored = false;
+				try {
+					fis = new FileInputStream(classFile);
+					bis = new BufferedInputStream(fis, (int)classFile.length());
+					final CtClass ctClass = cp.makeClassIfNew(bis);
+					if(ctClass.getSuperclass().equals(AbstractCompiledExpressionCtClass)) {
+						for(Object o: ctClass.getAvailableAnnotations()) {
+//							log.info("Class [{}], Annotation Type [{}]", ctClass.getSimpleName(), o.getClass().getName());
+							if(o instanceof CompExpr) {
+								final CompExpr ce = (CompExpr)o;
+//								log.info("CompExpr: id[{}], name[{}], value[{}], script[{}]", ce.serial(), ce.name(), ce.value(), ce.script()); 
+								final String key = ce.name() + EXPR_DELIM + ce.value() + EXPR_DELIM + ce.script();
+								if(expressionCache.asMap().containsKey(key)) {
+									log.warn("Dropping duplicate CompiledExpression [{}]", ctClass.getName());
+									errored = true;
+									continue; 
+								}
+								final Class<CompiledExpression> clazz = ctClass.toClass(getClass().getClassLoader(), pd);
+								final CompiledExpression compiledExpr = clazz.newInstance();
+								expressionCache.put(key, compiledExpr);
+								log.info("\tCached Class [{}] with key [{}]", clazz.getSimpleName(), key);
+								if(ce.serial() > maxSerial) {
+									maxSerial = ce.serial();
+								}
+							}
+						}
+					}
+				} catch (Exception ex) {
+					errored = true;
+					log.warn("Failed to load persisted CE", ex);
+				} finally {
+					if(bis!=null) try { bis.close(); } catch (Exception x) {/* No Op */}
+					if(fis!=null) try { fis.close(); } catch (Exception x) {/* No Op */}
+					if(errored) {
+						classFile.delete();
+					}
+				}
+				
+			}
+		}
+		if(maxSerial > Long.MIN_VALUE) {
+			compiledExpressionSerial.set(maxSerial);
+		}
+		final long elapsed = System.currentTimeMillis() - startTime;
+		log.info("Loaded [{}] cached CompiledExpressions in [{}] ms", expressionCache.size(), elapsed);
+	}
+
 	/**
 	 * Returns the CompiledExpression for the passed trace node
 	 * @param traceNode The XML node representing the trace directive
@@ -188,7 +274,8 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 		final String valueProcessorScript = XMLHelper.getAttributeByName(traceNode, "vscript", "");
 		if(!"trace".equalsIgnoreCase(traceNode.getNodeName())) throw new IllegalArgumentException("The passed node was not a valid trace: [" + nodeText + "]");
 		if(innerText==null || innerText.trim().isEmpty()) throw new IllegalArgumentException("The passed node was not a valid trace: [" + nodeText + "]");
-		final String key = innerText + EXPR_DELIM + valueExpression; 
+		final String key = innerText + EXPR_DELIM + valueExpression + EXPR_DELIM + valueProcessorScript;
+		log.info("\tFetching CE for key [{}], inCache:[{}]", key, expressionCache.asMap().containsKey(key));
 		try {
 			return expressionCache.get(key, new Callable<CompiledExpression>(){
 				@Override
@@ -202,13 +289,29 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 		}		
 	}
 	
-	/** The metric name template field name */
-	public static final String METRICTEMPL_FIELD_NAME = "METRIC_NAME_TEMPLATE";
-	/** The metric value template field name */
-	public static final String VALUETEMPL_FIELD_NAME = "METRIC_VALUE_TEMPLATE";
+	public CompiledExpression getCompiledExpression(final String name, final String value, final String script) {
+		if(name==null || name.trim().isEmpty()) throw new IllegalArgumentException("The passed name was null or empty");
+		final String innerText = name.trim();
+		final String valueExpression = (value==null || value.trim().isEmpty()) ? "" : value.trim();
+		final String valueProcessorScript = (script==null || script.trim().isEmpty()) ? "" : script.trim();
+		final String key = innerText + EXPR_DELIM + valueExpression + EXPR_DELIM + valueProcessorScript;
+		log.info("\tFetching CE for key [{}], inCache:[{}]", key, expressionCache.asMap().containsKey(key));
+		try {
+			return expressionCache.get(key, new Callable<CompiledExpression>(){
+				@Override
+				public CompiledExpression call() throws Exception {
+					return buildExpression(innerText, valueExpression, valueProcessorScript);
+				}
+			});
+		} catch (Exception ex) {
+			log.error("Failed to get CompiledExpression for trace node [" + key + "]", ex);
+			throw new RuntimeException("Failed to get CompiledExpression for trace node [" + key + "]", ex);
+		}				
+	}
 	
 	public static void main(String[] args) {
 		CompiledExpressionManager cem = getInstance(); 
+//		cem.getCompiledExpression("$ATTRV{}:foo=$OND{},bar=$SCR{gitem.js}", null, null);
 		cem.buildExpression("$ATTRV{}:foo=$OND{},bar=$SCR{gitem.js}", null, null);
 	}
 	
@@ -249,7 +352,7 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 				final String token = "###" + tokenKey + "###";
 				final CtMethod getFragMethod = new CtMethod(ObjectCtClass, "getFragment" + tokenKey, new CtClass[] {this.CollectionContextCtClass}, implCtClass);
 				implCtClass.addMethod(getFragMethod);
-				log.info("frag: [{}], code: [{}]", getFragMethod.getName(), code);
+//				log.info("frag: [{}], code: [{}]", getFragMethod.getName(), code);
 				getFragMethod.setBody("{" + code + "}");		
 				
 				// subst(final String token, final String working, final String value)
@@ -262,19 +365,34 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 			getMetricFQNMethod.setBody(b.toString());
 			implCtClass.setModifiers(implCtClass.getModifiers() & ~Modifier.ABSTRACT);
 			implCtClass.setModifiers(implCtClass.getModifiers() | Modifier.FINAL);
-			implCtClass.writeFile("/tmp/.tsdb-aop");
+			final ConstPool constpool = implCtClass.getClassFile2().getConstPool();
+			final Annotation annot = new Annotation(CompExpr.class.getName(), constpool);
+			final AnnotationsAttribute attr = new AnnotationsAttribute(constpool, AnnotationsAttribute.visibleTag);
+			annot.addMemberValue("name", new StringMemberValue(metricExpression.trim(), constpool));
+			annot.addMemberValue("serial", new LongMemberValue(clazzId, constpool));
+			if(valueExpression!=null && valueExpression.trim()!=null) {
+				annot.addMemberValue("value", new StringMemberValue(valueExpression.trim(), constpool));
+			}
+			if(valueProcessorScript!=null && valueProcessorScript.trim()!=null) {
+				annot.addMemberValue("script", new StringMemberValue(valueProcessorScript.trim(), constpool));
+			}
+			attr.addAnnotation(annot);		
+			implCtClass.getClassFile().addAttribute(attr);
+			
+			implCtClass.writeFile(byteCodeDir);
+			log.info("Wrote class [{}] to ByteCodeDir [{}]", implCtClass.getSimpleName(), byteCodeDir);
 			//  TODO:  only do this once
-			// TODO:  Add annotation
-			final File byteCodeDir = new File("/tmp/.tsdb-aop");
-			final Permissions permissions = new Permissions();
-			permissions.add(new AllPermission());
-			final CodeSource cs = new CodeSource(byteCodeDir.toURI().toURL(), (Certificate[])null);
-			final ProtectionDomain pd = new ProtectionDomain(cs, permissions);
 			final Class<CompiledExpression> clazz = implCtClass.toClass(getClass().getClassLoader(), pd);
 			final CompiledExpression ce = clazz.newInstance();
 			log.info("Instantiated [{}]", ce.getClass().getName());
 			return ce;
 		} catch (Exception ex) {
+			if(ex instanceof CannotCompileException) {
+				CannotCompileException cce = (CannotCompileException)ex;
+				log.error("Failed to compile expression. \n\tx: [{}]\n\tr: [{}]\n\te:[{}]", cce.getMessage(), cce.getReason(), cce.getCause().getClass().getName());
+				final CompileError ce = (CompileError) cce.getCause();
+				log.error("Failed to compile error. \n\tx: [{}]\n\tlex: [{}]\n\te:[{}]", ce.getMessage(), ce.getLex(), ce.getCause()==null ? "None" : ce.getCause().getClass().getName());				
+			}
 			throw new RuntimeException("Failed to compile expression [" + metricExpression + "] / [" + valueExpression + "]", ex);
 		}
 	}
@@ -315,7 +433,7 @@ public class CompiledExpressionManager  implements RemovalListener<String, Compi
 			cnt++;
 		}
 		m.appendTail(b);
-		log.info("Template [{}]", b.toString());
+//		log.info("Template [{}]", b.toString());
 		codeFragments.put(-1, b.toString());
 		return codeFragments;
 	}

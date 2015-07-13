@@ -22,7 +22,7 @@ import java.util.List;
  * <p>Description: Defines an aggregation function that accepts a list of objects and returns an object representing the aggregate.</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.IAggregator</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator</code></p>
  */
 public interface IAggregator {
 	/**
@@ -45,4 +45,12 @@ public interface IAggregator {
 	 * @return the aggregated double value
 	 */	
 	public double aggregate(double[] items);
+	
+	/**
+	 * Applies a modifier to the passed base name to identify it as being associated to this aggregator
+	 * @param base The base name to modify
+	 * @return the modified name
+	 */
+	public String assignName(String base);
+	
 }

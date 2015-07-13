@@ -35,7 +35,7 @@ import org.json.JSONObject;
  * <p>Description: Defines aggregate functions for aggregating the values of multiple attributes into one return value</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction</code></p>
+ * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction</code></p>
  */
 public enum AggregateFunction implements IAggregator {
 	/** Calculates the sum of the returned values */
@@ -62,8 +62,8 @@ public enum AggregateFunction implements IAggregator {
 	STRMAX(new MaxAggregator(true)),
 	
 	/** Returns the number of distinct items based on {@link Object#equals(Object)}  */
-	DISTINCT(new DistinctAggregator()),
-	/** Returns a json group with each unique item and a count of the occurences */
+	DISTINCT(new DistinctAggregator(false)),
+	/** Returns a JSON group with each unique item and a count of the occurences */
 	GROUP(new GroupAggregator()),
 	/** Returns a JSON composite of Min, Max, Average and Count */
 	MMAC(new MinMaxAvgCntAggregator(false)),
@@ -109,7 +109,15 @@ public enum AggregateFunction implements IAggregator {
 		return aggr.aggregate(items);
 	}
 	
-	
+	/**
+	 * {@inheritDoc}
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#assignName(java.lang.String)
+	 */
+	@Override
+	public String assignName(final String base) {
+		return this.aggr.assignName(base);
+	}
+ 	
 	/**
 	 * Returns the AggregateFunction for the passed name. Applies trim and toUpper to the name first.
 	 * @param name The name of the function
@@ -190,7 +198,7 @@ public enum AggregateFunction implements IAggregator {
 	/**
 	 * <p>Title: NumericAggregator</p>
 	 * <p>Description: Aggregates a numeric computation of all the values that are assumed to be numbers or implement {@link INumberProvider}</p> 
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.SumAggregator</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.SumAggregator</code></p>
 	 */
 	public static abstract class NumericAggregator implements IAggregator {
 		/** If true, throws an error if any item is null or not a number */
@@ -202,6 +210,11 @@ public enum AggregateFunction implements IAggregator {
 		public NumericAggregator(boolean strict) {
 			this.strict = strict;
 		}
+		
+		public String assignName(String base) {
+			return null;
+		}
+		
 		/**
 		 * Sifts through the passed items, looking for exceptions and if non-strict, returns a list of compliant items.
 		 * @param items The list of items to sift
@@ -262,7 +275,7 @@ public enum AggregateFunction implements IAggregator {
 	/**
 	 * <p>Title: Delta</p>
 	 * <p>Description: Computes deltas of the passed numbers</p> 
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.Delta</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.Delta</code></p>
 	 */
 	public static class Delta extends NumericAggregator {
 		/** If true, returns the delta of the last two items, otherwise returns the average delta of all entries */
@@ -335,7 +348,7 @@ public enum AggregateFunction implements IAggregator {
 	/**
 	 * <p>Title: Rate</p>
 	 * <p>Description: Computes rate of the passed numbers</p> 
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.Rate</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.Rate</code></p>
 	 */
 	public static class Rate extends Delta {
 		/** The time unit for which to report rates */
@@ -406,7 +419,7 @@ public enum AggregateFunction implements IAggregator {
 	/**
 	 * <p>Title: SumAggregator</p>
 	 * <p>Description: Aggregates the numeric sum of all the values</p> 
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.SumAggregator</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.SumAggregator</code></p>
 	 */
 	public static class SumAggregator extends NumericAggregator {
 		/**
@@ -450,7 +463,7 @@ public enum AggregateFunction implements IAggregator {
 	/**
 	 * <p>Title: AverageAggregator</p>
 	 * <p>Description: Aggregates the mathematical average  of all the values</p> 
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.AverageAggregator</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.AverageAggregator</code></p>
 	 */
 	public static class AverageAggregator extends NumericAggregator {
 		/**
@@ -506,7 +519,7 @@ public enum AggregateFunction implements IAggregator {
 	/**
 	 * <p>Title: MinAggregator</p>
 	 * <p>Description: Computes the lowest numeric value of all the values. If non-strict, returns -1D for an empty list</p> 
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.MinAggregator</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.MinAggregator</code></p>
 	 */
 	public static class MinAggregator extends NumericAggregator {
 		/**
@@ -558,7 +571,7 @@ public enum AggregateFunction implements IAggregator {
 	/**
 	 * <p>Title: MaxAggregator</p>
 	 * <p>Description: Computes the highest numeric value of all the values. If non-strict, returns -1D for an empty list</p> 
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.MaxAggregator</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.MaxAggregator</code></p>
 	 */
 	public static class MaxAggregator extends NumericAggregator {
 		/**
@@ -613,18 +626,16 @@ public enum AggregateFunction implements IAggregator {
 	 * <p>Description: Aggregates the items to a simple count of the number of items. If strict, throws an exception if any item is null, otherwise ignores null items.</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.CountAggregator</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.CountAggregator</code></p>
 	 */
-	public static class CountAggregator implements IAggregator {
-		/** The strict indicator */
-		private final boolean strict;
+	public static class CountAggregator extends NumericAggregator {
 		
 		/**
 		 * Creates a new CountAggregator
 		 * @param strict If true, implements strict count rules
 		 */
 		public CountAggregator(boolean strict) {
-			this.strict = strict;
+			super(strict);
 		}
 		
 		/**
@@ -673,9 +684,19 @@ public enum AggregateFunction implements IAggregator {
 	 * <p>Description: Aggregates the items to a simple count of the number of distinct items where equality is determined by {@link Object#equals(Object)}.  </p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.DistinctAggregator</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.DistinctAggregator</code></p>
 	 */
-	public static class DistinctAggregator implements IAggregator {
+	public static class DistinctAggregator extends NumericAggregator {
+		
+		
+
+		/**
+		 * Creates a new DistinctAggregator
+		 * @param strict indicates if this aggregator is strict
+		 */
+		public DistinctAggregator(final boolean strict) {
+			super(strict);
+		}
 
 		/**
 		 * {@inheritDoc}
@@ -683,7 +704,11 @@ public enum AggregateFunction implements IAggregator {
 		 */
 		@Override
 		public Object aggregate(List<Object> items) {
-			if(items==null || items.isEmpty()) return 0;
+			if(items==null) {
+				if(strict) throw new RuntimeException("List of items for Count was null and aggregator was strict", new Throwable()); 
+				return 0;
+			}
+			if(items.isEmpty()) return 0;
 			Set<Object> set = new CopyOnWriteArraySet<Object>(items);
 			return set.size();
 		}
@@ -694,7 +719,11 @@ public enum AggregateFunction implements IAggregator {
 		 */
 		@Override
 		public long aggregate(long[] items) {
-			if(items==null || items.length<1) return 0;
+			if(items==null) {
+				if(strict) throw new RuntimeException("List of items for Count was null and aggregator was strict", new Throwable()); 
+				return 0;
+			}			
+			if(items.length<1) return 0;
 			Set<Long> set = new HashSet<Long>(items.length);
 			for(int i = 0; i < items.length; i++) { set.add(items[i]); }
 			return set.size();
@@ -706,7 +735,11 @@ public enum AggregateFunction implements IAggregator {
 		 */
 		@Override
 		public double aggregate(double[] items) {
-			if(items==null || items.length<1) return 0;
+			if(items==null) {
+				if(strict) throw new RuntimeException("List of items for Count was null and aggregator was strict", new Throwable()); 
+				return 0;
+			}			
+			if(items.length<1) return 0;			
 			Set<Double> set = new HashSet<Double>(items.length);
 			for(int i = 0; i < items.length; i++) { set.add(items[i]); }
 			return set.size();
@@ -719,7 +752,7 @@ public enum AggregateFunction implements IAggregator {
 	 * are represented using {@link Object#toString()}.  Null items are ignored.</p> 
 	 * <p>Company: Helios Development Group LLC</p>
 	 * @author Whitehead (nwhitehead AT heliosdev DOT org)
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.GroupAggregator</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.GroupAggregator</code></p>
 	 */
 	public static class GroupAggregator implements IAggregator {
 		/**
@@ -741,6 +774,15 @@ public enum AggregateFunction implements IAggregator {
 				map.put(key, l);
 			}			
 			return new JSONObject(map);
+		}
+		
+		/**
+		 * {@inheritDoc}
+		 * @see com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.IAggregator#assignName(java.lang.String)
+		 */
+		@Override
+		public String assignName(String base) {
+			throw new UnsupportedOperationException("[" + getClass().getSimpleName() + "] does not support assignName", new Throwable());
 		}
 
 		/**
@@ -766,7 +808,7 @@ public enum AggregateFunction implements IAggregator {
 	/**
 	 * <p>Title: MinMaxAvgCntAggregator</p>
 	 * <p>Description: Aggregates the passed numberic items to a JSON object representing the min, max, average and count. If non-strict, returns -1D values for a null list and for null items</p> 
-	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.custom.aggregation.AggregateFunction.MinMaxAvgCntAggregator</code></p>
+	 * <p><code>com.heliosapm.opentsdb.client.jvmjmx.customx.aggregation.AggregateFunction.MinMaxAvgCntAggregator</code></p>
 	 */
 	public static class MinMaxAvgCntAggregator extends NumericAggregator {
 		/** The MinMaxAvgCnt key for the min value */
@@ -890,5 +932,7 @@ public enum AggregateFunction implements IAggregator {
 
 		
 	}
+
+
 	
 }
