@@ -15,7 +15,6 @@
  */
 package com.heliosapm.opentsdb.client.opentsdb;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,7 +29,7 @@ import com.heliosapm.opentsdb.client.util.DynamicByteBufferBackedChannelBuffer;
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean</code></p>
  */
 
-public interface HttpMetricsPosterMXBean {
+public interface HttpMetricsPosterMBean {
 	
 	/** Notification type for initial connection */
 	public static final String NOTIF_CONNECTED = "opentsdb.connected";

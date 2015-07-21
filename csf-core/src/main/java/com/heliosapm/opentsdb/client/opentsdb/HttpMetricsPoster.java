@@ -87,7 +87,7 @@ import com.ning.http.client.providers.netty.NettyAsyncHttpProviderConfig;
  * <p><code>com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPoster</code></p>
  */
 
-public class HttpMetricsPoster extends NotificationBroadcasterSupport implements HttpMetricsPosterMXBean, Constants, ConnectivityChecker.ConnectivityListener {
+public class HttpMetricsPoster extends NotificationBroadcasterSupport implements HttpMetricsPosterMBean, Constants, ConnectivityChecker.ConnectivityListener {
 	/** The singleton instance */
 	private static volatile HttpMetricsPoster instance = null;
 	/** The singleton instance ctor lock */
@@ -739,7 +739,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getBufferMemoryAllocated()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getBufferMemoryAllocated()
 	 */
 	@Override
 	public long getBufferMemoryAllocated() {		
@@ -748,7 +748,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getBuffersAllocated()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getBuffersAllocated()
 	 */
 	@Override
 	public long getBuffersAllocated() {
@@ -910,7 +910,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getSentMetrics()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getSentMetrics()
 	 */
 	public long getSentMetrics() {
 		return sentMetrics.get();
@@ -918,7 +918,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getBufferedMetrics()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getBufferedMetrics()
 	 */
 	public long getBufferedMetrics() {
 		return bufferedMetrics.get();
@@ -926,7 +926,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getLastSendTime()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getLastSendTime()
 	 */
 	public long getLastSendTime() {
 		return lastSendTime.get();
@@ -934,7 +934,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getPendingMetricStores()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getPendingMetricStores()
 	 */
 	public long getPendingMetricStores() {
 		return pendingMetricStores.get();
@@ -946,7 +946,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	 */
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getOfflineFile()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getOfflineFile()
 	 */
 	@Override
 	public String getOfflineFile() {
@@ -955,7 +955,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getOfflineFileSize()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getOfflineFileSize()
 	 */
 	@Override
 	public long getOfflineFileSize() {
@@ -964,7 +964,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getOfflineFileEntries()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getOfflineFileEntries()
 	 */
 	@Override
 	public int getOfflineFileEntries() {
@@ -973,7 +973,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getOfflineFileCompressionRate()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getOfflineFileCompressionRate()
 	 */
 	@Override
 	public double getOfflineFileCompressionRate() {
@@ -982,7 +982,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#isOfflineFileCompressed()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#isOfflineFileCompressed()
 	 */
 	@Override
 	public boolean isOfflineFileCompressed() {		
@@ -991,7 +991,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getOfflineDir()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getOfflineDir()
 	 */
 	public String getOfflineDir() {
 		File d = mpersistor.getOfflineDir();
@@ -1000,7 +1000,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getOfflineFileCount()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getOfflineFileCount()
 	 */
 	public int getOfflineFileCount() {
 		return mpersistor.getOfflineFileCount();
@@ -1009,7 +1009,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	/**
 	 * TODO: this will be expensive. Make it an Op ?
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getOfflineEntryCount()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getOfflineEntryCount()
 	 */
 	public int getOfflineEntryCount() {
 		return mpersistor.getOfflineEntryCount();
@@ -1044,7 +1044,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#isConnected()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#isConnected()
 	 */
 	public boolean isConnected() {
 		return checker.isConnected();
@@ -1052,7 +1052,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#isHardDown()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#isHardDown()
 	 */
 	public boolean isHardDown() {
 		return hardDown.get();
@@ -1061,7 +1061,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getFlushSuccessCount()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getFlushSuccessCount()
 	 */
 	@Override
 	public long getFlushSuccessCount() {
@@ -1071,7 +1071,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getFlushFailedCount()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getFlushFailedCount()
 	 */
 	@Override
 	public long getFlushFailedCount() {
@@ -1081,7 +1081,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getFlushBadContentCount()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getFlushBadContentCount()
 	 */
 	@Override
 	public long getFlushBadContentCount() {
@@ -1111,7 +1111,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getPutResponseHandlerName()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getPutResponseHandlerName()
 	 */
 	@Override
 	public String getPutResponseHandlerName() {
@@ -1120,7 +1120,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#setPutResponseHandlerName(java.lang.String)
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#setPutResponseHandlerName(java.lang.String)
 	 */
 	@Override
 	public void setPutResponseHandlerName(final String handlerName) {
@@ -1139,7 +1139,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getSuccessfulMetrics()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getSuccessfulMetrics()
 	 */
 	@Override
 	public long getSuccessfulMetrics() {
@@ -1149,7 +1149,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getFailedMetrics()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getFailedMetrics()
 	 */
 	@Override
 	public long getFailedMetrics() {
@@ -1158,7 +1158,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getAppName()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getAppName()
 	 */
 	@Override
 	public String getAppName() {		
@@ -1178,7 +1178,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getHostName()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getHostName()
 	 */
 	@Override
 	public String getHostName() {
@@ -1187,7 +1187,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#setAppName(java.lang.String)
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#setAppName(java.lang.String)
 	 */
 	@Override
 	public void setAppName(final String newAppName) {
@@ -1196,7 +1196,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#setHostName(java.lang.String)
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#setHostName(java.lang.String)
 	 */
 	@Override
 	public void setHostName(String newHostName) {
@@ -1205,7 +1205,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getGlobalTags()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getGlobalTags()
 	 */
 	@Override
 	public HashMap<String, String> getGlobalTags() {		
@@ -1215,7 +1215,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getMaxConcurrentFlushes()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getMaxConcurrentFlushes()
 	 */
 	@Override
 	public int getMaxConcurrentFlushes() {
@@ -1225,7 +1225,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#setMaxConcurrentFlushes(int)
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#setMaxConcurrentFlushes(int)
 	 */
 	@Override
 	public void setMaxConcurrentFlushes(final int maxConcurrentFlushes) {
@@ -1235,7 +1235,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#dumpMetricNames(boolean)
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#dumpMetricNames(boolean)
 	 * FIXME
 	 */
 	@Override
@@ -1245,7 +1245,7 @@ public class HttpMetricsPoster extends NotificationBroadcasterSupport implements
 	
 	/**
 	 * {@inheritDoc}
-	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMXBean#getMetricCount()
+	 * @see com.heliosapm.opentsdb.client.opentsdb.HttpMetricsPosterMBean#getMetricCount()
 	 */
 	@Override
 	public int getMetricCount() {	
