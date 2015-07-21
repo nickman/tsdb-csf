@@ -199,7 +199,7 @@ Caused by: java.lang.ClassNotFoundException: com.heliosapm.utils.classload.Isola
 			return;
 		}
 		log("AgentArgs: [%s]", agentArgs);
-		final String[] parsedArgs = agentArgs.trim().split(",");
+		final String[] parsedArgs = agentArgs.replace("-config,", "").trim().split(",");
 		if(parsedArgs.length <2) {
 			log("Insufficient args: \n[%s]\nWe're outa here...", Arrays.toString(parsedArgs));
 			return;			
