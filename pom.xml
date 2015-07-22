@@ -10,6 +10,7 @@
     <url>https://github.com/nickman/tsdb-csf</url>
     <modules>
         <module>csf-core</module>
+        <module>csf-hub</module>
         <module>csf-javaagent</module>
         <module>csf-aop</module>
         <module>csf-spring</module>
@@ -38,6 +39,7 @@
         <javassist.version>3.18.2-GA</javassist.version>
         <gson.version>2.3.1</gson.version>
         <jmx-optional.version>1.0-b02</jmx-optional.version>
+        <dmk.version>1.0-b01-ea</dmk.version>
         <spring.version>4.1.0.RELEASE</spring.version>
         <hamcrest.version>1.3</hamcrest.version>
         <heliosutils.version>1.0-SNAPSHOT</heliosutils.version>       
@@ -94,6 +96,12 @@
               <artifactId>jmx-optional</artifactId>
               <version>${jmx-optional.version}</version>
             </dependency>
+
+            <dependency>
+              <groupId>org.glassfish.external</groupId>
+              <artifactId>opendmk_jdmkrt_jar</artifactId>
+              <version>${dmk.version}</version>
+            </dependency>            
 
 
             <dependency>
