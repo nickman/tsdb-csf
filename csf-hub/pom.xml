@@ -25,8 +25,13 @@
          </dependency>
 
         <dependency>
+        <!-- 
           <groupId>org.glassfish.external</groupId>
           <artifactId>opendmk_jdmkrt_jar</artifactId>
+         -->
+		  <groupId>com.sun.jdmk</groupId>
+		  <artifactId>core</artifactId>
+		  <version>1.0-b02-SNAPSHOT</version>         
         </dependency>            
 
 
@@ -176,12 +181,7 @@
                       <addClasspath>true</addClasspath>
                   </manifest>
                   <manifestEntries>	
-                      <Main-Class>com.heliosapm.opentsdb.client.boot.AgentInstaller</Main-Class> 
-                      <Premain-Class>com.heliosapm.opentsdb.client.boot.JavaAgent</Premain-Class>
-                      <Agent-Class>com.heliosapm.opentsdb.client.boot.JavaAgent</Agent-Class>
-                      <Can-Redefine-Classes>true</Can-Redefine-Classes>
-                      <Can-Retransform-Classes>true</Can-Retransform-Classes>
-                      <Can-Set-Native-Method-Prefix>true</Can-Set-Native-Method-Prefix>                   
+                      <Main-Class>com.heliosapm.hub.HubMain</Main-Class> 
                   </manifestEntries>
                   </archive>
               </configuration>

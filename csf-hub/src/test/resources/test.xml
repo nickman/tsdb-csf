@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hub-config>
+	<sysprops><![CDATA[
+		tsdb.http.compression.enabled=false
+		tsdb.http.tsdb.url=http://pdk-pt-cetsd-01:8080
+		tsdb.id.app=ecs
+	]]></sysprops>
+	<jmxmp>
+		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
+	</jmxmp>
+	<appidfinders>
+		com.heliosapm.hub.JBossServerNameAppIdFinder, com.heliosapm.hub.CoherenceAppIdFinder 
+	</appidfinders>
+</hub-config>

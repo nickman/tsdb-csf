@@ -66,9 +66,19 @@ public class JMXMPInstaller {
 				if(mbs==null) continue;
 				final Map<String, String> env = new HashMap<String, String>();
 				env.put(JMXMPConnectorServer.SERVER_ADDRESS_WILDCARD, "" + isWildcardAddress(iface));
-				JMXMPConnectorServer jmxmpServer = new JMXMPConnectorServer(surl, env, mbs);
+				final JMXMPConnectorServer jmxmpServer = new JMXMPConnectorServer(surl, env, mbs);
 				// FIXME:  start in daemon thread
-				jmxmpServer.start();
+				final Thread t = new Thread("JMXMPStarter") {
+					public void run() {
+						try { jmxmpServer.start(); } catch (Exception x) {
+							x.printStackTrace(System.err);
+						}
+					}
+				};
+				t.setDaemon(true);
+				t.start();
+				t.join(10000);
+				
 				log("Started JMXMP Server on [%s]", surl);
 			} catch (Exception ex) {
 				loge("Failed to load JMXMP Server. Stack trace follows:");

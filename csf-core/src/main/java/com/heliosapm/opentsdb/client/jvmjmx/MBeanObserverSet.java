@@ -36,6 +36,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.heliosapm.opentsdb.client.boot.XMLLoader;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
+import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
@@ -114,15 +115,15 @@ public class MBeanObserverSet implements Runnable {
 		try { Thread.currentThread().join(); } catch (Exception ex) {}
 	}
 	
-	
 	/**
 	 * Builds a new MBeanObserverSet from an XMLConfiguration and boots it
 	 * @param serverConn The MBeanServerConnection to attach to
 	 * @param xmlConfigNode The XMLConfig
+	 * @param tagOverrides Optional tag overrides (like for when you're tracing for a remote JVM)
 	 * @return the built set
 	 */
-	public static MBeanObserverSet build(final MBeanServerConnection serverConn, final Node xmlConfigNode) {	
-		final RuntimeMBeanServerConnection mbeanServer = RuntimeMBeanServerConnection.newInstance(serverConn);
+	public static MBeanObserverSet build(final MBeanServerConnection serverConn, final Node xmlConfigNode, final Map<String, String> tagOverrides) {
+		final RuntimeMBeanServerConnection mbeanServer = (serverConn instanceof RuntimeMBeanServerConnection) ? ((RuntimeMBeanServerConnection)serverConn) : RuntimeMBeanServerConnection.newInstance(serverConn);
 		final long period = XMLHelper.getAttributeByName(xmlConfigNode, "period", 15L);
 		final boolean collectorMBeans = XMLHelper.getAttributeByName(xmlConfigNode, "collectormbeans", false);
 		final MBeanObserverSet mos = new MBeanObserverSet(mbeanServer, period, TimeUnit.SECONDS);
@@ -150,7 +151,7 @@ public class MBeanObserverSet implements Runnable {
 		b.append(activated);
 		log(b.toString());
 		for(MBeanObserver mo: observers) {
-			BaseMBeanObserver base = mo.getMBeanObserver(mbeanServer, null, collectorMBeans);
+			BaseMBeanObserver base = mo.getMBeanObserver(mbeanServer, tagOverrides, collectorMBeans);
 			if(base!=null) {
 				if(!hotspotEnabled) {
 					if(mo.objectName.toString().startsWith("sun.management")) {
@@ -175,7 +176,19 @@ public class MBeanObserverSet implements Runnable {
 		OpenTSDBReporter reporter = OpenTSDBReporter.forRegistry(reg).build();		
 		mos.start();
 		reporter.start(period, TimeUnit.SECONDS);		
-		return mos;
+		return mos;		
+	}
+
+	
+	
+	/**
+	 * Builds a new MBeanObserverSet from an XMLConfiguration and boots it
+	 * @param serverConn The MBeanServerConnection to attach to
+	 * @param xmlConfigNode The XMLConfig
+	 * @return the built set
+	 */
+	public static MBeanObserverSet build(final MBeanServerConnection serverConn, final Node xmlConfigNode) {	
+		return build(serverConn, xmlConfigNode, null);
 	}
 	
 	/**
@@ -199,11 +212,27 @@ public class MBeanObserverSet implements Runnable {
 	 * @return the built MBeanObserverSet
 	 */
 	public static MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final long period, final TimeUnit unit, final boolean publishObserverMBean) {
+		return build(mbeanServer, period, unit, publishObserverMBean, null);
+	}
+
+	
+	/**
+	 * Builds an MBeanObserver set for the platform mbeans
+	 * @param mbeanServer The target MBeanServer
+	 * @param period The polling period
+	 * @param unit The polling period unit
+	 * @param publishObserverMBean If true, an observer management MBean will be registered
+	 * @return the built MBeanObserverSet
+	 */
+	public static MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final long period, final TimeUnit unit, final boolean publishObserverMBean, final String appId) {
 		final MBeanObserverSet mos = new MBeanObserverSet(mbeanServer, period, unit);		
 		BaseMBeanObserver observer = new ClassLoadingMBeanObserver(mbeanServer, null, publishObserverMBean);
 		
 		mos.enabledObservers.add(observer);
 		final Map<String, String> tags = observer.getTags();
+		if(appId!=null && !appId.trim().isEmpty()) {
+			tags.put("app", appId);
+		};
 		mos.enabledObservers.remove(observer);
 		MBeanObserver[] hotspotObservers = MBeanObserver.hotspotObservers(ConfigurationReader.conf(Constants.PROP_JMX_HOTSPOT_TRACING, Constants.DEFAULT_JMX_HOTSPOT_TRACING));
 		
