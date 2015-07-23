@@ -36,7 +36,6 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.heliosapm.opentsdb.client.boot.XMLLoader;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
-import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
@@ -125,7 +124,7 @@ public class MBeanObserverSet implements Runnable {
 	public static MBeanObserverSet build(final MBeanServerConnection serverConn, final Node xmlConfigNode, final Map<String, String> tagOverrides) {
 		final RuntimeMBeanServerConnection mbeanServer = (serverConn instanceof RuntimeMBeanServerConnection) ? ((RuntimeMBeanServerConnection)serverConn) : RuntimeMBeanServerConnection.newInstance(serverConn);
 		final long period = XMLHelper.getAttributeByName(xmlConfigNode, "period", 15L);
-		final boolean collectorMBeans = XMLHelper.getAttributeByName(xmlConfigNode, "collectormbeans", false);
+		final boolean collectorMBeans = false; //XMLHelper.getAttributeByName(xmlConfigNode, "collectormbeans", false);
 		final MBeanObserverSet mos = new MBeanObserverSet(mbeanServer, period, TimeUnit.SECONDS);
 		final Set<String> includes = new HashSet<String>();
 		final Set<String> excludes = new HashSet<String>();

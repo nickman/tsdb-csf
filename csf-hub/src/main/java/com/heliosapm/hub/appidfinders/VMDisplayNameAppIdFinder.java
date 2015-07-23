@@ -37,7 +37,12 @@ public class VMDisplayNameAppIdFinder implements AppIdFinder {
 	 */
 	@Override
 	public String getAppId(final MountedJVM jvm) {
-		return jvm.getDisplayName();
+		String jvmName = jvm.getDisplayName();
+		if(jvmName==null || jvmName.trim().isEmpty()) return "null-jname";
+		jvmName = jvmName.trim();
+		int index = jvmName.lastIndexOf('.');
+		if(index==-1) return jvmName;
+		return jvmName.substring(index+1);		
 	}
 
 }

@@ -282,7 +282,7 @@ public class XMLLoader {
 	 */
 	public static void initJmxCollector(final Node rootConfigNode) {
 		try {
-			final Node platformNode = XMLHelper.getChildNodeByName(rootConfigNode, "platform");
+			final Node platformNode = XMLHelper.getChildNodeByName(rootConfigNode, "platform-mbeanobserver");
 			if(platformNode!=null) {
 				// MBeanObserverSet build(final RuntimeMBeanServerConnection mbeanServer, final Node xmlConfigNode) {
 				final Class<?> observerClass = Class.forName("com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet");

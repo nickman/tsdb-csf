@@ -301,7 +301,7 @@ public class GCConfiguration extends BaseMBeanObserver {
 		final MBeanServerConnection _mbsc = mbsc==null ? JMXHelper.getHeliosMBeanServer() : mbsc;
 		try {
 			if(!JMXHelper.isRegistered(_mbsc, MBeanObserver.HOTSPOT_MEMORY_MBEAN.objectName)) {
-				JMXHelper.registerHotspotInternal(_mbsc);
+				//JMXHelper.registerHotspotInternal(_mbsc);
 			}			
 			return load(counterPattern, _mbsc, (List<Object>)JMXHelper.getAttribute(mbsc, MBeanObserver.HOTSPOT_MEMORY_MBEAN.objectName, "InternalMemoryCounters"));
 		} catch (Exception ex) {

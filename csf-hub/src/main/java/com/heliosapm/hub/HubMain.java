@@ -62,8 +62,6 @@ public class HubMain implements Runnable {
 	protected CascadingService cascadeService; 
 	protected final AtomicBoolean running = new AtomicBoolean(false);
 	protected final AtomicBoolean scanning = new AtomicBoolean(false);
-	private final LinkedHashSet<AppIdFinder> appIdFinders = new LinkedHashSet<AppIdFinder>(); 
-	private Node platformNode = null;
 	private JMatch[] matchers;
 	
 	
@@ -102,43 +100,54 @@ public class HubMain implements Runnable {
 	}
 	
 	public void run() {
-		scan();
+		while(true) {
+			try { scan(); } catch (Exception x) {/* No Op */}
+			try { Thread.currentThread().join(5000); } catch (Exception x) {/* No Op */}
+		}
 	}
 	
 		
 	
+	/**
+	 * Scans the detected running JVMs
+	 */
 	protected void scan() {
 		if(scanning.compareAndSet(false, true)) {
 			try {
 				for(VirtualMachineDescriptor vmd: VirtualMachine.list()) {
 					try {
 						if(MY_PID.equals(vmd.id()) || virtualMachines.containsKey(vmd.id())) continue;
-						for(JMatch j: matchers) {
-							try {
-								
-							} catch (Exception ex) {
-								loge("Matcher exception (Programmer Error) Stack trace follows:");
-								ex.printStackTrace(System.err);
+						VirtualMachine jvm = null;
+						try {
+							jvm = vmd.provider().attachVirtualMachine(vmd.id());
+							for(JMatch j: matchers) {
+								try {
+									if(j.match(vmd.displayName(), jvm, j.getMatch(), j.getMatchKey())) {
+										final MountedJVM vm = new MountedJVM(vmd, cascadeService, virtualMachines, j);
+										virtualMachines.put(vm.getId(), vm);
+										log("Mounted JVM [%s] : [%s]", vm.getId(), vm.getDisplayName());
+										if(vm.readyForPlatform()) {
+											vm.enableCollectors();
+										}										
+										break;
+									}
+									
+								} catch (Exception ex) {
+									loge("Matcher exception (Programmer Error) Stack trace follows:");
+									ex.printStackTrace(System.err);
+								}
 							}
-						}
-						final MountedJVM vm = new MountedJVM(vmd, cascadeService, virtualMachines, appIdFinders, platformNode);
-						vm.addMountPoint(cascadeService.mount(vm.getJmxUrl(), null, JMXHelper.objectName("java.lang:*"), "local/" + vm.getId()));
-						vm.addMountPoint(cascadeService.mount(vm.getJmxUrl(), null, JMXHelper.objectName("java.nio:*"), "local/" + vm.getId()));
-						vm.addMountPoint(cascadeService.mount(vm.getJmxUrl(), null, JMXHelper.objectName("JMImplementation:*"), "local/" + vm.getId()));
-						vm.addMountPoint(cascadeService.mount(vm.getJmxUrl(), null, JMXHelper.objectName("Coherence:type=Cluster"), "local/" + vm.getId()));
-						virtualMachines.put(vm.getId(), vm);
-						log("Mounted JVM [%s] : [%s]", vm.getId(), vm.getDisplayName());
-						if(vm.findAppId()!=null && platformNode!=null) {
-							vm.enableCollectors(platformNode);
+						} finally {
+							if(jvm!=null) try { jvm.detach(); } catch (Exception x) {/* No Op */}
 						}
 					} catch (Exception ex) {
 						loge("Scan failure: %s", ex);
 					}
 				}
 				for(MountedJVM vm: virtualMachines.values()) {
-					if(vm.findAppId()!=null && platformNode!=null) {
-						vm.enableCollectors(platformNode);
-					}
+					if(vm.readyForPlatform()) {
+						vm.enableCollectors();
+					}										
 				}
 			} finally {
 				scanning.set(false);
@@ -166,32 +175,10 @@ public class HubMain implements Runnable {
 			loge("Failed to boot JMXMP servers. Stack trace follows.");
 			ex.printStackTrace(System.err);
 		}
-		loadSysProps(XMLHelper.getChildNodeByName(configNode, "sysprops"));
-		final Node finderNode = XMLHelper.getChildNodeByName(configNode, "appidfinders");
-		if(finderNode!=null) {
-			configureFinders(finderNode);
-		}
-		platformNode = XMLHelper.getChildNodeByName(configNode, "platform-mbeanobserver");
+		loadSysProps(XMLHelper.getChildNodeByName(configNode, "sysprops"));		
 	}
 	
-	/**
-	 * @param finderNode
-	 */
-	private void configureFinders(final Node finderNode) {
-		final String content = XMLHelper.getNodeTextValue(finderNode, "").trim();
-		for(String s: content.split(",")) {
-			try {
-				Class<AppIdFinder> clazz = (Class<AppIdFinder>) Class.forName(s.trim());
-				AppIdFinder finder = clazz.newInstance();
-				appIdFinders.add(finder);
-				log("Added AppIdFinder [%s]", clazz.getName());
-			} catch (Exception ex) {
-				loge("Failed to load finder for [%s]. Stack trace follows.", s);
-				ex.printStackTrace(System.err);
-			}
-		}
-		
-	}
+
 	
 	
 

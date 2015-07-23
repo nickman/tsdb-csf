@@ -19,7 +19,12 @@ under the License.
 package com.heliosapm.hub;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.w3c.dom.Node;
 
@@ -61,9 +66,16 @@ public enum JVMMatch implements JVMMatcher {
 		final String match;
 		final JVMMatcher matcher;
 		final String matchKey;
-		final List<Node> childNodes;
+		final Node jvmMatcherNode;
+		final Set<String> mountPoints = new HashSet<String>();
+		final LinkedHashSet<AppIdFinder> appIdFinders = new LinkedHashSet<AppIdFinder>(); 
+		final Node platformNode;
+			
+
 		
 		private static final JMatch[] EMPTY_ARR = {};
+		
+		private static final Map<String, AppIdFinder> appIdFinderCache = new ConcurrentHashMap<String, AppIdFinder>(); 
 		
 		/**
 		 * Returns an array of JMatches for each mountjvm element found in the passed root config node
@@ -91,7 +103,62 @@ public enum JVMMatch implements JVMMatcher {
 			match = XMLHelper.getAttributeByName(jvmMatcherNode, "match", null);
 			matchKey = XMLHelper.getAttributeByName(jvmMatcherNode, "matchkey", null);
 			matcher = JVMMatch.forName(XMLHelper.getAttributeByName(jvmMatcherNode, "matcher", null));
-			childNodes = XMLHelper.getElementChildNodes(jvmMatcherNode);
+			this.jvmMatcherNode = jvmMatcherNode;
+			for(Node mp: XMLHelper.getChildNodesByName(jvmMatcherNode, "mountpoint", false)) {
+				final String s = XMLHelper.getNodeTextValue(mp, "").trim();
+				if(!s.isEmpty()) {
+					mountPoints.add(XMLHelper.getNodeTextValue(mp));
+				}
+			}
+			final Node finderNode = XMLHelper.getChildNodeByName(jvmMatcherNode, "appidfinders", false);
+			if(finderNode!=null) configureFinders(finderNode);
+			if(appIdFinders.isEmpty()) throw new IllegalStateException("JMatch created with no AppId finders");
+			platformNode = XMLHelper.getChildNodeByName(jvmMatcherNode, "platform-mbeanobserver");
+		}
+		
+		/**
+		 * @param finderNode
+		 */
+		private void configureFinders(final Node finderNode) {
+			final String content = XMLHelper.getNodeTextValue(finderNode, "").trim();
+			for(String s: content.split(",")) {
+				try {
+					final String _className = s.trim();
+					AppIdFinder finder = appIdFinderCache.get(_className);
+					if(finder==null) {
+						synchronized(appIdFinderCache) {
+							finder = appIdFinderCache.get(_className);
+							if(finder==null) {
+								@SuppressWarnings("unchecked")
+								Class<AppIdFinder> clazz = (Class<AppIdFinder>) Class.forName(_className);
+								finder = clazz.newInstance();
+								appIdFinderCache.put(_className, finder);								
+							}
+						}
+					}					
+					appIdFinders.add(finder);
+				} catch (Exception ex) {					
+					ex.printStackTrace(System.err);
+				}
+			}
+			
+		}
+		
+		/**
+		 * Returns the configured app id finders
+		 * @return an array of app id finders
+		 */
+		public AppIdFinder[] getAppIdFinders() {
+			return appIdFinders.toArray(new AppIdFinder[appIdFinders.size()]);
+		}
+		
+		
+		/**
+		 * Returns the configured mountpoints in an array
+		 * @return an array of mountpoint patterns
+		 */
+		public String[] getMountPoints() {
+			return mountPoints.toArray(new String[mountPoints.size()]);
 		}
 		
 		/**
@@ -129,11 +196,19 @@ public enum JVMMatch implements JVMMatcher {
 		}
 
 		/**
-		 * Returns the child nodes in the jvmmatch element
-		 * @return the childNodes
+		 * Returns the jvmmount node
+		 * @return the jvmmount node
 		 */
-		public Node[] getChildNodes() {
-			return childNodes.toArray(new Node[0]);
+		public Node getNode() {
+			return jvmMatcherNode;
+		}
+
+		/**
+		 * Returns the platform MBean collection configuration node
+		 * @return the platformNode
+		 */
+		public Node getPlatformNode() {
+			return platformNode;
 		}
 		
 	}

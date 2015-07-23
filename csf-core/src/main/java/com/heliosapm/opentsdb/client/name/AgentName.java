@@ -441,14 +441,14 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 		final ObjectName runtimeMXBean = JMXHelper.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME);
 		try {
 			RuntimeMXBean rt = JMX.newMXBeanProxy(remote, runtimeMXBean, RuntimeMXBean.class, false);
-			final Map<String, String> sysProps = rt.getSystemProperties();
-			String appName = sysProps.get(Constants.PROP_APP_NAME).trim();
+			final Properties sysProps = mapToProps(rt.getSystemProperties());
+			String appName = sysProps.getProperty(Constants.PROP_APP_NAME, "").trim();
 			if(appName!=null && !appName.isEmpty()) return appName;
-			appName = sysProps.get(Constants.REMOTE_PROP_APP_NAME).trim();
+			appName = sysProps.getProperty(Constants.REMOTE_PROP_APP_NAME, "").trim();
 			if(appName!=null && !appName.isEmpty()) return appName;			
 			appName = getRemoteJSAppName(remote);
 			if(appName!=null && !appName.isEmpty()) return appName;
-			appName = sysProps.get("sun.java.command").trim();
+			appName = sysProps.getProperty("sun.java.command").trim();
 			if(appName!=null && !appName.isEmpty()) {
 				return cleanAppName(appName);
 			}
@@ -456,6 +456,17 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to get any app name", ex);
 		}		
+	}
+	
+	protected static Properties mapToProps(final Map<?, ?> map) {
+		final Properties p = new Properties();
+		if(map!=null && !map.isEmpty()) {
+			for(Map.Entry<?, ?> entry: map.entrySet()) {
+				if(entry.getKey()==null || entry.getValue()==null) continue;
+				p.setProperty(entry.getKey().toString(), entry.getValue().toString());
+			}
+		}
+		return p;
 	}
 	
 	/**
@@ -469,20 +480,20 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 		final boolean shortHost = ConfigurationReader.confBool(Constants.PROP_USE_SHORT_HOSTNAMES, Constants.DEFAULT_USE_SHORT_HOSTNAMES);
 		try {
 			RuntimeMXBean rt = JMX.newMXBeanProxy(remote, runtimeMXBean, RuntimeMXBean.class, false);
-			final Map<String, String> sysProps = rt.getSystemProperties();
-			String appName = sysProps.get(Constants.PROP_HOST_NAME).trim();
-			if(appName==null || appName.isEmpty()) {
-				appName = sysProps.get(Constants.REMOTE_PROP_HOST_NAME).trim();
+			final Properties sysProps = mapToProps(rt.getSystemProperties());
+			String hostName = sysProps.getProperty(Constants.PROP_HOST_NAME, "").trim();
+			if(hostName==null || hostName.isEmpty()) {
+				hostName = sysProps.getProperty(Constants.REMOTE_PROP_HOST_NAME, "").trim();
 			}
-			if(appName==null || appName.isEmpty()) {
-				appName = getRemoteJSHostName(remote);
+			if(hostName==null || hostName.isEmpty()) {
+				hostName = getRemoteJSHostName(remote);
 			}								
-			if(appName==null || appName.isEmpty()) {
-				appName = rt.getName().split("@")[1];
+			if(hostName==null || hostName.isEmpty()) {
+				hostName = rt.getName().split("@")[1];
 			}
-			if(forceLowerCase) appName = appName.toLowerCase();
-			if(shortHost && appName.indexOf('.')!=-1) appName = appName.split("\\.")[0]; 
-			return appName;
+			if(forceLowerCase) hostName = hostName.toLowerCase();
+			if(shortHost && hostName.indexOf('.')!=-1) hostName = hostName.split("\\.")[0]; 
+			return hostName;
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to get any host name", ex);
 		}		

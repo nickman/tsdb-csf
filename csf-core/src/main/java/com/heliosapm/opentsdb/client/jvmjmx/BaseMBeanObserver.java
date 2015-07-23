@@ -125,7 +125,7 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 	protected BaseMBeanObserver(final MBeanServerConnection mbeanServerConn, final MBeanObserver mbeanObserver, final Map<String, String> tags, final boolean publishObserverMBean) {
 		mbs = RuntimeMBeanServerConnection.newInstance(mbeanServerConn);
 		this.mbeanObserver = mbeanObserver;
-		this.publishObserverMBean = publishObserverMBean;
+		this.publishObserverMBean = false;
 		if(tags!=null && !tags.isEmpty()) {
 			for(Map.Entry<String, String> entry: tags.entrySet()) {
 				String key = Util.clean(entry.getKey());
@@ -145,6 +145,10 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 			objectNamesAttrs.put(on, mbeanAttrs);
 		}
 		attributeNames = allAttrNames.toArray(new String[allAttrNames.size()]);
+		final boolean hasAppTag = tags!=null && tags.containsKey(Constants.APP_TAG); 
+		final boolean hasHostTag = tags!=null && tags.containsKey(Constants.HOST_TAG);
+		
+		
 		initializeAgentName();
 		clock = ConfigurationReader.confBool(Constants.PROP_TIME_IN_SEC, Constants.DEFAULT_TIME_IN_SEC) ? EpochClock.INSTANCE : Clock.defaultClock();
 		String objName = mbeanObserver.objectName.toString();
@@ -161,7 +165,7 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 		}
 		if(publishObserverMBean) {
 			try {
-				JMXHelper.registerMBean(this, JMXHelper.objectName("csf.observer." + obObserver.toString()));
+				//JMXHelper.registerMBean(this, JMXHelper.objectName("csf.observer." + obObserver.toString()));
 			} catch (Exception ex) {
 				log.warn("Failed to register ObserverMBean for [{}]", obObserver.toString(), ex);
 			}

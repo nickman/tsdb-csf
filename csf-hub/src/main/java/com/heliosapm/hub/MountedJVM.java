@@ -25,6 +25,7 @@
 package com.heliosapm.hub;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -32,6 +33,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import javax.management.InstanceAlreadyExistsException;
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanServerConnection;
 import javax.management.Notification;
@@ -43,11 +45,14 @@ import javax.management.remote.JMXServiceURL;
 
 import org.w3c.dom.Node;
 
+import com.heliosapm.hub.JVMMatch.JMatch;
 import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet;
 import com.heliosapm.opentsdb.client.name.AgentName;
+import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.shorthand.attach.vm.VirtualMachine;
 import com.heliosapm.shorthand.attach.vm.VirtualMachineDescriptor;
+import com.heliosapm.utils.collections.FluentMap;
 import com.heliosapm.utils.io.CloseableService;
 import com.heliosapm.utils.jmx.JMXHelper;
 import com.sun.jdmk.remote.cascading.CascadingService;
@@ -78,6 +83,9 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 	private final LinkedHashSet<AppIdFinder> appIdFinders = new LinkedHashSet<AppIdFinder>(); 
 	private MBeanObserverSet observerSet = null;
 	private final Node platformConfigNode;
+	private final JMatch jmatch;
+	
+	public static final String DEFAULT_MOUNT_PREFIX = "/local/";
 	
 	
 	/**
@@ -85,12 +93,12 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 	 * @param vmd The virtual machine descriptor for the target mounted JVM
 	 * @param cascade The cascading service
 	 * @param mounted The mountpoint map to remove ourselves from 
-	 * @param appIdFinders The configured app id finders
-	 * @param platformConfigNode The platform MBean collection configuration
+	 * @param jmatch The configured jmatcher 
 	 * @throws Exception thrown on any error 
 	 */
-	public MountedJVM(final VirtualMachineDescriptor vmd, final CascadingService cascade, final Map<String, MountedJVM> mounted, final LinkedHashSet<AppIdFinder> appIdFinders, final Node platformConfigNode) throws Exception {
+	public MountedJVM(final VirtualMachineDescriptor vmd, final CascadingService cascade, final Map<String, MountedJVM> mounted, final JMatch jmatch) throws Exception {
 		this.vmd = vmd;
+		this.jmatch = jmatch;
 		this.displayName = vmd.displayName();
 		this.cascade = cascade;
 		this.id = vmd.id();
@@ -98,17 +106,58 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 		this.jmxUrl = vm.getJMXServiceURL();
 		this.jmxConnector = vm.getJMXConnector();
 		this.mbeanServerConnection = this.jmxConnector.getMBeanServerConnection();	
-		this.platformConfigNode = platformConfigNode;
+		this.platformConfigNode = jmatch.getPlatformNode();
 		mbeanServer = RuntimeMBeanServerConnection.newInstance(this.mbeanServerConnection);
 		mbeanServerId = mbeanServer.getMBeanServerId();
 		this.mounted = mounted;
 		hostName = AgentName.getInstance().getHostName();
 		CloseableService.getInstance().register(this);
-		if(appIdFinders!=null && !appIdFinders.isEmpty()) {
-			this.appIdFinders.addAll(appIdFinders);
+		Collections.addAll(this.appIdFinders, jmatch.getAppIdFinders());	
+		mount(DEFAULT_MOUNT_PREFIX, id, false);
+		findAppId();
+	}
+	
+	/**
+	 * Indicates if we're ready to schedule platform collection
+	 * @return true if we're ready to schedule platform collection, false otherwise
+	 */
+	public boolean readyForPlatform() {
+		if(appId==null) findAppId();
+		return appId != null && platformConfigNode != null;
+	}
+	
+	/**
+	 * Mounts all mountpoints defined in the JMatch
+	 * @param prefix The mountpoint prefix
+	 * @param name The JVM name to use (hint: use ID to start with, then switch to the app id)
+	 * @param remount true if remounting, false otherwise
+	 */
+	public void mount(final String prefix, final String name, final boolean remount) {
+		if(remount) {
+			for(String mp: mountPointIds) {
+				try {
+					cascade.unmount(mp);
+				} catch (Exception ex) {/* No Op */}
+			}
+			mountPointIds.clear();
+		}
+		for(String mp: jmatch.getMountPoints()) {
+			try {				
+				addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName(mp), prefix + name));
+			} catch (InstanceAlreadyExistsException iex) {
+				/* No Op */
+			} catch (Exception ex) {
+				throw new RuntimeException("Failed to mount [" + mp + "] for VM [" + jmxUrl + "]", ex);
+			}
 		}
 	}
 	
+	
+	
+	/**
+	 * Attempts to find the target app id
+	 * @return the app id or null if one was not found
+	 */
 	public String findAppId() {
 		if(appId!=null) return null;
 		for(AppIdFinder finder: appIdFinders) {
@@ -116,51 +165,27 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 				final String a = finder.getAppId(this);
 				if(a!=null) {
 					appId = a.trim();
-					final Set<String> backup = new HashSet<String>(mountPointIds);
-					final Iterator<String> iter = mountPointIds.iterator();
-					while(iter.hasNext()) {
-						final String mp = iter.next();
-						try { cascade.unmount(mp); } catch (Exception ex) {/* No Op */}
-						iter.remove();
-					}
-					try {
-						addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("java.lang:*"), "local/" + appId));
-						addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("java.nio:*"), "local/" + appId));
-						addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("JMImplementation:*"), "local/" + appId));
-						addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("Coherence:type=Cluster"), "local/" + appId));
-						enableCollectors(platformConfigNode);
-						return appId;
-					} catch (Exception ex) {
-						appId = null;
-						mountPointIds.clear();
-						mountPointIds.addAll(backup);
-						try { addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("java.lang:*"), "local/" + id)); } catch (Exception x) {}
-						try { addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("java.nio:*"), "local/" + id)); } catch (Exception x) {}
-						try { addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("JMImplementation:*"), "local/" + id)); } catch (Exception x) {}
-						try { addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("Coherence:type=Cluster"), "local/" + id)); } catch (Exception x) {}					
-					}								
+					mount(DEFAULT_MOUNT_PREFIX, appId, true);
 				}
 			} catch (Exception x) {/* No Op */}
 		}
 		return null;
 	}
 	
-	protected void resetMountPoints() {
-		
-	}
-	
-	
 	/**
 	 * Starts the collectors for this mounted JVM
-	 * @param config The configuration node
 	 * @return true if started, false otherwise
 	 */
-	public boolean enableCollectors(final Node config) {
+	public boolean enableCollectors() {
 		if(appId==null) return false;
 		if(observerSet != null ) {
 			return true;
 		}
-		observerSet =  MBeanObserverSet.build(mbeanServer, config, Collections.singletonMap("app", appId));
+		Map<String, String> tags = FluentMap.newMap(String.class, String.class)
+				.fput(Constants.APP_TAG, appId)
+				.fput(Constants.HOST_TAG, AgentName.getInstance().getHostName());
+//				.fput("pid", id);
+		observerSet =  MBeanObserverSet.build(mbeanServer, platformConfigNode, tags);
 		observerSet.start();
 		log("----------------> Start [%s:%s]", hostName, appId);
 		return true;

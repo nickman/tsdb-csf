@@ -48,13 +48,13 @@ public class AgentPropertyMatcher implements JVMMatcher {
 				throw new IllegalArgumentException("Both the match and the matchkey were empty or null");
 			}
 			return p.containsKey(key.trim());
-		} else {
-			if(key==null || key.trim().isEmpty()) {
-				throw new IllegalArgumentException("Match provided with no matchkey");				
-			}
-			final String v = p.getProperty(key.trim());
-			return StringHelper.wildmatch(v, match.trim());
 		}
+		if(key==null || key.trim().isEmpty()) {
+			throw new IllegalArgumentException("Match provided with no matchkey");				
+		}
+		final String v = p.getProperty(key.trim());
+		if(v==null) return false;
+		return StringHelper.wildmatch(v, match.trim());
 	}
-
+		
 }

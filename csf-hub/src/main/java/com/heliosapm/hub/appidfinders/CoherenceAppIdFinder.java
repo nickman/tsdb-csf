@@ -60,7 +60,7 @@ public class CoherenceAppIdFinder implements AppIdFinder {
 				if(index!=0) {
 					final int nextIndex = s.indexOf(",", index);
 					if(nextIndex!=0) {
-						return "CoherenceNode#" + s.substring(index+3, nextIndex);
+						return "coherence" + s.substring(index+3, nextIndex);
 					}
 				}
 			}

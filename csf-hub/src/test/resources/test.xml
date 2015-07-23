@@ -3,15 +3,30 @@
 	<sysprops><![CDATA[
 		tsdb.http.compression.enabled=false
 		tsdb.http.tsdb.url=http://pdk-pt-cetsd-01:8080
-		tsdb.id.app=ecs
-    tsdb.trace.stdout=true
-    tsdb.trace.stdout.json=true		
+		tsdb.id.app=csf-hub
+    	tsdb.trace.stdout=true
+    	tsdb.trace.stdout.json=true		
 	]]></sysprops>
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
 	</jmxmp>
-	<mountjvm match="GroovyStarter" matcher="displayName" matchkey="">
-	  <platform-mbeanobserver period="5" mbeans="true" />
+	<!-- <mountjvm match="*.OracleIdeLauncher" matcher="displayName" matchkey="">  -->
+	<mountjvm match="C:\\tools\\Oracle" matcher="sysprop" matchkey="ORACLE_HOME">
+		<!--  mountpoints are not necessary but useful for debugging -->
+	  <mountpoint>java.lang:*</mountpoint>
+	  <mountpoint>java.nio:*</mountpoint>
+	  <mountpoint>sun.management:*</mountpoint>
+	  <mountpoint>JMImplementation:*</mountpoint>
+	  <mountpoint>Coherence:type=Cluster</mountpoint>
+	  <!-- <platform-mbeanobserver period="5" mbeans="true" /> -->  <!-- All Platform MBeans -->
+	  
+	  <platform-mbeanobserver period="5" mbeans="true">
+	  	<includes>java.lang:type=*</includes>
+	  	<includes>sun.management:type=*</includes>
+	  	<excludes>sun.management:type=HotspotCompilation</excludes>
+	  </platform-mbeanobserver>
+	  
+	   
 	  <appidfinders>
 	    com.heliosapm.hub.appidfinders.VMDisplayNameAppIdFinder 
 	  </appidfinders>
