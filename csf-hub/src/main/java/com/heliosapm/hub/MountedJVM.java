@@ -77,17 +77,19 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 	private String appId;
 	private final LinkedHashSet<AppIdFinder> appIdFinders = new LinkedHashSet<AppIdFinder>(); 
 	private MBeanObserverSet observerSet = null;
+	private final Node platformConfigNode;
 	
 	
 	/**
 	 * Creates a new MountedJVM
 	 * @param vmd The virtual machine descriptor for the target mounted JVM
 	 * @param cascade The cascading service
-	 * @param mounted 
-	 * @param appIdFinders 
+	 * @param mounted The mountpoint map to remove ourselves from 
+	 * @param appIdFinders The configured app id finders
+	 * @param platformConfigNode The platform MBean collection configuration
 	 * @throws Exception thrown on any error 
 	 */
-	public MountedJVM(final VirtualMachineDescriptor vmd, final CascadingService cascade, final Map<String, MountedJVM> mounted, final LinkedHashSet<AppIdFinder> appIdFinders) throws Exception {
+	public MountedJVM(final VirtualMachineDescriptor vmd, final CascadingService cascade, final Map<String, MountedJVM> mounted, final LinkedHashSet<AppIdFinder> appIdFinders, final Node platformConfigNode) throws Exception {
 		this.vmd = vmd;
 		this.displayName = vmd.displayName();
 		this.cascade = cascade;
@@ -95,7 +97,8 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 		this.vm = vmd.provider().attachVirtualMachine(vmd);
 		this.jmxUrl = vm.getJMXServiceURL();
 		this.jmxConnector = vm.getJMXConnector();
-		this.mbeanServerConnection = this.jmxConnector.getMBeanServerConnection();		
+		this.mbeanServerConnection = this.jmxConnector.getMBeanServerConnection();	
+		this.platformConfigNode = platformConfigNode;
 		mbeanServer = RuntimeMBeanServerConnection.newInstance(this.mbeanServerConnection);
 		mbeanServerId = mbeanServer.getMBeanServerId();
 		this.mounted = mounted;
@@ -125,6 +128,7 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 						addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("java.nio:*"), "local/" + appId));
 						addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("JMImplementation:*"), "local/" + appId));
 						addMountPoint(cascade.mount(jmxUrl, null, JMXHelper.objectName("Coherence:type=Cluster"), "local/" + appId));
+						enableCollectors(platformConfigNode);
 						return appId;
 					} catch (Exception ex) {
 						appId = null;
@@ -146,6 +150,11 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 	}
 	
 	
+	/**
+	 * Starts the collectors for this mounted JVM
+	 * @param config The configuration node
+	 * @return true if started, false otherwise
+	 */
 	public boolean enableCollectors(final Node config) {
 		if(appId==null) return false;
 		if(observerSet != null ) {
@@ -153,6 +162,7 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 		}
 		observerSet =  MBeanObserverSet.build(mbeanServer, config, Collections.singletonMap("app", appId));
 		observerSet.start();
+		log("----------------> Start [%s:%s]", hostName, appId);
 		return true;
 	}
 	

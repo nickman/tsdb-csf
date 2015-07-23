@@ -4,11 +4,22 @@
 		tsdb.http.compression.enabled=false
 		tsdb.http.tsdb.url=http://pdk-pt-cetsd-01:8080
 		tsdb.id.app=ecs
+    tsdb.trace.stdout=true
+    tsdb.trace.stdout.json=true		
 	]]></sysprops>
 	<jmxmp>
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
 	</jmxmp>
-	<appidfinders>
-		com.heliosapm.hub.JBossServerNameAppIdFinder, com.heliosapm.hub.CoherenceAppIdFinder 
-	</appidfinders>
+	<mountjvm match="GroovyStarter" matcher="displayName" matchkey="">
+	  <platform-mbeanobserver period="5" mbeans="true" />
+	  <appidfinders>
+	    com.heliosapm.hub.appidfinders.VMDisplayNameAppIdFinder 
+	  </appidfinders>
+	</mountjvm>
+<!-- 
+  <platform-mbeanobserver period="5" mbeans="true" />
+  <appidfinders>
+    com.heliosapm.hub.appidfinders.JBossServerNameAppIdFinder, com.heliosapm.hub.appidfinders.CoherenceAppIdFinder, com.heliosapm.hub.appidfinders.VMDisplayNameAppIdFinder 
+  </appidfinders>
+ -->	
 </hub-config>

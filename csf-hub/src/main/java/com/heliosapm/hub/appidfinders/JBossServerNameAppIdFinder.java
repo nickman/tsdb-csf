@@ -22,9 +22,12 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package com.heliosapm.hub;
+package com.heliosapm.hub.appidfinders;
 
 import java.util.Properties;
+
+import com.heliosapm.hub.AppIdFinder;
+import com.heliosapm.hub.MountedJVM;
 
 /**
  * <p>Title: JBossServerNameAppIdFinder</p>
@@ -32,7 +35,7 @@ import java.util.Properties;
  * from the first segment of the value in the system property <b><code>jboss.server.name</code></b></p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.hub.JBossServerNameAppIdFinder</code></p>
+ * <p><code>com.heliosapm.hub.appidfinders.JBossServerNameAppIdFinder</code></p>
  */
 
 public class JBossServerNameAppIdFinder implements AppIdFinder {

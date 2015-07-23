@@ -22,10 +22,12 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org. 
  *
  */
-package com.heliosapm.hub;
+package com.heliosapm.hub.appidfinders;
 
 import javax.management.ObjectName;
 
+import com.heliosapm.hub.AppIdFinder;
+import com.heliosapm.hub.MountedJVM;
 import com.heliosapm.utils.jmx.JMXHelper;
 
 /**
@@ -33,7 +35,7 @@ import com.heliosapm.utils.jmx.JMXHelper;
  * <p>Description: Figures out the appid from the node id of the member entry in the coherence cluster for the mounted jvm's pid</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>com.heliosapm.hub.CoherenceAppIdFinder</code></p>
+ * <p><code>com.heliosapm.hub.appidfinders.CoherenceAppIdFinder</code></p>
  */
 
 public class CoherenceAppIdFinder implements AppIdFinder {

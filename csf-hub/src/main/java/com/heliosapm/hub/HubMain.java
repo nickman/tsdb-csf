@@ -20,21 +20,19 @@ import java.io.StringReader;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServer;
-import javax.management.MBeanServerConnection;
-import javax.management.Notification;
-import javax.management.NotificationListener;
 import javax.management.remote.JMXServiceURL;
 
 import org.w3c.dom.Node;
 
+import com.heliosapm.hub.JVMMatch.JMatch;
 import com.heliosapm.shorthand.attach.vm.AttachProvider;
 import com.heliosapm.shorthand.attach.vm.VirtualMachine;
 import com.heliosapm.shorthand.attach.vm.VirtualMachineBootstrap;
@@ -66,6 +64,8 @@ public class HubMain implements Runnable {
 	protected final AtomicBoolean scanning = new AtomicBoolean(false);
 	private final LinkedHashSet<AppIdFinder> appIdFinders = new LinkedHashSet<AppIdFinder>(); 
 	private Node platformNode = null;
+	private JMatch[] matchers;
+	
 	
 	/**
 	 * Creates a new HubMain
@@ -84,6 +84,7 @@ public class HubMain implements Runnable {
 		}
 		final Node node = XMLHelper.parseXML(f).getDocumentElement();
 		configure(node);
+		matchers = JMatch.fromNode(node);
 		cascadeService = new CascadingService(server);
 		JMXHelper.registerMBean(cascadeService, CascadingService.CASCADING_SERVICE_DEFAULT_NAME);
 		log("\n\t====================================\n\tCSF Hub Started\n\t====================================");
@@ -104,27 +105,39 @@ public class HubMain implements Runnable {
 		scan();
 	}
 	
+		
+	
 	protected void scan() {
 		if(scanning.compareAndSet(false, true)) {
 			try {
 				for(VirtualMachineDescriptor vmd: VirtualMachine.list()) {
 					try {
 						if(MY_PID.equals(vmd.id()) || virtualMachines.containsKey(vmd.id())) continue;
-						final MountedJVM vm = new MountedJVM(vmd, cascadeService, virtualMachines, appIdFinders);
+						for(JMatch j: matchers) {
+							try {
+								
+							} catch (Exception ex) {
+								loge("Matcher exception (Programmer Error) Stack trace follows:");
+								ex.printStackTrace(System.err);
+							}
+						}
+						final MountedJVM vm = new MountedJVM(vmd, cascadeService, virtualMachines, appIdFinders, platformNode);
 						vm.addMountPoint(cascadeService.mount(vm.getJmxUrl(), null, JMXHelper.objectName("java.lang:*"), "local/" + vm.getId()));
 						vm.addMountPoint(cascadeService.mount(vm.getJmxUrl(), null, JMXHelper.objectName("java.nio:*"), "local/" + vm.getId()));
 						vm.addMountPoint(cascadeService.mount(vm.getJmxUrl(), null, JMXHelper.objectName("JMImplementation:*"), "local/" + vm.getId()));
 						vm.addMountPoint(cascadeService.mount(vm.getJmxUrl(), null, JMXHelper.objectName("Coherence:type=Cluster"), "local/" + vm.getId()));
 						virtualMachines.put(vm.getId(), vm);
 						log("Mounted JVM [%s] : [%s]", vm.getId(), vm.getDisplayName());
-						vm.findAppId();
+						if(vm.findAppId()!=null && platformNode!=null) {
+							vm.enableCollectors(platformNode);
+						}
 					} catch (Exception ex) {
 						loge("Scan failure: %s", ex);
 					}
 				}
-				for(MountedJVM jvm: virtualMachines.values()) {
-					if(jvm.getAppId()==null) {
-						jvm.findAppId();
+				for(MountedJVM vm: virtualMachines.values()) {
+					if(vm.findAppId()!=null && platformNode!=null) {
+						vm.enableCollectors(platformNode);
 					}
 				}
 			} finally {
@@ -158,8 +171,7 @@ public class HubMain implements Runnable {
 		if(finderNode!=null) {
 			configureFinders(finderNode);
 		}
-		initJmxCollector(configNode);
-		
+		platformNode = XMLHelper.getChildNodeByName(configNode, "platform-mbeanobserver");
 	}
 	
 	/**
