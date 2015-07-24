@@ -126,8 +126,8 @@ public class AgentName extends NotificationBroadcasterSupport  implements AgentN
 			synchronized(lock) {
 				if(instance==null) {
 					instance = new AgentName();
-					ChangeNotifyingProperties.systemInstall();
-					ExtendedThreadManager.install();					
+					//ChangeNotifyingProperties.systemInstall();
+					//ExtendedThreadManager.install();					
 				}
 			}
 		}

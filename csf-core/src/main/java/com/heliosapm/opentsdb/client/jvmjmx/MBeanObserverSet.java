@@ -16,6 +16,7 @@
 
 package com.heliosapm.opentsdb.client.jvmjmx;
 
+import java.lang.management.ManagementFactory;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -37,6 +38,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.heliosapm.opentsdb.client.boot.XMLLoader;
 import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
+import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
@@ -59,7 +61,7 @@ import com.heliosapm.utils.xml.XMLHelper;
 
 public class MBeanObserverSet implements Runnable, MBeanObserverSetMBean {
 	/** Instance logger */
-	protected final Logger LOG = LogManager.getLogger(getClass());
+	protected final Logger log = LogManager.getLogger(getClass());
 	/** The enabled observers */
 	protected final Set<BaseMBeanObserver> enabledObservers = new HashSet<BaseMBeanObserver>();
 	/** The disabled observers */
@@ -114,7 +116,7 @@ public class MBeanObserverSet implements Runnable, MBeanObserverSetMBean {
 	
 	public static void main(String[] args) {
 		log("Testing XMlInstaller");
-		ExtendedThreadManager.install();
+		//ExtendedThreadManager.install();
 		XMLLoader.boot("./src/test/resources/configs/platform.xml");
 		try { Thread.currentThread().join(); } catch (Exception ex) {}
 	}
@@ -266,10 +268,14 @@ public class MBeanObserverSet implements Runnable, MBeanObserverSetMBean {
 		return mos;
 	}
 	
+	final String myName;
+	
 	MBeanObserverSet(final RuntimeMBeanServerConnection mbeanServer, final long period, final TimeUnit unit) {
 		this.mbeanServer = mbeanServer;
 		this.period = period;
 		this.unit = unit;
+		myName = (String)mbeanServer.getAttribute(JMXHelper.objectName(ManagementFactory.RUNTIME_MXBEAN_NAME), "Name");
+				//AgentName.getInstance().getAppName() + "@" + AgentName.getInstance().getHostName(); 
 	}
 
 	/**
@@ -359,13 +365,16 @@ public class MBeanObserverSet implements Runnable, MBeanObserverSetMBean {
 		while(iter.hasNext()) {
 			final BaseMBeanObserver observer = iter.next();
 			try {
+				log.debug("Executing collection for [{}]", myName);
 				final long start = System.currentTimeMillis();
 				observer.run();
-				elapsed.insert(System.currentTimeMillis() - start);
+				final long e = System.currentTimeMillis() - start;
+				elapsed.insert(e);
+				log.debug("Executed collection for [{}] in [{}] ms.", myName, e);
 			} catch (Exception ex) {
 				iter.remove();
 				disabledObservers.add(observer);
-				LOG.error("MBeanObserverSet Collection Failure", ex);
+				log.error("MBeanObserverSet Collection Failure", ex);
 			}
 		}
 	}

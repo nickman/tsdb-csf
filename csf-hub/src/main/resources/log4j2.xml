@@ -5,11 +5,13 @@
     <Console name="STDOUT">
       <PatternLayout pattern="%m%n"/>
     </Console>
+<!-- 
     <File name="BootFile" fileName="${filename}">
       <PatternLayout>
         <pattern>%d %p %C{1.} [%t] %m%n</pattern>
       </PatternLayout>
     </File>    
+ -->    
   </Appenders>
   <Loggers>
    <Root level="info">

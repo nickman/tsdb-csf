@@ -27,6 +27,7 @@ package com.heliosapm.hub;
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -48,7 +49,6 @@ import org.w3c.dom.Node;
 
 import com.heliosapm.hub.JVMMatch.JMatch;
 import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet;
-import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean;
 import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
@@ -67,7 +67,7 @@ import com.sun.jdmk.remote.cascading.CascadingService;
  * <p><code>com.heliosapm.hub.MountedJVM</code></p>
  */
 
-public class MountedJVM implements Closeable, NotificationListener, NotificationFilter {
+public class MountedJVM implements Closeable, NotificationListener, NotificationFilter, MountedJVMMBean {
 	private final VirtualMachineDescriptor vmd;
 	private final VirtualMachine vm;
 	private final JMXConnector jmxConnector;
@@ -125,7 +125,7 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 	 */
 	public boolean readyForPlatform() {
 		if(appId==null) findAppId();
-		return appId != null && platformConfigNode != null;
+		return appId != null && platformConfigNode != null && objectName != null;
 	}
 	
 	/**
@@ -168,13 +168,16 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 				if(a!=null) {
 					appId = a.trim();
 					mount(DEFAULT_MOUNT_PREFIX, appId, true);
-					objectName = JMXHelper.objectName(getClass().getPackage().getName(), FluentMap.newMap(FluentMap.MapType.HASHT, String.class, String.class)
+					objectName = JMXHelper.objectName(getClass().getPackage().getName(), new Hashtable<String, String>(FluentMap.newMap(String.class, String.class)
 							.fput("service", getClass().getSimpleName())
-							.fput(Constants.APP_TAG, appId)
-							.fput("pid", id)
+							.fput(Constants.HOST_TAG, hostName)
+							.fput(Constants.APP_TAG, appId))
+							
 					);					
 				}
-			} catch (Exception x) {/* No Op */}
+			} catch (Exception x) {
+				x.printStackTrace(System.err);
+			}
 		}
 		return null;
 	}
@@ -184,7 +187,7 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 	 * @return true if started, false otherwise
 	 */
 	public boolean enableCollectors() {
-		if(appId==null) return false;
+		if(appId==null || objectName==null) return false;
 		if(observerSet != null ) {
 			return true;
 		}

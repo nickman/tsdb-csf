@@ -301,7 +301,7 @@ public class GCConfiguration extends BaseMBeanObserver {
 		final MBeanServerConnection _mbsc = mbsc==null ? JMXHelper.getHeliosMBeanServer() : mbsc;
 		try {
 			if(!JMXHelper.isRegistered(_mbsc, MBeanObserver.HOTSPOT_MEMORY_MBEAN.objectName)) {
-				//JMXHelper.registerHotspotInternal(_mbsc);
+				JMXHelper.registerHotspotInternal(_mbsc);
 			}			
 			return load(counterPattern, _mbsc, (List<Object>)JMXHelper.getAttribute(mbsc, MBeanObserver.HOTSPOT_MEMORY_MBEAN.objectName, "InternalMemoryCounters"));
 		} catch (Exception ex) {
@@ -312,6 +312,9 @@ public class GCConfiguration extends BaseMBeanObserver {
 	
 	private GCConfiguration(final Pattern counterPattern, final MBeanServerConnection mbsc, final Map<String, Map<String, String>> counterNameToTags, final Map<String, String> resolvedIndexNames, final String gcPolicy) {
 		super(mbsc, MBeanObserver.HOTSPOT_MEMORY_MBEAN, Collections.EMPTY_MAP, true /* FIXME */);
+		if(!this.mbs.isRegistered(MBeanObserver.HOTSPOT_MEMORY_MBEAN.objectName)) {
+			JMXHelper.registerHotspotInternal(mbsc);
+		}
 		this.counterPattern = counterPattern!=null ? counterPattern : MATCH_ALL;
 		this.mbsc = mbsc;
 		final Map<String, String> tmpMetricNames = new HashMap<String, String>(counterNameToTags.size());
@@ -419,7 +422,8 @@ public class GCConfiguration extends BaseMBeanObserver {
 		}
 		for(Map.Entry<String, Counter> ent: allCountersByName.entrySet()) {
 			final Counter ctr = ent.getValue();
-			if(!(TRACE_COUNTER.isInstance(ctr)) || "Constant".equals(ctr.getVariability().toString())) continue;
+			
+			if(!(sun.management.counter.LongCounter.class.isInstance(ctr)) || "Constant".equals(ctr.getVariability().toString())) continue;
 			final LinkedHashMap<String, String> tags = new LinkedHashMap<String, String>(4);
 			counterNameToTags.put(ent.getKey(), tags);
 			tags.putAll(getTagsFor(ctr, resolvedIndexNames));
@@ -432,7 +436,7 @@ public class GCConfiguration extends BaseMBeanObserver {
 				counterNameToTags.remove(name);
 			}
 		}
-//		printMap("counterNameToTags:", counterNameToTags);
+		printMap("counterNameToTags:", counterNameToTags);
 		return new GCConfiguration(counterPattern, mbsc, counterNameToTags, resolvedIndexNames, gcPolicy);
 	}
 	
@@ -493,20 +497,29 @@ public class GCConfiguration extends BaseMBeanObserver {
 			}
 		}
 
-		final String idxValue = getIdxTag(ctr.getName());
-		tags.put("idx", idxValue);		
-		String units = ctr.getUnits().toString();
-		if("Ticks".equals(units)) units = "ms";
-		else if("None".equals(units)) {
-			if(idxValue.toLowerCase().contains("slope")) {
-				units = "slope";
-			} else {
-				units = null;
+		
+		String idxValue = getIdxTag(ctr.getName());
+		if(idxValue!=null && !idxValue.trim().isEmpty()) {
+			final int index = idxValue.lastIndexOf('.');
+			if(index!=-1) {
+				idxValue = idxValue.substring(index+1);
+				log("Truncated IDX to [%s]", idxValue);
 			}
-//			log("'None' Unit Counter: %s, value:[%s], var:[%s]", ctr, ctr.getValue(), ctr.getVariability());
-		}
-		if(units!=null) {
-			tags.put("unit", units.toLowerCase());
+			tags.put("idx", idxValue);		
+			String units = ctr.getUnits().toString();
+			if("Ticks".equals(units)) units = "ms"; 	// FIXME
+			else if("None".equals(units)) {
+				if(idxValue.toLowerCase().contains("slope")) {
+					units = "slope";
+				} else {
+					units = null;
+				}
+//				log("'None' Unit Counter: %s, value:[%s], var:[%s]", ctr, ctr.getValue(), ctr.getVariability());
+			}
+			if(units!=null) {
+				tags.put("unit", units.toLowerCase());
+			}
+			
 		}
 		return tags;
 	}
@@ -563,12 +576,12 @@ public class GCConfiguration extends BaseMBeanObserver {
 	}
 	
 	private static void printMap(final String title, final Map<?, ?> map) {
-//		log("====== %s ======", title);
-//		TreeMap<Object, Object> treeMap = new TreeMap<Object, Object>(arrSort);
-//		treeMap.putAll(map);
-//		for(Map.Entry<?, ?> entry: treeMap.entrySet()) {
-//			log("\t[%s]  :  [%s]", entry.getKey(), entry.getValue());
-//		}
+		log("====== %s ======", title);
+		TreeMap<Object, Object> treeMap = new TreeMap<Object, Object>(arrSort);
+		treeMap.putAll(map);
+		for(Map.Entry<?, ?> entry: treeMap.entrySet()) {
+			log("\t[%s]  :  [%s]", entry.getKey(), entry.getValue());
+		}
 	}
 	
 	@SuppressWarnings("unused")
