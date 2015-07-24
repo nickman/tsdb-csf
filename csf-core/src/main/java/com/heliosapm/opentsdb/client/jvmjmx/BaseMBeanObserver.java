@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -90,6 +91,7 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 	/** The metrics that belong to this observer */
 	protected final Set<OTMetric> groupMetrics = new HashSet<OTMetric>();
 	
+
 	/** If true, an observer management MBean will be registered */
 	public final boolean publishObserverMBean;
 	
@@ -208,6 +210,15 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 	protected String getDefaultGroupName() {
 		return mbs.getMBeanServerId() + "/" + mbeanObserver.objectName.toString();
 	}
+	
+	/**
+	 * Returns a copy of the activated OTMetrics
+	 * @return the activated OTMetrics
+	 */
+	public Set<OTMetric> getGroupMetrics() {
+		return new LinkedHashSet<OTMetric>(groupMetrics);
+	}
+	
 	
 	/**
 	 * {@inheritDoc}

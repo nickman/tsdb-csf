@@ -25,13 +25,13 @@
 package com.heliosapm.hub;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.ListenerNotFoundException;
@@ -39,6 +39,7 @@ import javax.management.MBeanServerConnection;
 import javax.management.Notification;
 import javax.management.NotificationFilter;
 import javax.management.NotificationListener;
+import javax.management.ObjectName;
 import javax.management.remote.JMXConnectionNotification;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXServiceURL;
@@ -47,6 +48,7 @@ import org.w3c.dom.Node;
 
 import com.heliosapm.hub.JVMMatch.JMatch;
 import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet;
+import com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean;
 import com.heliosapm.opentsdb.client.name.AgentName;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
@@ -84,7 +86,7 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 	private MBeanObserverSet observerSet = null;
 	private final Node platformConfigNode;
 	private final JMatch jmatch;
-	
+	private ObjectName objectName = null;
 	public static final String DEFAULT_MOUNT_PREFIX = "/local/";
 	
 	
@@ -166,6 +168,11 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 				if(a!=null) {
 					appId = a.trim();
 					mount(DEFAULT_MOUNT_PREFIX, appId, true);
+					objectName = JMXHelper.objectName(getClass().getPackage().getName(), FluentMap.newMap(FluentMap.MapType.HASHT, String.class, String.class)
+							.fput("service", getClass().getSimpleName())
+							.fput(Constants.APP_TAG, appId)
+							.fput("pid", id)
+					);					
 				}
 			} catch (Exception x) {/* No Op */}
 		}
@@ -186,6 +193,7 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 				.fput(Constants.HOST_TAG, AgentName.getInstance().getHostName());
 //				.fput("pid", id);
 		observerSet =  MBeanObserverSet.build(mbeanServer, platformConfigNode, tags);
+		JMXHelper.registerMBean(this, objectName);
 		observerSet.start();
 		log("----------------> Start [%s:%s]", hostName, appId);
 		return true;
@@ -236,6 +244,7 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 	 * {@inheritDoc}
 	 * @see java.io.Closeable#close()
 	 */
+	@Override
 	public void close() {
 		log("Closing [%s]", id);
 		if(observerSet!=null) {
@@ -250,6 +259,8 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 		try { jmxConnector.close(); } catch (Exception x) { /* No Op */ }
 		try { vm.detach(); } catch (Exception x) { /* No Op */ }
 		mounted.remove(id);
+		if(objectName!=null) try { JMXHelper.unregisterMBean(objectName); } catch (Exception x) {/* No Op */}
+		objectName = null;
 		log("Closed [%s]", id);
 	}
 	
@@ -467,6 +478,69 @@ public class MountedJVM implements Closeable, NotificationListener, Notification
 		return mbeanServerId;
 	}
 
+	/**
+	 * @return
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean#getEnabledOTMetrics()
+	 */
+	public Set<String> getEnabledOTMetrics() {
+		return observerSet.getEnabledOTMetrics();
+	}
+
+	/**
+	 * @return
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean#isActive()
+	 */
+	public boolean isActive() {
+		return observerSet.isActive();
+	}
+
+	/**
+	 * @return
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean#getCollectionPeriod()
+	 */
+	public long getCollectionPeriod() {
+		return observerSet.getCollectionPeriod();
+	}
+
+	/**
+	 * @return
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean#getCollectionPeriodUnit()
+	 */
+	public TimeUnit getCollectionPeriodUnit() {
+		return observerSet.getCollectionPeriodUnit();
+	}
+
+	/**
+	 * @return
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean#getEnabledObservers()
+	 */
+	public Set<String> getEnabledObservers() {
+		return observerSet.getEnabledObservers();
+	}
+
+	/**
+	 * @return
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean#getAverageCollectTime()
+	 */
+	public long getAverageCollectTime() {
+		return observerSet.getAverageCollectTime();
+	}
+
+	/**
+	 * 
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean#start()
+	 */
+	public void start() {
+		observerSet.start();
+	}
+
+	/**
+	 * 
+	 * @see com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSetMBean#stop()
+	 */
+	public void stop() {
+		observerSet.stop();
+	}
 
 
 }

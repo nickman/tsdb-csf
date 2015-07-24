@@ -97,11 +97,6 @@
               <version>${jmx-optional.version}</version>
             </dependency>
 
-            <dependency>
-              <groupId>org.glassfish.external</groupId>
-              <artifactId>opendmk_jdmkrt_jar</artifactId>
-              <version>${dmk.version}</version>
-            </dependency>            
 
 
             <dependency>

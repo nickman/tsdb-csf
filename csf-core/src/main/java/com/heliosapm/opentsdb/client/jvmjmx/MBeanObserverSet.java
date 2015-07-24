@@ -18,6 +18,7 @@ package com.heliosapm.opentsdb.client.jvmjmx;
 
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -39,11 +40,13 @@ import com.heliosapm.opentsdb.client.logging.LoggingConfiguration;
 import com.heliosapm.opentsdb.client.opentsdb.ConfigurationReader;
 import com.heliosapm.opentsdb.client.opentsdb.Constants;
 import com.heliosapm.opentsdb.client.opentsdb.MetricBuilder;
+import com.heliosapm.opentsdb.client.opentsdb.OTMetric;
 import com.heliosapm.opentsdb.client.opentsdb.OpenTSDBReporter;
 import com.heliosapm.opentsdb.client.opentsdb.Threading;
 import com.heliosapm.opentsdb.client.opentsdb.jvm.RuntimeMBeanServerConnection;
 import com.heliosapm.utils.concurrency.ExtendedThreadManager;
 import com.heliosapm.utils.jmx.JMXHelper;
+import com.heliosapm.utils.unsafe.collections.ConcurrentLongSlidingWindow;
 import com.heliosapm.utils.xml.XMLHelper;
 
 /**
@@ -54,7 +57,7 @@ import com.heliosapm.utils.xml.XMLHelper;
  * <p><code>com.heliosapm.opentsdb.client.jvmjmx.MBeanObserverSet</code></p>
  */
 
-public class MBeanObserverSet implements Runnable {
+public class MBeanObserverSet implements Runnable, MBeanObserverSetMBean {
 	/** Instance logger */
 	protected final Logger LOG = LogManager.getLogger(getClass());
 	/** The enabled observers */
@@ -72,6 +75,8 @@ public class MBeanObserverSet implements Runnable {
 	/** The polling period unit */
 	final TimeUnit unit;
 	
+	/** The collection elapsed times */
+	final ConcurrentLongSlidingWindow elapsed = new ConcurrentLongSlidingWindow(100);
 	
 	static {
 		LoggingConfiguration.getInstance();
@@ -267,18 +272,83 @@ public class MBeanObserverSet implements Runnable {
 		this.unit = unit;
 	}
 
+	/**
+	 * Starts this MBeanObserver's collection scheduler 
+	 */
 	public void start() {
 		if(active.compareAndSet(false, true)) {
 			scheduleHandle = Threading.getInstance().schedule(this, 1, period, unit);
 		}
 	}
 	
+	/**
+	 * Stops this MBeanObserver's collection scheduler 
+	 */
 	public void stop() {
 		if(active.compareAndSet(true, false)) {
 			scheduleHandle.cancel();
 			scheduleHandle = null;
 		}
 	}
+	
+	/**
+	 * Indicates if the MBeanObserver is collecting
+	 * @return true if the MBeanObserver is collecting, false otherwise
+	 */
+	public boolean isActive() {
+		return active.get();
+	}
+	
+	/**
+	 * Returns the collection period
+	 * @return the collection period
+	 */
+	public long getCollectionPeriod() {
+		return period;
+	}
+	
+	/**
+	 * Returns the collection period unit
+	 * @return the collection period unit
+	 */
+	public TimeUnit getCollectionPeriodUnit() {
+		return unit;
+	}
+	
+	/**
+	 * Returns the enabled observer names
+	 * @return the enabled observer names
+	 */
+	public Set<String> getEnabledObservers() {
+		final Set<String> set = new HashSet<String>();
+		for(BaseMBeanObserver bmo: enabledObservers) {
+			set.add(bmo.getClass().getSimpleName());
+		}
+		return set;
+	}
+	
+	/**
+	 * Returns the fully qualified names of the metrics being traced by this observer
+	 * @return the fully qualified names of the metrics being traced by this observer
+	 */
+	public Set<String> getEnabledOTMetrics() {
+		final LinkedHashSet<String> names = new LinkedHashSet<String>();
+		for(BaseMBeanObserver bmo : enabledObservers) {
+			for(OTMetric otm: bmo.getGroupMetrics()) {
+				names.add(otm.toString());
+			}
+		}
+		return names;
+	}
+	
+	/**
+	 * Returns the average collection time in ms.
+	 * @return the average collection time in ms.
+	 */
+	public long getAverageCollectTime() {
+		return elapsed.avg();
+	}
+	
 	/**
 	 * {@inheritDoc}
 	 * @see java.lang.Runnable#run()
@@ -289,7 +359,9 @@ public class MBeanObserverSet implements Runnable {
 		while(iter.hasNext()) {
 			final BaseMBeanObserver observer = iter.next();
 			try {
+				final long start = System.currentTimeMillis();
 				observer.run();
+				elapsed.insert(System.currentTimeMillis() - start);
 			} catch (Exception ex) {
 				iter.remove();
 				disabledObservers.add(observer);
