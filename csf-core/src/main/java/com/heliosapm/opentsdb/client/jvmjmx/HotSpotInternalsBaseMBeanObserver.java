@@ -141,6 +141,15 @@ public class HotSpotInternalsBaseMBeanObserver extends BaseMBeanObserver {
 	}
 	
 	/**
+	 * Returns the instance name 
+	 * @return the instance name 
+	 */
+	public String getName() {
+		return hotspotMBean.getKeyProperty("type");
+	}
+
+	
+	/**
 	 * Traces the counter list
 	 * @param counters The list of counters retrieved from the hotspot mbean 
 	 */

@@ -3,31 +3,35 @@
   <Properties>
   	<!-- 
     <Property name="filename">${sys:tsdb.logging.dir}/tsdb-csf-${sys:tsdb.logging.pid}-${sys:tsdb.logging.host}-boot-${sys:tsdb.logging.systime}.log</Property>
-    -->
     <Property name="filename">${sys:java.io.tmpdir}/tsdb-csf.log</Property>
+    -->    
   </Properties>
-  <ThresholdFilter level="info"/>
+  <ThresholdFilter level="debug"/>
   <Appenders>
+  	<!-- 
     <Syslog name="SYSLOG" format="RFC5424" host="127.0.0.1" port="1589"
             protocol="UDP" appName="TSDB-CSF" includeMDC="true" mdcId="mdc"
             facility="LOCAL7" enterpriseNumber="18060" newLine="false"
             messageId="Audit" id="App" ignoreExceptions="false" />
+    -->
     <Console name="STDOUT">
       <PatternLayout pattern="%m%n"/>
     </Console>
+    <!-- 
     <File name="BootFile" fileName="${filename}">
       <PatternLayout>   
         <pattern>%d %p %C{1.} [%t] %m%n</pattern>
       </PatternLayout>
-    </File>    
+    </File>
+    -->    
   </Appenders>
   <Loggers>
    <Root level="info">
-     <AppenderRef ref="STDOUT" level="trace"/>  
-     
+     <AppenderRef ref="STDOUT" level="info"/>  
+     <!-- 
      <AppenderRef ref="SYSLOG" level="trace"/>
      <AppenderRef ref="BootFile" level="trace"/>
-     
+     -->
    </Root>
  </Loggers>
 </Configuration>

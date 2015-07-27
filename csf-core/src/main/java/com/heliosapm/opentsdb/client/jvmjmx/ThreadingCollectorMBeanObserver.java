@@ -67,10 +67,10 @@ public class ThreadingCollectorMBeanObserver extends BaseMBeanObserver {
 	public ThreadingCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
 		super(mbeanServerConn, THREAD_MXBEAN, tags, publishObserverMBean);
 		for(ThreadingAttribute ta: ThreadingAttribute.values()) {
-			otMetrics.put(ta, MetricBuilder.metric(THREAD_MXBEAN.objectName).ext("threading." + ta.attributeName).build());
+			otMetrics.put(ta, MetricBuilder.metric(THREAD_MXBEAN.objectName).tags(this.tags).ext("threading." + ta.attributeName).build());
 		}
 		for(Thread.State state: Thread.State.values()) {
-			otThreadMetrics.put(state, MetricBuilder.metric(THREAD_MXBEAN.objectName).ext("threading.states").tag("state", state.name()).build());
+			otThreadMetrics.put(state, MetricBuilder.metric(THREAD_MXBEAN.objectName).tags(this.tags).ext("threading.states").tag("state", state.name()).build());
 		}
 	}
 	
@@ -82,29 +82,33 @@ public class ThreadingCollectorMBeanObserver extends BaseMBeanObserver {
 	 */
 	@Override
 	protected boolean accept(Map<ObjectName, Map<String, Object>> data, long currentTime, long elapsedTime) {
-		final Map<String, Object> attrValues = data.get(THREAD_MXBEAN.objectName);
-		for(Map.Entry<ThreadingAttribute, OTMetric> entry: otMetrics.entrySet()) {
-			ThreadingAttribute ta = entry.getKey();
-			if(ta.isPrimitive()) {
-				entry.getValue().trace(currentTime, attrValues.get(ta.attributeName));
-			}			
+		try {
+			final Map<String, Object> attrValues = data.get(THREAD_MXBEAN.objectName);
+			for(Map.Entry<ThreadingAttribute, OTMetric> entry: otMetrics.entrySet()) {
+				ThreadingAttribute ta = entry.getKey();
+				if(ta.isPrimitive()) {
+					entry.getValue().trace(currentTime, attrValues.get(ta.attributeName));
+				}			
+			}
+			final long[] threadIDs = (long[])attrValues.get(ThreadingAttribute.ALL_THREAD_IDS.attributeName);
+			final CompositeData[] threadDatas = (CompositeData[])mbs.invoke(THREAD_MXBEAN.objectName, "getThreadInfo", new Object[]{threadIDs}, GET_THREAD_INFOS_SIG);
+			
+			
+			final EnumMap<Thread.State, int[]> accumulator = new EnumMap<Thread.State, int[]>(Thread.State.class);
+			for(Thread.State st: Thread.State.values()) {
+				accumulator.put(st, new int[]{0});
+			}
+			for(CompositeData threadData: threadDatas) {
+				accumulator.get(ThreadInfo.from(threadData).getThreadState())[0]++;
+			}
+			for(Map.Entry<Thread.State, int[]> entry: accumulator.entrySet()) {
+				final int count = entry.getValue()[0];
+				final Thread.State state = entry.getKey();
+				otThreadMetrics.get(state).trace(currentTime, count);
+			}
+		} catch (Exception ex) {
+			log.error("Failed to collect", ex);
 		}
-		final long[] threadIDs = (long[])attrValues.get(ThreadingAttribute.ALL_THREAD_IDS.attributeName);
-		final CompositeData[] threadDatas = (CompositeData[])mbs.invoke(THREAD_MXBEAN.objectName, "getThreadInfo", new Object[]{threadIDs}, GET_THREAD_INFOS_SIG);
-		
-		
-		final EnumMap<Thread.State, int[]> accumulator = new EnumMap<Thread.State, int[]>(Thread.State.class);
-		for(Thread.State st: Thread.State.values()) {
-			accumulator.put(st, new int[]{0});
-		}
-		for(CompositeData threadData: threadDatas) {
-			accumulator.get(ThreadInfo.from(threadData).getThreadState())[0]++;
-		}
-		for(Map.Entry<Thread.State, int[]> entry: accumulator.entrySet()) {
-			final int count = entry.getValue()[0];
-			final Thread.State state = entry.getKey();
-			otThreadMetrics.get(state).trace(currentTime, count);
-		}		
 		return true;
 	}
 

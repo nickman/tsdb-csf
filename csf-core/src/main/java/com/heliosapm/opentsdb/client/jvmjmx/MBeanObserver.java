@@ -85,7 +85,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 		}
 	},
 	/** The compilation MXBean */
-	GARBAGE_COLLECTOR_MXBEAN(GarbageCollectorMXBean.class, JMXHelper.objectName(GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",name=*"), GarbageCollectorAttribute.class){
+	GARBAGE_COLLECTOR_MXBEAN(GarbageCollectorMXBean.class, JMXHelper.objectName(GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",*"), GarbageCollectorAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new GarbageCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
@@ -99,7 +99,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 		}
 	},
 	/** The memory pool MXBean */
-	MEMORY_POOL_MXBEAN(MemoryPoolMXBean.class, JMXHelper.objectName(MEMORY_POOL_MXBEAN_DOMAIN_TYPE + ",name=*"), MemoryPoolAttribute.class){
+	MEMORY_POOL_MXBEAN(MemoryPoolMXBean.class, JMXHelper.objectName(MEMORY_POOL_MXBEAN_DOMAIN_TYPE + ",*"), MemoryPoolAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return new MemoryPoolsCollectorMBeanObserver(mbeanServerConn, tags, publishObserverMBean);
@@ -127,7 +127,7 @@ public enum MBeanObserver implements MXBeanDescriptor, ObserverFactory {
 		}
 	},
 	/** The NIO Buffer Pool MXBean */
-	NIOBUFFER_MXBEAN(Util.loadClassByName("java.lang.management.BufferPoolMXBean", null), JMXHelper.objectName("java.nio:type=BufferPool,name=*"), BufferPoolAttribute.class){
+	NIOBUFFER_MXBEAN(Util.loadClassByName("java.lang.management.BufferPoolMXBean", null), JMXHelper.objectName("java.nio:type=BufferPool,*"), BufferPoolAttribute.class){
 		@Override
 		public BaseMBeanObserver build(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean, final String... args) {
 			return null; // FIXME

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<csf-config domain="com.heliosapm">
+<hub-config domain="com.heliosapm">
 	<sysprops><![CDATA[
 		tsdb.jmx.server.domain=DefaultDomain
 		tsdb.jmx.domain=DefaultDomain
@@ -31,6 +31,23 @@
 	   HotspotMemory, HotspotClassLoading, HotspotCompilation, HotspotRuntime, HotspotThreading
 	  
 	 -->
+	 
+	 <mountjvm match="*" matcher="displayName" matchkey="">
+          <mountpoint>java.lang:*</mountpoint>
+          <mountpoint>java.nio:*</mountpoint>
+          <mountpoint>sun.management:*</mountpoint>
+          <mountpoint>JMImplementation:*</mountpoint>
+          <platform-mbeanobserver period="5" mbeans="false">
+                <includes>java.lang:type=*</includes>
+                <includes>sun.management:type=*</includes>
+                <excludes>sun.management:type=HotspotCompilation</excludes>
+                <excludes>sun.management:type=HotspotMemory</excludes>
+          </platform-mbeanobserver>
+        <appidfinders>
+                com.heliosapm.hub.appidfinders.VMDisplayNameAppIdFinder
+        </appidfinders>
+     </mountjvm>
+	 
 	
 	<platform period="15" collectormbeans="true">
 		<includes>java.lang:type=*</includes>
@@ -42,4 +59,4 @@
 		<server port="18011" iface="0.0.0.0" jmxdomain="DefaultDomain"/>
 		<server port="18012" iface="0.0.0.0" jmxdomain="com.heliosapm"/>
 	</jmxmp>
-</csf-config>
+</hub-config>

@@ -52,18 +52,22 @@ public class CoherenceAppIdFinder implements AppIdFinder {
 	public String getAppId(final MountedJVM jvm) {
 		final String pid = jvm.getId();
 		final String match = ",process:" + pid + ",";
-		final String[] members = (String[])jvm.getMbeanServer().getAttribute(CLUSTER_OBJECT_NAME, "Members");
-		for(String s: members) {
-			if(s.contains(match)) {
-				s = s.replace("MachineId", "");
-				final int index = s.indexOf("Id=");
-				if(index!=0) {
-					final int nextIndex = s.indexOf(",", index);
-					if(nextIndex!=0) {
-						return "coherence" + s.substring(index+3, nextIndex);
+		try {
+			final String[] members = (String[])jvm.getMbeanServer().getAttribute(CLUSTER_OBJECT_NAME, "Members");
+			for(String s: members) {
+				if(s.contains(match)) {
+					s = s.replace("MachineId", "");
+					final int index = s.indexOf("Id=");
+					if(index!=0) {
+						final int nextIndex = s.indexOf(",", index);
+						if(nextIndex!=0) {
+							return "coherence" + s.substring(index+3, nextIndex);
+						}
 					}
 				}
 			}
+		} catch (Exception ex) {
+			/* No Op */
 		}
 		
 		return null;

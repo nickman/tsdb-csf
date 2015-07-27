@@ -328,7 +328,7 @@ public class MBeanObserverSet implements Runnable, MBeanObserverSetMBean {
 	public Set<String> getEnabledObservers() {
 		final Set<String> set = new HashSet<String>();
 		for(BaseMBeanObserver bmo: enabledObservers) {
-			set.add(bmo.getClass().getSimpleName());
+			set.add(bmo.getName());
 		}
 		return set;
 	}
@@ -365,16 +365,16 @@ public class MBeanObserverSet implements Runnable, MBeanObserverSetMBean {
 		while(iter.hasNext()) {
 			final BaseMBeanObserver observer = iter.next();
 			try {
-				log.debug("Executing collection for [{}]", myName);
+				if(log.isDebugEnabled()) log.debug("Executing collection for [{}]--[{}]", myName, observer.getName());
 				final long start = System.currentTimeMillis();
 				observer.run();
 				final long e = System.currentTimeMillis() - start;
 				elapsed.insert(e);
-				log.debug("Executed collection for [{}] in [{}] ms.", myName, e);
+				if(log.isDebugEnabled()) log.debug("Executed collection for [{}]--[{}] in [{}] ms.", observer.getName(), myName, e);
 			} catch (Exception ex) {
-				iter.remove();
-				disabledObservers.add(observer);
-				log.error("MBeanObserverSet Collection Failure", ex);
+//				iter.remove();
+//				disabledObservers.add(observer);
+				log.error("MBeanObserverSet Collection Failure on [{}]", observer.getName(), ex);
 			}
 		}
 	}

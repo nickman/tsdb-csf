@@ -90,11 +90,11 @@ public class HubMain implements Runnable {
 		final Thread scanner = new Thread(this, "JVMScanner");
 		scanner.setDaemon(true);
 		scanner.start();
-		StdInCommandHandler.getInstance().registerCommand("x", new Runnable(){
-			public void run() {
-				main.interrupt();
-			}
-		});
+//		StdInCommandHandler.getInstance().registerCommand("x", new Runnable(){
+//			public void run() {
+//				main.interrupt();
+//			}
+//		});
 		try { Thread.currentThread().join(); } catch (Exception ex) {/* No Op */}
 		log("CSF Hub Shutting down...");
 	}
@@ -115,9 +115,12 @@ public class HubMain implements Runnable {
 		if(scanning.compareAndSet(false, true)) {
 			try {
 				for(VirtualMachineDescriptor vmd: VirtualMachine.list()) {
+					final String descr = vmd.id() + "@" + vmd.displayName();
+					final String displayName = vmd.displayName();
+					final String id = vmd.id();
 					try {
-						if(MY_PID.equals(vmd.id()) || virtualMachines.containsKey(vmd.id())) continue;
-						VirtualMachine jvm = null;
+						if(MY_PID.equals(id) || virtualMachines.containsKey(id) || displayName.toLowerCase().contains("csf-hub")) continue;
+						VirtualMachine jvm = null;						
 						try {
 							jvm = vmd.provider().attachVirtualMachine(vmd.id());
 							for(JMatch j: matchers) {
@@ -141,7 +144,8 @@ public class HubMain implements Runnable {
 							if(jvm!=null) try { jvm.detach(); } catch (Exception x) {/* No Op */}
 						}
 					} catch (Exception ex) {
-						loge("Scan failure: %s", ex);
+						loge("Scan failure on [%s]: %s. My PID is [%s]. Stack trace follows....", descr, ex, MY_PID);
+						ex.printStackTrace(System.err);
 					}
 				}
 				for(MountedJVM vm: virtualMachines.values()) {

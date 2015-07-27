@@ -120,7 +120,7 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 		otMetrics = new HashMap<String, OTMetric>(enabled.size());
 		otDerivedMetrics = new HashMap<String, OTMetric>(DERIVED_OT_METRICS.size());
 		for(OperatingSystemAttribute attr: enabled) {
-			OTMetric otm = MetricBuilder.metric(OPERATING_SYSTEM_MXBEAN.objectName).ext("os." + attr.attributeName).build();
+			OTMetric otm = MetricBuilder.metric(OPERATING_SYSTEM_MXBEAN.objectName).ext("os." + attr.attributeName).tags(this.tags).build();
 			otMetrics.put(attr.attributeName, otm);
 			log.info("Built Metric: [{}]", otm.toString());
 		}
@@ -133,7 +133,7 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 		}
 		for(Map.Entry<String, Set<OperatingSystemAttribute>> entry: DERIVED_OT_METRICS.entrySet()) {
 			if(allEnabled.containsAll(entry.getValue())) {
-				otDerivedMetrics.put(entry.getKey(), MetricBuilder.metric(OPERATING_SYSTEM_MXBEAN.objectName).ext("os." + entry.getKey()).build());
+				otDerivedMetrics.put(entry.getKey(), MetricBuilder.metric(OPERATING_SYSTEM_MXBEAN.objectName).tags(this.tags).ext("os." + entry.getKey()).build());
 			}
 		}
 		traceOneTimes();
@@ -158,7 +158,7 @@ public class OperatingSystemCollectorMBeanObserver extends BaseMBeanObserver {
 		for(OperatingSystemAttribute osa: oneTimerValues.keySet()) {
 			final long value = (Long)values.get(osa.attributeName);
 			oneTimerValues.put(osa, value);
-			MetricBuilder.metric(OPERATING_SYSTEM_MXBEAN.objectName).ext("os." + osa.attributeName).build().trace(currentTime, value);
+			MetricBuilder.metric(OPERATING_SYSTEM_MXBEAN.objectName).ext("os." + osa.attributeName).tags(this.tags).build().trace(currentTime, value);
 		}
 	}
 

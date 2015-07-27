@@ -175,6 +175,14 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 	}
 	
 	/**
+	 * Returns the instance name 
+	 * @return the instance name 
+	 */
+	public String getName() {
+		return getClass().getSimpleName(); 
+	}
+	
+	/**
 	 * If the target MBeanServer is not in-VM and either of the agent name tags has not been supplied,
 	 * this is where we try to figure out what the missing tags should be to represent the remote endpoint.
 	 */
@@ -228,7 +236,7 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 	public void run() {
 		final Context ctx = timer.time();
 		try {
-			refresh();
+			final int cnt = refresh();
 			ctx.stop();
 			snapshot.set(timer.getSnapshot());
 		} catch (Exception ex) {
@@ -241,12 +249,13 @@ public abstract class BaseMBeanObserver implements BaseMBeanObserverMBean, Notif
 	 * Polls the target MBeanServer for this MBeanObserver's target data.
 	 * FIXME:  Allow the impl to override which attributes are repeatedly polled for
 	 */
-	protected void refresh() {
-		final Map<ObjectName, Map<String, Object>> map = new HashMap<ObjectName, Map<String, Object>>(objectNamesAttrs.size());
-		for(Map.Entry<ObjectName, String[]> entry: objectNamesAttrs.entrySet()) {			
+	protected int refresh() {
+		final Map<ObjectName, Map<String, Object>> map = new HashMap<ObjectName, Map<String, Object>>(objectNamesAttrs.size());		
+		for(Map.Entry<ObjectName, String[]> entry: objectNamesAttrs.entrySet()) {	
 			map.put(entry.getKey(), mbs.getAttributeMap(entry.getKey(), entry.getValue()));			
 		}
-		active.set(accept(map, clock.getTime(), elapsed("BaseElapsedTime")));	
+		active.set(accept(map, clock.getTime(), elapsed("BaseElapsedTime")));
+		return map.size();
 	}
 	
 	/**

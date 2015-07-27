@@ -20,6 +20,7 @@ import static com.heliosapm.opentsdb.client.jvmjmx.MBeanObserver.GARBAGE_COLLECT
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -117,6 +118,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 		this(RuntimeMBeanServerConnection.newInstance(jmxConnector), tags, publishObserverMBean);
 		
 	}
+	
 
 	/**
 	 * Creates a new GarbageCollectorMBeanObserver
@@ -127,7 +129,12 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	public GarbageCollectorMBeanObserver(final MBeanServerConnection mbeanServerConn, final Map<String, String> tags, final boolean publishObserverMBean) {
 		super(mbeanServerConn, GARBAGE_COLLECTOR_MXBEAN, tags, publishObserverMBean);
 		liveGc = Constants.IS_JAVA_7 && ConfigurationReader.confBool(Constants.PROP_JMX_LIVE_GC_TRACING, Constants.DEFAULT_JMX_LIVE_GC_TRACING);
-		garbageCollectors = objectNamesAttrs.keySet();
+		try {
+			garbageCollectors = mbeanServerConn.queryNames(new ObjectName(ManagementFactory.GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",*"), null);
+		} catch (Exception ex) {
+			throw new RuntimeException(ex);
+		}
+//		garbageCollectors = objectNamesAttrs.keySet();
 		boolean tmp = false;
 		try {
 			delta(deltaKey("ProcessCPUTime"), (Long)mbs.getAttribute(OS_OBJECT_NAME, "ProcessCpuTime"));
@@ -156,7 +163,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 			Map<String, OTMetric> lcd = new LinkedHashMap<String, OTMetric>(gcCount);
 			for(String gcName: gcNames) {
 				lud.put(gcName, MetricBuilder.metric(BASEMN).ext("freedOnLastGC").tag(GCNAME, gcName).tag(POOLNAME, poolName).tag(MEM_TYPE, MEM_USED).tags(tags).build(groupName));				
-				lud.put(gcName, MetricBuilder.metric(BASEMN).ext("freedOnLastGC").tag(GCNAME, gcName).tag(POOLNAME, poolName).tag(MEM_TYPE, MEM_COMM).tags(tags).build(groupName));
+				lcd.put(gcName, MetricBuilder.metric(BASEMN).ext("freedOnLastGC").tag(GCNAME, gcName).tag(POOLNAME, poolName).tag(MEM_TYPE, MEM_COMM).tags(tags).build(groupName));
 			}
 			lastUsedDelta.put(poolName, lud);
 			lastCommittedDelta.put(poolName, lcd);			
@@ -170,7 +177,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 			if(liveGc) totalDurations.put(gcName, MetricBuilder.metric(BASEMN).ext("totalGCDuration").tag(GCNAME, gcName).tags(tags).build(groupName));
 		}
 		groupMetrics.addAll(MetricBuilder.getGroupSet(groupName));
-		log.info("Group Metrics: {}", groupMetrics.size());
+		log.info("Pool Names: {}, GC Names: {}, Group Metrics: {}", Arrays.toString(poolNames), Arrays.toString(gcNames), groupMetrics.size());
 	}
 	
 	protected void registerGCEventListener() {
@@ -206,13 +213,13 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 * {@inheritDoc}
 	 * @see com.heliosapm.opentsdb.client.jvmjmx.BaseMBeanObserver#accept(java.util.Map, long, long)
 	 */
-	@SuppressWarnings("unchecked")
 	@Override
 	protected boolean accept(final Map<ObjectName, Map<String, Object>> data, final long currentTime, final long elapsedTime) {
 		try {
 			final AtomicLong totalCollectTime = new AtomicLong(-1L);
 			final Set<Map<MUsage, Long>> memUsages = new HashSet<Map<MUsage, Long>>();
 			for(ObjectName on: garbageCollectors) {
+				
 				final Map<String, Object> values = data.get(on);
 				final String gcName = on.getKeyProperty("name");
 				// ======================================
@@ -247,7 +254,7 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 			return true;
 		} catch (Exception ex) {
 			log.error("Collection Failed", ex);
-			return false;
+			return true;
 		}
 	}
 
@@ -261,31 +268,35 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 */
 	@SuppressWarnings("unchecked")
 	protected void gcCollectLastGCEvent(final long currentTime, final Set<Map<MUsage, Long>> memUsages, final Map<String, Object> values, final String gcName, final boolean tracePoolGC) {
-		final CompositeData lgi = (CompositeData)values.get(GarbageCollectorAttribute.LAST_GC_INFO_INIT.attributeName);
-		if(lgi!=null) {
-			try {
-				long duration = (Long)lgi.get("duration");
-				lastDurations.get(gcName).trace(currentTime, duration);
-			} catch (Exception x) {/* No Op */}
-			// memoryUsageAfterGc
-			try {
-				
-				Long gcIdDelta = delta(deltaKey(gcName, "LastGCID"), (Long)lgi.get("id"));
-				if(gcIdDelta!=null && gcIdDelta.longValue()>0) {
+		try {
+			final CompositeData lgi = (CompositeData)values.get(GarbageCollectorAttribute.LAST_GC_INFO_INIT.attributeName);
+			if(lgi!=null) {
+				try {
+					long duration = (Long)lgi.get("duration");
+					lastDurations.get(gcName).trace(currentTime, duration);
+				} catch (Exception x) {/* No Op */}
+				// memoryUsageAfterGc
+				try {
 					
-					// FIXME:  Should we trace all zeros if there has not been a new GC ?
-					final Map<Set<String>, CompositeData> usageBeforeGc = (Map<Set<String>, CompositeData>)lgi.get("memoryUsageBeforeGc");
-					final Map<Set<String>, CompositeData> usageAfterGc = (Map<Set<String>, CompositeData>)lgi.get("memoryUsageAfterGc");					
-					if(usageBeforeGc!=null && usageAfterGc!=null) {
-						for(String poolName: poolNames) {
-							gcCollectLastGCEventByPool(currentTime, memUsages, gcName, poolName, usageBeforeGc, usageAfterGc, tracePoolGC);
+					Long gcIdDelta = delta(deltaKey(gcName, "LastGCID"), (Long)lgi.get("id"));
+					if(gcIdDelta!=null && gcIdDelta.longValue()>0) {
+						
+						// FIXME:  Should we trace all zeros if there has not been a new GC ?
+						final Map<Set<String>, CompositeData> usageBeforeGc = (Map<Set<String>, CompositeData>)lgi.get("memoryUsageBeforeGc");
+						final Map<Set<String>, CompositeData> usageAfterGc = (Map<Set<String>, CompositeData>)lgi.get("memoryUsageAfterGc");					
+						if(usageBeforeGc!=null && usageAfterGc!=null) {
+							for(String poolName: poolNames) {
+								gcCollectLastGCEventByPool(currentTime, memUsages, gcName, poolName, usageBeforeGc, usageAfterGc, tracePoolGC);
+							}
 						}
 					}
+				} catch (Exception x) {
+					/* No Op */
+					log.error("Failed to process MemPool MemoryUsages", x);
 				}
-			} catch (Exception x) {
-				/* No Op */
-				log.error("Failed to process MemPool MemoryUsages", x);
 			}
+		} catch (Exception ex) {
+			log.error("gcCollectLastGCEvent collection failed", ex);
 		}
 	}
 
@@ -325,24 +336,28 @@ public class GarbageCollectorMBeanObserver extends BaseMBeanObserver {
 	 * @param traceRates true to trace collection time and rates, false to trace absolutes only
 	 */
 	protected void gcCollectTimesAndCounts(final long currentTime, final AtomicLong totalCollectTime, final Map<String, Object> values, final String gcName, final boolean traceRates) {
-		final long time = (Long)values.get(GarbageCollectorAttribute.COLLECTION_TIME.attributeName);			
-		final long count = (Long)values.get(GarbageCollectorAttribute.COLLECTION_COUNT.attributeName);
-		final Long timeElapsed = delta(deltaKey(gcName, "collectionTime"), time);
-		totalCollectionTimes.get(gcName).trace(currentTime, time);
-		totalCollectionCounts.get(gcName).trace(currentTime, count);
-		if(timeElapsed != null && timeElapsed > -1) {
-			totalCollectTime.addAndGet(timeElapsed);
-			if(traceRates) collectionTimeRates.get(gcName).trace(currentTime, timeElapsed);
-		} else {
-			if(traceRates) collectionTimeRates.get(gcName).trace(currentTime, 0);
-		}
-		if(traceRates) {
-			final Long countElapsed = delta(deltaKey(gcName, "collectionCount"), count);
-			if(countElapsed!=null && countElapsed > -1) {
-				collectionCountRates.get(gcName).trace(currentTime, countElapsed);
+		try {			
+			final long time = (Long)values.get(GarbageCollectorAttribute.COLLECTION_TIME.attributeName);			
+			final long count = (Long)values.get(GarbageCollectorAttribute.COLLECTION_COUNT.attributeName);
+			final Long timeElapsed = delta(deltaKey(gcName, "collectionTime"), time);
+			totalCollectionTimes.get(gcName).trace(currentTime, time);
+			totalCollectionCounts.get(gcName).trace(currentTime, count);
+			if(timeElapsed != null && timeElapsed > -1) {
+				totalCollectTime.addAndGet(timeElapsed);
+				if(traceRates) collectionTimeRates.get(gcName).trace(currentTime, timeElapsed);
 			} else {
-				collectionCountRates.get(gcName).trace(currentTime, 0);
+				if(traceRates) collectionTimeRates.get(gcName).trace(currentTime, 0);
 			}
+			if(traceRates) {
+				final Long countElapsed = delta(deltaKey(gcName, "collectionCount"), count);
+				if(countElapsed!=null && countElapsed > -1) {
+					collectionCountRates.get(gcName).trace(currentTime, countElapsed);
+				} else {
+					collectionCountRates.get(gcName).trace(currentTime, 0);
+				}
+			}
+		} catch (Exception ex) {
+			log.error("gcCollectTimesAndCounts collection failed", ex);
 		}
 	}
 	

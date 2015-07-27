@@ -21,10 +21,10 @@ import static com.heliosapm.opentsdb.client.opentsdb.Constants.UTF8;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -79,8 +79,8 @@ public class MetricBuilder {
 	/** The buffer factory for allocating buffers to stream metrics out to the tracer */
     private static final DynamicByteBufferBackedChannelBufferFactory bufferFactory = new DynamicByteBufferBackedChannelBufferFactory(128);
     
-    /** A map of OTMetric groups keyed by the group name */
-    private static final Map<String, Set<OTMetric>> groups = new ConcurrentHashMap<String, Set<OTMetric>>();
+    /** A thread local map of OTMetric groups keyed by the group name */
+    private static final ThreadLocal<Map<String, Set<OTMetric>>> groups = new ThreadLocal<Map<String, Set<OTMetric>>>(); 
 
     private static final MetricBuffer METRIC_BUFFER = new MetricBuffer();
     
@@ -531,6 +531,15 @@ public class MetricBuilder {
 		return buildNoCache(null);
 	}
 	
+	private static final Map<String, Set<OTMetric>> getGroups() {
+		Map<String, Set<OTMetric>> map = groups.get();
+		if(map==null) {
+			map = new HashMap<String, Set<OTMetric>>();
+			groups.set(map);
+		}
+		return map;		
+	}
+	
 	// parentId = 0L; 	measurementMask = 0; subMetricMask = 0; chMetric = 0;
 	
 	/**
@@ -543,15 +552,15 @@ public class MetricBuilder {
 		final OTMetric otm = new OTMetric(name, prefix, extension, tags);
 		setMasks(otm);
 		if(groupName!=null) {
-			Set<OTMetric> groupSet = groups.get(groupName);
+			Set<OTMetric> groupSet = getGroups().get(groupName);
 			if(groupSet==null) {
-				synchronized(groups) {
-					groupSet = groups.get(groupName);
-					if(groupSet==null) {
-						groupSet = new CopyOnWriteArraySet<OTMetric>();
-						groups.put(groupName, groupSet);						
-					}
+				
+				groupSet = getGroups().get(groupName);
+				if(groupSet==null) {
+					groupSet = new CopyOnWriteArraySet<OTMetric>();
+					getGroups().put(groupName, groupSet);						
 				}
+			
 			}
 			groupSet.add(otm);
 		}		
@@ -580,14 +589,12 @@ public class MetricBuilder {
 		final OTMetric otMetric = OTMetricCache.getInstance().getOTMetric(name, prefix, extension, tags);
 		setMasks(otMetric);
 		if(groupName!=null) {
-			Set<OTMetric> groupSet = groups.get(groupName);
+			Set<OTMetric> groupSet = getGroups().get(groupName);
 			if(groupSet==null) {
-				synchronized(groups) {
-					groupSet = groups.get(groupName);
-					if(groupSet==null) {
-						groupSet = new CopyOnWriteArraySet<OTMetric>();
-						groups.put(groupName, groupSet);						
-					}
+				groupSet = getGroups().get(groupName);
+				if(groupSet==null) {
+					groupSet = new CopyOnWriteArraySet<OTMetric>();
+					getGroups().put(groupName, groupSet);						
 				}
 			}
 			groupSet.add(otMetric);
@@ -613,14 +620,12 @@ public class MetricBuilder {
 		final OTMetric otMetric = LongIdOTMetricCache.getInstance().getOTMetric(this);
 		setMasks(otMetric);
 		if(groupName!=null) {
-			Set<OTMetric> groupSet = groups.get(groupName);
+			Set<OTMetric> groupSet = getGroups().get(groupName);
 			if(groupSet==null) {
-				synchronized(groups) {
-					groupSet = groups.get(groupName);
-					if(groupSet==null) {
-						groupSet = new CopyOnWriteArraySet<OTMetric>();
-						groups.put(groupName, groupSet);						
-					}
+				groupSet = getGroups().get(groupName);
+				if(groupSet==null) {
+					groupSet = new CopyOnWriteArraySet<OTMetric>();
+					getGroups().put(groupName, groupSet);						
 				}
 			}
 			groupSet.add(otMetric);
@@ -638,8 +643,8 @@ public class MetricBuilder {
 	 */
 	public static Set<OTMetric> getGroupSet(final String groupName, final boolean remove) {
 		if(groupName==null) throw new IllegalArgumentException("The passed group name was null");
-		if(remove) return groups.remove(groupName);
-		return groups.get(groupName);
+		if(remove) return getGroups().remove(groupName);
+		return getGroups().get(groupName);
 	}
 
 	/**
