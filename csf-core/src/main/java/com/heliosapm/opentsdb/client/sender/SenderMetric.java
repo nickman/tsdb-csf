@@ -16,6 +16,8 @@
 
 package com.heliosapm.opentsdb.client.sender;
 
+import java.util.Arrays;
+import java.util.Hashtable;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -69,7 +71,15 @@ public class SenderMetric implements MetricSet, SenderMetricMXBean {
 	 * @param tags The metric tags 
 	 */
 	public SenderMetric(final String metric, final String...tags) {
-		objectName = JMXHelper.objectName(metric, tags);
+		if(tags.length%2!=0) throw new IllegalArgumentException("The tags " + Arrays.toString(tags) + "] has an odd number of items");
+		final Hashtable<String, String> props = new Hashtable<String, String>(); 
+		for(int i = 0; i < tags.length; i++) {
+			String key = tags[i];
+			i++;
+			String value = tags[i];
+			props.put(key, value);
+		}
+		objectName = JMXHelper.objectName(metric, props);
 		sendCounter = new Counter();
 		failedSendCounter = new Counter();
 		badContentCounter = new Counter();
